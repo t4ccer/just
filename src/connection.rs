@@ -6,7 +6,7 @@ use std::{
 };
 
 pub struct XConnectionRead {
-    inner: BufReader<Box<dyn Read>>,
+    pub(crate) inner: BufReader<Box<dyn Read>>,
 }
 
 impl XConnectionRead {
@@ -70,7 +70,7 @@ impl XConnectionRead {
 }
 
 pub struct XConnection {
-    read_end: XConnectionRead,
+    pub(crate) read_end: XConnectionRead,
     write_end: BufWriter<Box<dyn Write>>,
 }
 

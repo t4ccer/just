@@ -1,3 +1,4 @@
+use crate::InitializeConnectionResponseRefused;
 use std::io;
 
 #[derive(Debug)]
@@ -7,6 +8,8 @@ pub enum Error {
     InvalidResponse,
     NoEnv(&'static str),
     IOError(io::Error),
+    CouldNotOpenDisplay(InitializeConnectionResponseRefused),
+    UnknownErrorCode(u8),
 }
 
 impl From<io::Error> for Error {

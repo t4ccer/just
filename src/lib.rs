@@ -1,15 +1,19 @@
+#![allow(dead_code)]
+
 use crate::{
     connection::{XConnection, XConnectionRead},
     error::Error,
     utils::*,
     xauth::XAuth,
+    xerror::XError,
 };
-use std::{fmt::Display, mem};
+use std::{fmt::Display, io::Read, mem, num::NonZeroU32};
 
 pub mod connection;
 pub mod error;
 mod utils;
 pub mod xauth;
+pub mod xerror;
 
 pub trait XRequest: Sized {
     fn to_be_bytes(&self) -> Vec<u8>;
@@ -20,7 +24,7 @@ pub trait XResponse: Sized {
 }
 
 #[derive(Debug)]
-struct InitializeConnectionRequest {
+pub struct InitializeConnectionRequest {
     major_version: u16,
     minor_version: u16,
     authorization_protocol_name: Vec<u8>,
@@ -73,7 +77,7 @@ impl XResponse for InitializeConnectionResponse {
 }
 
 #[derive(Debug)]
-struct InitializeConnectionResponseRefused {
+pub struct InitializeConnectionResponseRefused {
     protocol_major_version: u16,
     protocol_minor_version: u16,
     reason: Vec<u8>,
@@ -95,11 +99,17 @@ impl XResponse for InitializeConnectionResponseRefused {
     }
 }
 
-#[allow(dead_code)]
-#[derive(Debug)]
-struct Window(u32);
+#[derive(Debug, Clone, Copy)]
+pub struct Window(u32);
 
-#[allow(dead_code)]
+impl Window {
+    pub fn map(self, display: &mut XDisplay) -> Result<(), Error> {
+        let request = MapWindowRequest { window: self };
+        display.connection.send_request(&request)?;
+        Ok(())
+    }
+}
+
 #[derive(Debug)]
 #[repr(u8)]
 enum VisualClass {
@@ -122,9 +132,8 @@ impl TryFrom<u8> for VisualClass {
     }
 }
 
-#[allow(dead_code)]
 #[derive(Debug)]
-struct Visual {
+pub struct Visual {
     id: u32,
     class: VisualClass,
     bits_per_rgb_value: u8,
@@ -156,9 +165,8 @@ impl Visual {
     }
 }
 
-#[allow(dead_code)]
 #[derive(Debug)]
-struct Depth {
+pub struct Depth {
     depth: u8,
     visuals: Vec<Visual>,
 }
@@ -174,7 +182,6 @@ impl Depth {
     }
 }
 
-#[allow(dead_code)]
 #[derive(Debug)]
 #[repr(u8)]
 enum BackingStore {
@@ -195,9 +202,8 @@ impl TryFrom<u8> for BackingStore {
     }
 }
 
-#[allow(dead_code)]
 #[derive(Debug)]
-struct Screen {
+pub struct Screen {
     root: Window,
     default_colormat: u32,
     white_pixel: u32,
@@ -259,9 +265,8 @@ impl Screen {
     }
 }
 
-#[allow(dead_code)]
 #[derive(Debug)]
-struct Format {
+pub struct Format {
     depth: u8,
     bits_per_pixel: u8,
     scanline_pad: u8,
@@ -279,9 +284,8 @@ impl Format {
     }
 }
 
-#[allow(dead_code)]
 #[derive(Debug)]
-struct InitializeConnectionResponseSuccess {
+pub struct InitializeConnectionResponseSuccess {
     protocol_major_version: u16,
     protocol_minor_version: u16,
     release_number: u32,
@@ -359,28 +363,176 @@ impl Display for InitializeConnectionResponseRefused {
     }
 }
 
-pub fn go() -> Result<(), Error> {
-    let auth = XAuth::from_env()?;
-    let mut conn = XConnection::from_env()?;
-    let init = InitializeConnectionRequest {
-        major_version: 11,
-        minor_version: 0,
-        authorization_protocol_name: auth.name,
-        authorization_protocol_data: auth.data,
-    };
+#[derive(Debug, Clone, Copy)]
+#[repr(u16)]
+enum WindowClass {
+    CopyFromParent = 0,
+    InputOutput = 1,
+    InputOnly = 2,
+}
 
-    conn.send_request(&init)?;
-    let response = conn.read_response::<InitializeConnectionResponse>()?;
+#[derive(Debug, Clone, Copy)]
+pub struct VisualId(NonZeroU32);
 
-    match &response {
-        InitializeConnectionResponse::Refused(response) => {
-            eprintln!("{}", response);
-        }
-        InitializeConnectionResponse::Success(response) => {
-            // eprintln!("{:#?}", response);
-            eprintln!("Vendor: {}", display_maybe_utf8(&response.vendor));
+#[derive(Debug, Clone, Copy)]
+enum WindowVisual {
+    CopyFromParent,
+    Id(VisualId),
+}
+
+impl WindowVisual {
+    pub fn value(self) -> u32 {
+        match self {
+            WindowVisual::CopyFromParent => 0,
+            WindowVisual::Id(vid) => vid.0.get(),
         }
     }
+}
+
+#[derive(Debug)]
+pub struct CreateWindowRequest {
+    depth: u8,
+    wid: Window,
+    parent: Window,
+    x: i16,
+    y: i16,
+    width: u16,
+    height: u16,
+    border_width: u16,
+    window_class: WindowClass,
+    visual: WindowVisual,
+    // TODO: values
+}
+
+impl XRequest for CreateWindowRequest {
+    fn to_be_bytes(&self) -> Vec<u8> {
+        let mut request = Vec::new();
+
+        request.extend(1u8.to_be_bytes());
+        request.extend(self.depth.to_be_bytes());
+        request.extend(8u16.to_be_bytes()); // TODO: values
+        request.extend(self.wid.0.to_be_bytes());
+        request.extend(self.parent.0.to_be_bytes());
+        request.extend(self.x.to_be_bytes());
+        request.extend(self.y.to_be_bytes());
+        request.extend(self.width.to_be_bytes());
+        request.extend(self.height.to_be_bytes());
+        request.extend(self.border_width.to_be_bytes());
+        request.extend((self.window_class as u16).to_be_bytes());
+        request.extend(self.visual.value().to_be_bytes());
+        request.extend(0u32.to_be_bytes()); // TODO: values
+
+        request
+    }
+}
+
+#[derive(Debug, Clone, Copy)]
+pub struct MapWindowRequest {
+    window: Window,
+}
+
+impl XRequest for MapWindowRequest {
+    fn to_be_bytes(&self) -> Vec<u8> {
+        let mut request = Vec::with_capacity(8);
+
+        request.extend(8u8.to_be_bytes());
+        request.extend(0u8.to_be_bytes());
+        request.extend(2u16.to_be_bytes());
+        request.extend(self.window.0.to_be_bytes());
+
+        request
+    }
+}
+
+pub struct XDisplay {
+    response: InitializeConnectionResponseSuccess,
+    connection: XConnection,
+    next_id: u32,
+}
+
+impl XDisplay {
+    pub fn open() -> Result<Self, Error> {
+        let mut connection = XConnection::from_env()?;
+        let auth = XAuth::from_env()?;
+
+        let init = InitializeConnectionRequest {
+            major_version: 11,
+            minor_version: 0,
+            authorization_protocol_name: auth.name,
+            authorization_protocol_data: auth.data,
+        };
+        connection.send_request(&init)?;
+
+        let response = connection.read_response::<InitializeConnectionResponse>()?;
+        let response = match response {
+            InitializeConnectionResponse::Refused(response) => {
+                return Err(Error::CouldNotOpenDisplay(response));
+            }
+            InitializeConnectionResponse::Success(response) => response,
+        };
+
+        Ok(Self {
+            response,
+            connection,
+            next_id: 0,
+        })
+    }
+
+    fn allocate_new_id(&mut self) -> u32 {
+        let ret = self.response.resource_id_base | (self.response.resource_id_mask & self.next_id);
+        self.next_id += 1;
+        ret
+    }
+
+    pub fn create_window(&mut self) -> Result<Window, Error> {
+        let wid = Window(self.allocate_new_id());
+        let create_window = CreateWindowRequest {
+            depth: self.response.screens[0].allowed_depths[0].depth,
+            wid,
+            parent: self.response.screens[0].root,
+            x: 0,
+            y: 0,
+            width: 800,
+            height: 600,
+            border_width: 0,
+            window_class: WindowClass::CopyFromParent,
+            visual: WindowVisual::CopyFromParent,
+        };
+        self.connection.send_request(&create_window)?;
+
+        Ok(wid)
+    }
+}
+
+struct GetInputFocusRequest;
+
+impl XRequest for GetInputFocusRequest {
+    fn to_be_bytes(&self) -> Vec<u8> {
+        let mut request = Vec::new();
+
+        request.extend(43u8.to_be_bytes());
+        request.extend(0u8.to_be_bytes());
+        request.extend(1u16.to_be_bytes());
+
+        request
+    }
+}
+
+pub fn go() -> Result<(), Error> {
+    let mut display = XDisplay::open()?;
+    let window = display.create_window()?;
+    window.map(&mut display)?;
+
+    // display.connection.send_request(&GetInputFocusRequest)?;
+
+    // let err = display.connection.read_response::<XError>()?;
+    // dbg!(&err);
+
+    // let mut buf = [0; 0x100];
+    // display.connection.read_end.inner.read(&mut buf)?;
+    // dbg!(&buf);
+
+    std::thread::sleep(std::time::Duration::from_secs(5));
 
     Ok(())
 }
