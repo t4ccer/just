@@ -3,7 +3,7 @@ use std::time::Duration;
 
 pub fn go() -> Result<(), Error> {
     let mut display = XDisplay::open()?;
-    let window = display.create_window()?;
+    let window = display.create_simple_window()?;
     window.map(&mut display)?;
 
     let gc = window.create_gc(&mut display, GcParams::new())?;

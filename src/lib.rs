@@ -478,16 +478,19 @@ impl XDisplay {
     }
 
     fn allocate_new_id(&mut self) -> u32 {
-        let new_part = self.response.resource_id_mask & self.next_id;
+        let new_part = self.response.resource_id_mask
+            & (self.next_id << self.response.resource_id_mask.trailing_zeros());
         self.next_id += 1;
 
-        // FIXME: Robust id generation
-        assert!(new_part != self.response.resource_id_mask);
+        assert!(
+            new_part != self.response.resource_id_mask,
+            "Invalid ID allocated"
+        );
 
         self.response.resource_id_base | new_part
     }
 
-    pub fn create_window(&mut self) -> Result<Window, Error> {
+    pub fn create_simple_window(&mut self) -> Result<Window, Error> {
         let wid = Window(self.allocate_new_id());
         let create_window = CreateWindow {
             depth: self.response.screens[0].allowed_depths[0].depth,
