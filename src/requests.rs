@@ -65,8 +65,8 @@ impl BeBytes for CreateWindow {
         write_be_bytes!(w, opcodes::CREATE_WINDOW);
         write_be_bytes!(w, self.depth);
         write_be_bytes!(w, 8u16); // length, TODO: values
-        write_be_bytes!(w, self.wid.0);
-        write_be_bytes!(w, self.parent.0);
+        write_be_bytes!(w, self.wid.id().value());
+        write_be_bytes!(w, self.parent.id().value());
         write_be_bytes!(w, self.x);
         write_be_bytes!(w, self.y);
         write_be_bytes!(w, self.width);
@@ -94,7 +94,7 @@ impl BeBytes for MapWindow {
         write_be_bytes!(w, opcodes::MAP_WINDOW);
         write_be_bytes!(w, 0u8); // unused
         write_be_bytes!(w, 2u16); // size
-        write_be_bytes!(w, self.window.0);
+        write_be_bytes!(w, self.window.id().value());
 
         Ok(())
     }
@@ -117,7 +117,7 @@ impl BeBytes for PolyFillRectangle {
         write_be_bytes!(w, 0u8); // unused
         write_be_bytes!(w, 3 + (2 * n)); // request length
         write_be_bytes!(w, self.drawable.value());
-        write_be_bytes!(w, self.gc.0);
+        write_be_bytes!(w, self.gc.id().value());
         for rectangle in &self.rectangles {
             rectangle.to_be_bytes(w)?;
         }
@@ -237,7 +237,7 @@ impl BeBytes for CreateGc {
         write_be_bytes!(w, opcodes::CREATE_GC);
         write_be_bytes!(w, 0u8); // unused
         write_be_bytes!(w, 4u16 + n); // length
-        write_be_bytes!(w, self.cid.0);
+        write_be_bytes!(w, self.cid.id().value());
         write_be_bytes!(w, self.drawable.value());
         write_be_bytes!(w, bitmask);
         self.values.to_be_bytes_if_set(w)?;
@@ -261,7 +261,7 @@ impl BeBytes for ChangeGC {
         write_be_bytes!(w, opcodes::CHANGE_GC);
         write_be_bytes!(w, 0u8); // unused
         write_be_bytes!(w, 3 + n); // length
-        write_be_bytes!(w, self.gcontext.0);
+        write_be_bytes!(w, self.gcontext.id().value());
         write_be_bytes!(w, bitmask);
         self.values.to_be_bytes_if_set(w)?;
 

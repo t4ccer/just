@@ -31,6 +31,45 @@ pub trait XResponse: Sized {
     fn from_be_bytes(conn: &mut XConnectionRead) -> Result<Self, Error>;
 }
 
+#[derive(Debug, Clone, Copy)]
+pub struct ResourceId {
+    value: NonZeroU32,
+}
+
+impl ResourceId {
+    pub fn value(self) -> u32 {
+        self.value.get()
+    }
+}
+
+#[derive(Debug, Clone, Copy)]
+pub struct IdAllocator {
+    id_base: u32,
+    id_mask: u32,
+    next_id: u32,
+}
+
+impl IdAllocator {
+    pub fn new(id_base: u32, id_mask: u32) -> Self {
+        Self {
+            id_base,
+            id_mask,
+            next_id: 1,
+        }
+    }
+
+    pub fn allocate_id(&mut self) -> ResourceId {
+        let new_part = self.id_mask & (self.next_id << self.id_mask.trailing_zeros());
+        self.next_id += 1;
+
+        assert!(new_part != self.id_mask, "Invalid ID allocated");
+
+        ResourceId {
+            value: NonZeroU32::new(self.id_base | new_part).unwrap(),
+        }
+    }
+}
+
 #[derive(Debug)]
 pub enum InitializeConnectionResponse {
     Refused(InitializeConnectionResponseRefused),
@@ -77,9 +116,13 @@ impl XResponse for InitializeConnectionResponseRefused {
 }
 
 #[derive(Debug, Clone, Copy)]
-pub struct Window(u32);
+pub struct Window(ResourceId);
 
 impl Window {
+    pub fn id(self) -> ResourceId {
+        self.0
+    }
+
     pub fn map(self, display: &mut XDisplay) -> Result<(), Error> {
         let request = MapWindow { window: self };
         display.connection.send_request(&request)?;
@@ -87,7 +130,7 @@ impl Window {
     }
 
     pub fn create_gc(self, display: &mut XDisplay, values: GcParams) -> Result<GContext, Error> {
-        let cid = GContext(display.allocate_new_id());
+        let cid = GContext(display.id_allocator.allocate_id());
 
         let request = CreateGc {
             cid,
@@ -229,7 +272,9 @@ pub struct Screen {
 
 impl Screen {
     fn from_be_bytes(conn: &mut XConnectionRead) -> Result<Self, Error> {
-        let root = Window(conn.read_u32_be()?);
+        let root = Window(ResourceId {
+            value: NonZeroU32::new(conn.read_u32_be()?).unwrap(),
+        });
         let default_colormat = conn.read_u32_be()?;
         let white_pixel = conn.read_u32_be()?;
         let black_pixel = conn.read_u32_be()?;
@@ -377,7 +422,13 @@ pub enum WindowClass {
 }
 
 #[derive(Debug, Clone, Copy)]
-pub struct VisualId(NonZeroU32);
+pub struct VisualId(ResourceId);
+
+impl VisualId {
+    pub fn id(self) -> ResourceId {
+        self.0
+    }
+}
 
 #[derive(Debug, Clone, Copy)]
 pub enum WindowVisual {
@@ -389,7 +440,7 @@ impl WindowVisual {
     pub fn value(self) -> u32 {
         match self {
             WindowVisual::CopyFromParent => 0,
-            WindowVisual::Id(vid) => vid.0.get(),
+            WindowVisual::Id(vid) => vid.id().value(),
         }
     }
 }
@@ -403,7 +454,7 @@ pub enum Drawable {
 impl Drawable {
     fn value(self) -> u32 {
         match self {
-            Drawable::Window(window) => window.0,
+            Drawable::Window(window) => window.id().value(),
             Drawable::Pixmap(pixmap) => pixmap,
         }
     }
@@ -429,9 +480,13 @@ impl BeBytes for Rectangle {
 }
 
 #[derive(Debug, Clone, Copy)]
-pub struct GContext(u32);
+pub struct GContext(ResourceId);
 
 impl GContext {
+    pub fn id(self) -> ResourceId {
+        self.0
+    }
+
     pub fn change(self, display: &mut XDisplay, settings: GcParams) -> Result<(), Error> {
         let request = ChangeGC {
             gcontext: self,
@@ -443,9 +498,9 @@ impl GContext {
 }
 
 pub struct XDisplay {
-    pub response: InitializeConnectionResponseSuccess,
+    pub id_allocator: IdAllocator,
+    pub screens: Vec<Screen>,
     pub connection: XConnection,
-    pub next_id: u32,
 }
 
 impl XDisplay {
@@ -470,32 +525,21 @@ impl XDisplay {
             InitializeConnectionResponse::Success(response) => response,
         };
 
+        let id_allocator = IdAllocator::new(response.resource_id_base, response.resource_id_mask);
+
         Ok(Self {
-            response,
+            id_allocator,
+            screens: response.screens,
             connection,
-            next_id: 1,
         })
     }
 
-    fn allocate_new_id(&mut self) -> u32 {
-        let new_part = self.response.resource_id_mask
-            & (self.next_id << self.response.resource_id_mask.trailing_zeros());
-        self.next_id += 1;
-
-        assert!(
-            new_part != self.response.resource_id_mask,
-            "Invalid ID allocated"
-        );
-
-        self.response.resource_id_base | new_part
-    }
-
     pub fn create_simple_window(&mut self) -> Result<Window, Error> {
-        let wid = Window(self.allocate_new_id());
+        let new_window_id = Window(self.id_allocator.allocate_id());
         let create_window = CreateWindow {
-            depth: self.response.screens[0].allowed_depths[0].depth,
-            wid,
-            parent: self.response.screens[0].root,
+            depth: self.screens[0].allowed_depths[0].depth,
+            wid: new_window_id,
+            parent: self.screens[0].root,
             x: 0,
             y: 0,
             width: 800,
@@ -506,6 +550,6 @@ impl XDisplay {
         };
         self.connection.send_request(&create_window)?;
 
-        Ok(wid)
+        Ok(new_window_id)
     }
 }
