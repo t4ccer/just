@@ -87,7 +87,11 @@ impl TryFrom<UnixStream> for XConnection {
 
 impl XConnection {
     pub fn send_request(&mut self, request: &impl XRequest) -> Result<(), Error> {
-        self.write_end.write_all(&request.to_be_bytes())?;
+        request.to_be_bytes(&mut self.write_end)?;
+        Ok(())
+    }
+
+    pub fn flush(&mut self) -> Result<(), Error> {
         self.write_end.flush()?;
         Ok(())
     }

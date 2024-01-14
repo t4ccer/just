@@ -1,10 +1,11 @@
-use crate::{utils::pad, Drawable, GContext, Rectangle, Window, WindowClass, WindowVisual};
+use crate::{
+    utils::pad, BeBytes, Drawable, GContext, Rectangle, Window, WindowClass, WindowVisual,
+};
+use std::io::{self, Write};
 
 mod opcodes;
 
-pub trait XRequest: Sized {
-    fn to_be_bytes(&self) -> Vec<u8>;
-}
+pub trait XRequest: BeBytes {}
 
 #[derive(Debug, Clone)]
 pub struct InitializeConnection {
@@ -14,28 +15,29 @@ pub struct InitializeConnection {
     pub authorization_protocol_data: Vec<u8>,
 }
 
-impl XRequest for InitializeConnection {
-    fn to_be_bytes(&self) -> Vec<u8> {
+impl BeBytes for InitializeConnection {
+    fn to_be_bytes(&self, w: &mut impl Write) -> io::Result<()> {
         let n = self.authorization_protocol_name.len();
         let p = pad(n);
         let d = self.authorization_protocol_data.len();
         let q = pad(d);
-        let mut bytes = Vec::<u8>::with_capacity(10 + n + p + d + q);
 
-        bytes.extend(b"B\0");
-        bytes.extend(self.major_version.to_be_bytes());
-        bytes.extend(self.minor_version.to_be_bytes());
-        bytes.extend((n as u16).to_be_bytes());
-        bytes.extend((d as u16).to_be_bytes());
-        bytes.extend([0u8; 2]); // unused
-        bytes.extend(&self.authorization_protocol_name);
-        bytes.extend(vec![0u8; p]); // unused, pad
-        bytes.extend(&self.authorization_protocol_data);
-        bytes.extend(vec![0u8; q]); // unused, pad
+        w.write_all(b"B\0")?;
+        w.write_all(&self.major_version.to_be_bytes())?;
+        w.write_all(&self.minor_version.to_be_bytes())?;
+        w.write_all(&(n as u16).to_be_bytes())?;
+        w.write_all(&(d as u16).to_be_bytes())?;
+        w.write_all(&[0u8; 2])?; // unused
+        w.write_all(&self.authorization_protocol_name)?;
+        w.write_all(&vec![0u8; p])?; // unused, pad
+        w.write_all(&self.authorization_protocol_data)?;
+        w.write_all(&vec![0u8; q])?; // unused, pad
 
-        bytes
+        Ok(())
     }
 }
+
+impl XRequest for InitializeConnection {}
 
 #[derive(Debug, Clone)]
 pub struct CreateWindow {
@@ -52,45 +54,45 @@ pub struct CreateWindow {
     // TODO: values
 }
 
-impl XRequest for CreateWindow {
-    fn to_be_bytes(&self) -> Vec<u8> {
-        let mut request = Vec::new();
+impl BeBytes for CreateWindow {
+    fn to_be_bytes(&self, w: &mut impl Write) -> io::Result<()> {
+        w.write_all(&opcodes::CREATE_WINDOW.to_be_bytes())?;
+        w.write_all(&self.depth.to_be_bytes())?;
+        w.write_all(&8u16.to_be_bytes())?; // TODO: values
+        w.write_all(&self.wid.0.to_be_bytes())?;
+        w.write_all(&self.parent.0.to_be_bytes())?;
+        w.write_all(&self.x.to_be_bytes())?;
+        w.write_all(&self.y.to_be_bytes())?;
+        w.write_all(&self.width.to_be_bytes())?;
+        w.write_all(&self.height.to_be_bytes())?;
+        w.write_all(&self.border_width.to_be_bytes())?;
+        w.write_all(&(self.window_class as u16).to_be_bytes())?;
+        w.write_all(&self.visual.value().to_be_bytes())?;
+        w.write_all(&0u32.to_be_bytes())?; // TODO: values
 
-        request.extend(opcodes::CREATE_WINDOW.to_be_bytes());
-        request.extend(self.depth.to_be_bytes());
-        request.extend(8u16.to_be_bytes()); // TODO: values
-        request.extend(self.wid.0.to_be_bytes());
-        request.extend(self.parent.0.to_be_bytes());
-        request.extend(self.x.to_be_bytes());
-        request.extend(self.y.to_be_bytes());
-        request.extend(self.width.to_be_bytes());
-        request.extend(self.height.to_be_bytes());
-        request.extend(self.border_width.to_be_bytes());
-        request.extend((self.window_class as u16).to_be_bytes());
-        request.extend(self.visual.value().to_be_bytes());
-        request.extend(0u32.to_be_bytes()); // TODO: values
-
-        request
+        Ok(())
     }
 }
+
+impl XRequest for CreateWindow {}
 
 #[derive(Debug, Clone, Copy)]
 pub struct MapWindow {
     pub window: Window,
 }
 
-impl XRequest for MapWindow {
-    fn to_be_bytes(&self) -> Vec<u8> {
-        let mut request = Vec::with_capacity(8);
+impl BeBytes for MapWindow {
+    fn to_be_bytes(&self, w: &mut impl Write) -> io::Result<()> {
+        w.write_all(&opcodes::MAP_WINDOW.to_be_bytes())?;
+        w.write_all(&0u8.to_be_bytes())?; // unused
+        w.write_all(&2u16.to_be_bytes())?; // size
+        w.write_all(&self.window.0.to_be_bytes())?;
 
-        request.extend(opcodes::MAP_WINDOW.to_be_bytes());
-        request.extend(0u8.to_be_bytes()); // unused
-        request.extend(2u16.to_be_bytes()); // size
-        request.extend(self.window.0.to_be_bytes());
-
-        request
+        Ok(())
     }
 }
+
+impl XRequest for MapWindow {}
 
 #[derive(Debug, Clone)]
 pub struct PolyFillRectangle {
@@ -99,24 +101,24 @@ pub struct PolyFillRectangle {
     pub rectangles: Vec<Rectangle>,
 }
 
-impl XRequest for PolyFillRectangle {
-    fn to_be_bytes(&self) -> Vec<u8> {
+impl BeBytes for PolyFillRectangle {
+    fn to_be_bytes(&self, w: &mut impl Write) -> io::Result<()> {
         let n: u16 = self.rectangles.len() as u16;
 
-        let mut request = Vec::with_capacity(n as usize);
+        w.write_all(&opcodes::POLY_FILL_RECTANGLE.to_be_bytes())?;
+        w.write_all(&0u8.to_be_bytes())?; // unused
+        w.write_all(&(3 + 2 * n).to_be_bytes())?; // request length
+        w.write_all(&self.drawable.value().to_be_bytes())?;
+        w.write_all(&self.gc.0.to_be_bytes())?;
+        for rectangle in &self.rectangles {
+            rectangle.to_be_bytes(w)?;
+        }
 
-        request.extend(opcodes::POLY_FILL_RECTANGLE.to_be_bytes());
-        request.extend(0u8.to_be_bytes()); // unused
-        request.extend((3 + 2 * n).to_be_bytes()); // request length
-        request.extend(self.drawable.value().to_be_bytes());
-        request.extend(self.gc.0.to_be_bytes());
-        self.rectangles
-            .iter()
-            .for_each(|rectangle| request.extend(rectangle.to_be_bytes()));
-
-        request
+        Ok(())
     }
 }
+
+impl XRequest for PolyFillRectangle {}
 
 macro_rules! impl_raw_field {
     ($struct:path, $getter:ident, $setter:ident, $idx:expr) => {
@@ -126,8 +128,9 @@ macro_rules! impl_raw_field {
                 self.raw_values[$idx]
             }
 
-            pub fn $setter(&mut self, new_value: u32) {
+            pub fn $setter(mut self, new_value: u32) -> Self {
                 self.raw_values[$idx] = Some(new_value);
+                self
             }
         }
     };
@@ -180,6 +183,31 @@ impl_raw_field!(GcParams, dash_offset, set_dash_offset, 20);
 impl_raw_field!(GcParams, dashes, set_dashes, 21);
 impl_raw_field!(GcParams, arc_mode, set_arc_mode, 22);
 
+impl GcParams {
+    pub fn mask_and_count(&self) -> (u32, u16) {
+        let mut bitmask: u32 = 0;
+        let mut n: u16 = 0;
+
+        for value in self.raw_values.iter().rev() {
+            bitmask <<= 1;
+            bitmask |= value.is_some() as u32;
+            n += value.is_some() as u16;
+        }
+
+        (bitmask, n)
+    }
+
+    pub fn to_be_bytes_if_set(&self, w: &mut impl Write) -> io::Result<()> {
+        for value in self.raw_values {
+            if let Some(value) = value {
+                w.write_all(&value.to_be_bytes())?;
+            }
+        }
+
+        Ok(())
+    }
+}
+
 #[derive(Debug, Clone)]
 pub struct CreateGc {
     pub cid: GContext,
@@ -187,46 +215,58 @@ pub struct CreateGc {
     pub values: GcParams,
 }
 
-impl XRequest for CreateGc {
-    fn to_be_bytes(&self) -> Vec<u8> {
-        let mut request = Vec::new();
+impl BeBytes for CreateGc {
+    fn to_be_bytes(&self, w: &mut impl Write) -> io::Result<()> {
+        let (bitmask, n) = self.values.mask_and_count();
 
-        let mut n: u16 = 0;
-        let mut bitmask: u32 = 0;
-        for value in self.values.raw_values.iter().rev() {
-            bitmask <<= 1;
-            bitmask |= value.is_some() as u32;
-            n += value.is_some() as u16;
-        }
+        w.write_all(&opcodes::CREATE_GC.to_be_bytes())?;
+        w.write_all(&0u8.to_be_bytes())?; // unused
+        w.write_all(&(4u16 + n).to_be_bytes())?; // length
+        w.write_all(&self.cid.0.to_be_bytes())?;
+        w.write_all(&self.drawable.value().to_be_bytes())?;
+        w.write_all(&bitmask.to_be_bytes())?;
+        self.values.to_be_bytes_if_set(w)?;
 
-        request.extend(opcodes::CREATE_GC.to_be_bytes());
-        request.extend(0u8.to_be_bytes()); // unused
-        request.extend((4u16 + n).to_be_bytes()); // length
-        request.extend(self.cid.0.to_be_bytes());
-        request.extend(self.drawable.value().to_be_bytes());
-        request.extend(bitmask.to_be_bytes());
-
-        for value in self.values.raw_values {
-            if let Some(value) = value {
-                request.extend(value.to_be_bytes());
-            }
-        }
-
-        request
+        Ok(())
     }
 }
+
+impl XRequest for CreateGc {}
+
+#[derive(Debug, Clone)]
+pub struct ChangeGC {
+    pub gcontext: GContext,
+    pub values: GcParams,
+}
+
+impl BeBytes for ChangeGC {
+    fn to_be_bytes(&self, w: &mut impl Write) -> io::Result<()> {
+        let (bitmask, n) = self.values.mask_and_count();
+
+        w.write_all(&opcodes::CHANGE_GC.to_be_bytes())?;
+        w.write_all(&0u8.to_be_bytes())?; // unused
+        w.write_all(&(3 + n).to_be_bytes())?; // length
+        w.write_all(&self.gcontext.0.to_be_bytes())?;
+        w.write_all(&bitmask.to_be_bytes())?;
+        self.values.to_be_bytes_if_set(w)?;
+
+        Ok(())
+    }
+}
+
+impl XRequest for ChangeGC {}
 
 #[derive(Debug, Clone)]
 pub struct GetInputFocus;
 
-impl XRequest for GetInputFocus {
-    fn to_be_bytes(&self) -> Vec<u8> {
-        let mut request = Vec::new();
+impl BeBytes for GetInputFocus {
+    fn to_be_bytes(&self, w: &mut impl Write) -> io::Result<()> {
+        w.write_all(&opcodes::GET_INPUT_FOCUS.to_be_bytes())?;
+        w.write_all(&0u8.to_be_bytes())?; // unused
+        w.write_all(&1u16.to_be_bytes())?; // length
 
-        request.extend(opcodes::GET_INPUT_FOCUS.to_be_bytes());
-        request.extend(0u8.to_be_bytes()); // unused
-        request.extend(1u16.to_be_bytes()); // length
-
-        request
+        Ok(())
     }
 }
+
+impl XRequest for GetInputFocus {}

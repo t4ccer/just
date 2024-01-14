@@ -1,21 +1,31 @@
+use requests::ChangeGC;
+
 use crate::{
     connection::{XConnection, XConnectionRead},
     error::Error,
     requests::{
-        CreateGc, CreateWindow, GcParams, GetInputFocus, InitializeConnection, MapWindow,
-        PolyFillRectangle,
+        CreateGc, CreateWindow, GcParams, InitializeConnection, MapWindow, PolyFillRectangle,
     },
     utils::*,
     xauth::XAuth,
 };
-use std::{fmt::Display, mem, num::NonZeroU32};
+use std::{
+    fmt::Display,
+    io::{self, Write},
+    mem,
+    num::NonZeroU32,
+};
 
 pub mod connection;
 pub mod error;
-mod requests;
+pub mod requests;
 mod utils;
 pub mod xauth;
 pub mod xerror;
+
+pub trait BeBytes: Sized {
+    fn to_be_bytes(&self, w: &mut impl Write) -> io::Result<()>;
+}
 
 pub trait XResponse: Sized {
     fn from_be_bytes(conn: &mut XConnectionRead) -> Result<Self, Error>;
@@ -76,11 +86,8 @@ impl Window {
         Ok(())
     }
 
-    pub fn create_gc(self, display: &mut XDisplay) -> Result<GContext, Error> {
+    pub fn create_gc(self, display: &mut XDisplay, values: GcParams) -> Result<GContext, Error> {
         let cid = GContext(display.allocate_new_id());
-        let mut values = GcParams::new();
-        values.set_background(0xffffffff);
-        values.set_foreground(0xffffffff);
 
         let request = CreateGc {
             cid,
@@ -404,32 +411,41 @@ impl Drawable {
 
 #[derive(Debug, Clone, Copy)]
 pub struct Rectangle {
-    x: i16,
-    y: i16,
-    width: u16,
-    height: u16,
+    pub x: i16,
+    pub y: i16,
+    pub width: u16,
+    pub height: u16,
 }
 
-impl Rectangle {
-    fn to_be_bytes(&self) -> Vec<u8> {
-        let mut res = Vec::with_capacity(8);
+impl BeBytes for Rectangle {
+    fn to_be_bytes(&self, w: &mut impl Write) -> io::Result<()> {
+        w.write_all(&self.x.to_be_bytes())?;
+        w.write_all(&self.y.to_be_bytes())?;
+        w.write_all(&self.width.to_be_bytes())?;
+        w.write_all(&self.height.to_be_bytes())?;
 
-        res.extend(self.x.to_be_bytes());
-        res.extend(self.y.to_be_bytes());
-        res.extend(self.width.to_be_bytes());
-        res.extend(self.height.to_be_bytes());
-
-        res
+        Ok(())
     }
 }
 
 #[derive(Debug, Clone, Copy)]
 pub struct GContext(u32);
 
+impl GContext {
+    pub fn change(self, display: &mut XDisplay, settings: GcParams) -> Result<(), Error> {
+        let request = ChangeGC {
+            gcontext: self,
+            values: settings,
+        };
+        display.connection.send_request(&request)?;
+        Ok(())
+    }
+}
+
 pub struct XDisplay {
-    response: InitializeConnectionResponseSuccess,
-    connection: XConnection,
-    next_id: u32,
+    pub response: InitializeConnectionResponseSuccess,
+    pub connection: XConnection,
+    pub next_id: u32,
 }
 
 impl XDisplay {
@@ -444,6 +460,7 @@ impl XDisplay {
             authorization_protocol_data: auth.data,
         };
         connection.send_request(&init)?;
+        connection.flush()?;
 
         let response = connection.read_response::<InitializeConnectionResponse>()?;
         let response = match response {
@@ -488,37 +505,4 @@ impl XDisplay {
 
         Ok(wid)
     }
-}
-
-pub fn go() -> Result<(), Error> {
-    let mut display = XDisplay::open()?;
-    let window = display.create_window()?;
-    window.map(&mut display)?;
-    let gc = window.create_gc(&mut display)?;
-
-    let rect = Rectangle {
-        x: 75,
-        y: 50,
-        width: 100,
-        height: 200,
-    };
-
-    loop {
-        window.draw_rectangle(&mut display, gc, rect)?;
-        display.connection.send_request(&GetInputFocus)?;
-
-        let x = display.connection.read_end.inner.buffer();
-        dbg!(x);
-    }
-
-    // std::thread::sleep(std::time::Duration::from_secs(1));
-
-    // let err = display.connection.read_response::<xerror::XError>()?;
-    // dbg!(&err);
-
-    // let mut buf = [0; 0x100];
-    // std::io::Read::read(&mut display.connection.read_end.inner, &mut buf)?;
-    // dbg!(&buf);
-
-    // Ok(())
 }
