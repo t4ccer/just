@@ -1,61 +1,28 @@
-#![allow(dead_code)]
-
 use crate::{
     connection::{XConnection, XConnectionRead},
     error::Error,
+    requests::{
+        CreateGc, CreateWindow, GcParams, GetInputFocus, InitializeConnection, MapWindow,
+        PolyFillRectangle,
+    },
     utils::*,
     xauth::XAuth,
-    xerror::XError,
 };
-use std::{fmt::Display, io::Read, mem, num::NonZeroU32};
+use std::{fmt::Display, mem, num::NonZeroU32};
 
 pub mod connection;
 pub mod error;
+mod requests;
 mod utils;
 pub mod xauth;
 pub mod xerror;
-
-pub trait XRequest: Sized {
-    fn to_be_bytes(&self) -> Vec<u8>;
-}
 
 pub trait XResponse: Sized {
     fn from_be_bytes(conn: &mut XConnectionRead) -> Result<Self, Error>;
 }
 
 #[derive(Debug)]
-pub struct InitializeConnectionRequest {
-    major_version: u16,
-    minor_version: u16,
-    authorization_protocol_name: Vec<u8>,
-    authorization_protocol_data: Vec<u8>,
-}
-
-impl XRequest for InitializeConnectionRequest {
-    fn to_be_bytes(&self) -> Vec<u8> {
-        let n = self.authorization_protocol_name.len();
-        let p = pad(n);
-        let d = self.authorization_protocol_data.len();
-        let q = pad(d);
-        let mut bytes = Vec::<u8>::with_capacity(10 + n + p + d + q);
-
-        bytes.extend(b"B\0");
-        bytes.extend(self.major_version.to_be_bytes());
-        bytes.extend(self.minor_version.to_be_bytes());
-        bytes.extend((n as u16).to_be_bytes());
-        bytes.extend((d as u16).to_be_bytes());
-        bytes.extend([0u8; 2]); // unused
-        bytes.extend(&self.authorization_protocol_name);
-        bytes.extend(vec![0u8; p]); // unused, pad
-        bytes.extend(&self.authorization_protocol_data);
-        bytes.extend(vec![0u8; q]); // unused, pad
-
-        bytes
-    }
-}
-
-#[derive(Debug)]
-enum InitializeConnectionResponse {
+pub enum InitializeConnectionResponse {
     Refused(InitializeConnectionResponseRefused),
     Success(InitializeConnectionResponseSuccess),
 }
@@ -78,9 +45,9 @@ impl XResponse for InitializeConnectionResponse {
 
 #[derive(Debug)]
 pub struct InitializeConnectionResponseRefused {
-    protocol_major_version: u16,
-    protocol_minor_version: u16,
-    reason: Vec<u8>,
+    pub protocol_major_version: u16,
+    pub protocol_minor_version: u16,
+    pub reason: Vec<u8>,
 }
 
 impl XResponse for InitializeConnectionResponseRefused {
@@ -104,7 +71,38 @@ pub struct Window(u32);
 
 impl Window {
     pub fn map(self, display: &mut XDisplay) -> Result<(), Error> {
-        let request = MapWindowRequest { window: self };
+        let request = MapWindow { window: self };
+        display.connection.send_request(&request)?;
+        Ok(())
+    }
+
+    pub fn create_gc(self, display: &mut XDisplay) -> Result<GContext, Error> {
+        let cid = GContext(display.allocate_new_id());
+        let mut values = GcParams::new();
+        values.set_background(0xffffffff);
+        values.set_foreground(0xffffffff);
+
+        let request = CreateGc {
+            cid,
+            drawable: Drawable::Window(self),
+            values,
+        };
+        display.connection.send_request(&request)?;
+
+        Ok(cid)
+    }
+
+    pub fn draw_rectangle(
+        self,
+        display: &mut XDisplay,
+        gc: GContext,
+        rectangle: Rectangle,
+    ) -> Result<(), Error> {
+        let request = PolyFillRectangle {
+            drawable: Drawable::Window(self),
+            gc,
+            rectangles: vec![rectangle],
+        };
         display.connection.send_request(&request)?;
         Ok(())
     }
@@ -112,7 +110,7 @@ impl Window {
 
 #[derive(Debug)]
 #[repr(u8)]
-enum VisualClass {
+pub enum VisualClass {
     StaticGray = 0,
     GrayScale = 1,
     StaticColor = 2,
@@ -134,13 +132,13 @@ impl TryFrom<u8> for VisualClass {
 
 #[derive(Debug)]
 pub struct Visual {
-    id: u32,
-    class: VisualClass,
-    bits_per_rgb_value: u8,
-    colormap_entries: u16,
-    red_mask: u32,
-    green_mask: u32,
-    blue_mask: u32,
+    pub id: u32,
+    pub class: VisualClass,
+    pub bits_per_rgb_value: u8,
+    pub colormap_entries: u16,
+    pub red_mask: u32,
+    pub green_mask: u32,
+    pub blue_mask: u32,
 }
 
 impl Visual {
@@ -167,8 +165,8 @@ impl Visual {
 
 #[derive(Debug)]
 pub struct Depth {
-    depth: u8,
-    visuals: Vec<Visual>,
+    pub depth: u8,
+    pub visuals: Vec<Visual>,
 }
 
 impl Depth {
@@ -184,7 +182,7 @@ impl Depth {
 
 #[derive(Debug)]
 #[repr(u8)]
-enum BackingStore {
+pub enum BackingStore {
     NotUseful = 0,
     WhenMapped = 1,
     Always = 2,
@@ -204,22 +202,22 @@ impl TryFrom<u8> for BackingStore {
 
 #[derive(Debug)]
 pub struct Screen {
-    root: Window,
-    default_colormat: u32,
-    white_pixel: u32,
-    black_pixel: u32,
-    current_input_masks: u32,
-    width_in_pixels: u16,
-    height_in_pixels: u16,
-    width_in_millimeters: u16,
-    height_in_millimeters: u16,
-    min_installed_maps: u16,
-    max_installed_maps: u16,
-    root_visual: u32,
-    backing_stores: BackingStore,
-    save_unders: bool,
-    root_depth: u8,
-    allowed_depths: Vec<Depth>,
+    pub root: Window,
+    pub default_colormat: u32,
+    pub white_pixel: u32,
+    pub black_pixel: u32,
+    pub current_input_masks: u32,
+    pub width_in_pixels: u16,
+    pub height_in_pixels: u16,
+    pub width_in_millimeters: u16,
+    pub height_in_millimeters: u16,
+    pub min_installed_maps: u16,
+    pub max_installed_maps: u16,
+    pub root_visual: u32,
+    pub backing_stores: BackingStore,
+    pub save_unders: bool,
+    pub root_depth: u8,
+    pub allowed_depths: Vec<Depth>,
 }
 
 impl Screen {
@@ -267,9 +265,9 @@ impl Screen {
 
 #[derive(Debug)]
 pub struct Format {
-    depth: u8,
-    bits_per_pixel: u8,
-    scanline_pad: u8,
+    pub depth: u8,
+    pub bits_per_pixel: u8,
+    pub scanline_pad: u8,
 }
 
 impl Format {
@@ -286,22 +284,22 @@ impl Format {
 
 #[derive(Debug)]
 pub struct InitializeConnectionResponseSuccess {
-    protocol_major_version: u16,
-    protocol_minor_version: u16,
-    release_number: u32,
-    resource_id_base: u32,
-    resource_id_mask: u32,
-    motion_buffer_size: u32,
-    maximum_request_length: u16,
-    image_byte_order: u8,
-    bitmap_format_byte_order: u8,
-    bitmap_format_scanline_unit: u8,
-    bitmap_format_scanline_pad: u8,
-    min_keycode: u8,
-    max_keycode: u8,
-    vendor: Vec<u8>,
-    pixmap_formats: Vec<Format>,
-    screens: Vec<Screen>,
+    pub protocol_major_version: u16,
+    pub protocol_minor_version: u16,
+    pub release_number: u32,
+    pub resource_id_base: u32,
+    pub resource_id_mask: u32,
+    pub motion_buffer_size: u32,
+    pub maximum_request_length: u16,
+    pub image_byte_order: u8,
+    pub bitmap_format_byte_order: u8,
+    pub bitmap_format_scanline_unit: u8,
+    pub bitmap_format_scanline_pad: u8,
+    pub min_keycode: u8,
+    pub max_keycode: u8,
+    pub vendor: Vec<u8>,
+    pub pixmap_formats: Vec<Format>,
+    pub screens: Vec<Screen>,
 }
 
 impl XResponse for InitializeConnectionResponseSuccess {
@@ -365,7 +363,7 @@ impl Display for InitializeConnectionResponseRefused {
 
 #[derive(Debug, Clone, Copy)]
 #[repr(u16)]
-enum WindowClass {
+pub enum WindowClass {
     CopyFromParent = 0,
     InputOutput = 1,
     InputOnly = 2,
@@ -375,7 +373,7 @@ enum WindowClass {
 pub struct VisualId(NonZeroU32);
 
 #[derive(Debug, Clone, Copy)]
-enum WindowVisual {
+pub enum WindowVisual {
     CopyFromParent,
     Id(VisualId),
 }
@@ -389,60 +387,44 @@ impl WindowVisual {
     }
 }
 
-#[derive(Debug)]
-pub struct CreateWindowRequest {
-    depth: u8,
-    wid: Window,
-    parent: Window,
-    x: i16,
-    y: i16,
-    width: u16,
-    height: u16,
-    border_width: u16,
-    window_class: WindowClass,
-    visual: WindowVisual,
-    // TODO: values
+#[derive(Debug, Clone, Copy)]
+pub enum Drawable {
+    Window(Window),
+    Pixmap(u32), // TODO: Pixmap type
 }
 
-impl XRequest for CreateWindowRequest {
-    fn to_be_bytes(&self) -> Vec<u8> {
-        let mut request = Vec::new();
-
-        request.extend(1u8.to_be_bytes());
-        request.extend(self.depth.to_be_bytes());
-        request.extend(8u16.to_be_bytes()); // TODO: values
-        request.extend(self.wid.0.to_be_bytes());
-        request.extend(self.parent.0.to_be_bytes());
-        request.extend(self.x.to_be_bytes());
-        request.extend(self.y.to_be_bytes());
-        request.extend(self.width.to_be_bytes());
-        request.extend(self.height.to_be_bytes());
-        request.extend(self.border_width.to_be_bytes());
-        request.extend((self.window_class as u16).to_be_bytes());
-        request.extend(self.visual.value().to_be_bytes());
-        request.extend(0u32.to_be_bytes()); // TODO: values
-
-        request
+impl Drawable {
+    fn value(self) -> u32 {
+        match self {
+            Drawable::Window(window) => window.0,
+            Drawable::Pixmap(pixmap) => pixmap,
+        }
     }
 }
 
 #[derive(Debug, Clone, Copy)]
-pub struct MapWindowRequest {
-    window: Window,
+pub struct Rectangle {
+    x: i16,
+    y: i16,
+    width: u16,
+    height: u16,
 }
 
-impl XRequest for MapWindowRequest {
+impl Rectangle {
     fn to_be_bytes(&self) -> Vec<u8> {
-        let mut request = Vec::with_capacity(8);
+        let mut res = Vec::with_capacity(8);
 
-        request.extend(8u8.to_be_bytes());
-        request.extend(0u8.to_be_bytes());
-        request.extend(2u16.to_be_bytes());
-        request.extend(self.window.0.to_be_bytes());
+        res.extend(self.x.to_be_bytes());
+        res.extend(self.y.to_be_bytes());
+        res.extend(self.width.to_be_bytes());
+        res.extend(self.height.to_be_bytes());
 
-        request
+        res
     }
 }
+
+#[derive(Debug, Clone, Copy)]
+pub struct GContext(u32);
 
 pub struct XDisplay {
     response: InitializeConnectionResponseSuccess,
@@ -455,7 +437,7 @@ impl XDisplay {
         let mut connection = XConnection::from_env()?;
         let auth = XAuth::from_env()?;
 
-        let init = InitializeConnectionRequest {
+        let init = InitializeConnection {
             major_version: 11,
             minor_version: 0,
             authorization_protocol_name: auth.name,
@@ -474,19 +456,23 @@ impl XDisplay {
         Ok(Self {
             response,
             connection,
-            next_id: 0,
+            next_id: 1,
         })
     }
 
     fn allocate_new_id(&mut self) -> u32 {
-        let ret = self.response.resource_id_base | (self.response.resource_id_mask & self.next_id);
+        let new_part = self.response.resource_id_mask & self.next_id;
         self.next_id += 1;
-        ret
+
+        // FIXME: Robust id generation
+        assert!(new_part != self.response.resource_id_mask);
+
+        self.response.resource_id_base | new_part
     }
 
     pub fn create_window(&mut self) -> Result<Window, Error> {
         let wid = Window(self.allocate_new_id());
-        let create_window = CreateWindowRequest {
+        let create_window = CreateWindow {
             depth: self.response.screens[0].allowed_depths[0].depth,
             wid,
             parent: self.response.screens[0].root,
@@ -504,35 +490,35 @@ impl XDisplay {
     }
 }
 
-struct GetInputFocusRequest;
-
-impl XRequest for GetInputFocusRequest {
-    fn to_be_bytes(&self) -> Vec<u8> {
-        let mut request = Vec::new();
-
-        request.extend(43u8.to_be_bytes());
-        request.extend(0u8.to_be_bytes());
-        request.extend(1u16.to_be_bytes());
-
-        request
-    }
-}
-
 pub fn go() -> Result<(), Error> {
     let mut display = XDisplay::open()?;
     let window = display.create_window()?;
     window.map(&mut display)?;
+    let gc = window.create_gc(&mut display)?;
 
-    // display.connection.send_request(&GetInputFocusRequest)?;
+    let rect = Rectangle {
+        x: 75,
+        y: 50,
+        width: 100,
+        height: 200,
+    };
 
-    // let err = display.connection.read_response::<XError>()?;
+    loop {
+        window.draw_rectangle(&mut display, gc, rect)?;
+        display.connection.send_request(&GetInputFocus)?;
+
+        let x = display.connection.read_end.inner.buffer();
+        dbg!(x);
+    }
+
+    // std::thread::sleep(std::time::Duration::from_secs(1));
+
+    // let err = display.connection.read_response::<xerror::XError>()?;
     // dbg!(&err);
 
     // let mut buf = [0; 0x100];
-    // display.connection.read_end.inner.read(&mut buf)?;
+    // std::io::Read::read(&mut display.connection.read_end.inner, &mut buf)?;
     // dbg!(&buf);
 
-    std::thread::sleep(std::time::Duration::from_secs(5));
-
-    Ok(())
+    // Ok(())
 }

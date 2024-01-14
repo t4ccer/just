@@ -1,4 +1,4 @@
-use crate::{error::Error, XRequest, XResponse};
+use crate::{error::Error, requests::XRequest, XResponse};
 use std::{
     io::{self, BufRead, BufReader, BufWriter, Read, Write},
     os::unix::net::UnixStream,

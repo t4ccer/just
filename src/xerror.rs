@@ -54,7 +54,7 @@ impl XResponse for XError {
 #[derive(Debug, Clone, Copy)]
 pub struct XGenericError {
     pub sequence_number: u16,
-    generic_value: u32,
+    pub generic_value: u32,
     pub minor_opcode: u16,
     pub major_opcode: u8,
 }
@@ -75,7 +75,7 @@ macro_rules! impl_x_error {
         #[derive(Debug, Clone, Copy)]
         #[repr(transparent)]
         pub struct $name {
-            generic: XGenericError,
+            pub generic: XGenericError,
         }
     };
 
