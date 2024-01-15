@@ -38,8 +38,8 @@ pub fn go() -> Result<(), Error> {
 
         display.connection.flush()?;
 
-        // let window_params = window.get_attributes(&mut display)?;
-        // dbg!(window_params);
+        let g = window.get_geometry(&mut display)?;
+        dbg!(g);
 
         std::thread::sleep(Duration::from_millis(16));
     }

@@ -79,6 +79,11 @@ impl XConnection {
         Ok(ret)
     }
 
+    pub(crate) fn read_be_i16(&mut self) -> Result<i16, Error> {
+        let raw = self.read_be_u16()?;
+        Ok(i16::from_be_bytes(raw.to_be_bytes()))
+    }
+
     pub(crate) fn read_be_u32(&mut self) -> Result<u32, Error> {
         let mut buf = self.drain(4)?;
         let mut ret: u32 = 0;

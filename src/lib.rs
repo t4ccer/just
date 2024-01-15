@@ -3,9 +3,10 @@
 use crate::{
     connection::XConnection,
     error::Error,
-    requests::{ChangeGC, GetWindowAttributes, XRequest},
+    replies::{AwaitingReply, Geometry, Reply, ReplyType, WindowAttributes},
     requests::{
-        CreateGC, CreateWindow, GcParams, InitializeConnection, MapWindow, PolyFillRectangle,
+        ChangeGC, CreateGC, CreateWindow, GcParams, GetGeometry, GetWindowAttributes,
+        InitializeConnection, MapWindow, PolyFillRectangle, XRequest,
     },
     utils::*,
     xauth::XAuth,
@@ -20,6 +21,7 @@ use std::{
 
 pub mod connection;
 pub mod error;
+pub mod replies;
 pub mod requests;
 mod utils;
 pub mod xauth;
@@ -193,8 +195,24 @@ impl Window {
 
         let reply = display.await_reply(sequence_number)?;
 
-        #[allow(irrefutable_let_patterns)]
         if let Reply::GetWindowAttributes(reply) = reply {
+            return Ok(reply);
+        } else {
+            panic!("Unexpected reply type");
+        }
+    }
+
+    pub fn get_geometry(self, display: &mut XDisplay) -> Result<Geometry, Error> {
+        let request = GetGeometry {
+            drawable: Drawable::Window(self),
+        };
+
+        let sequence_number = display.send_request(&request)?;
+        display.connection.flush()?;
+
+        let reply = display.await_reply(sequence_number)?;
+
+        if let Reply::GetGeometry(reply) = reply {
             return Ok(reply);
         } else {
             panic!("Unexpected reply type");
@@ -622,7 +640,6 @@ impl XDisplay {
 
         loop {
             let code: u8 = self.connection.read_u8()?;
-
             match code {
                 0 => {
                     let error_code: u8 = self.connection.read_u8()?;
@@ -662,6 +679,10 @@ impl XDisplay {
                 let reply = WindowAttributes::from_be_bytes(&mut self.connection)?;
                 Ok(Reply::GetWindowAttributes(reply))
             }
+            ReplyType::GetGeometry => {
+                let reply = Geometry::from_be_bytes(&mut self.connection)?;
+                Ok(Reply::GetGeometry(reply))
+            }
         }
     }
 }
@@ -669,80 +690,4 @@ impl XDisplay {
 #[derive(Debug, Clone, Copy, Hash, PartialEq, Eq, PartialOrd, Ord)]
 pub struct SequenceNumber {
     value: u16,
-}
-
-#[derive(Debug, Clone)]
-pub struct WindowAttributes {
-    backing_store: u8,
-    visual_id: u32,
-    class: u16,
-    bit_gravity: u8,
-    win_gravity: u8,
-    backing_planes: u32,
-    backing_pixel: u32,
-    save_under: bool,
-    map_is_installed: bool,
-    map_state: u8,
-    override_redirect: bool,
-    colormap: u32,
-    all_even_masks: u32,
-    your_even_masks: u32,
-    do_not_propagate_mask: u16,
-}
-
-impl WindowAttributes {
-    fn from_be_bytes(conn: &mut XConnection) -> Result<Self, Error> {
-        let backing_store = conn.read_u8()?;
-        let _sequence_code = conn.read_be_u16()?;
-        let _reply_length = conn.read_be_u32()?;
-        let visual_id = conn.read_be_u32()?;
-        let class = conn.read_be_u16()?;
-        let bit_gravity = conn.read_u8()?;
-        let win_gravity = conn.read_u8()?;
-        let backing_planes = conn.read_be_u32()?;
-        let backing_pixel = conn.read_be_u32()?;
-        let save_under = conn.read_bool()?;
-        let map_is_installed = conn.read_bool()?;
-        let map_state = conn.read_u8()?;
-        let override_redirect = conn.read_bool()?;
-        let colormap = conn.read_be_u32()?;
-        let all_even_masks = conn.read_be_u32()?;
-        let your_even_masks = conn.read_be_u32()?;
-        let do_not_propagate_mask = conn.read_be_u16()?;
-        let _unused = conn.read_be_u16()?;
-
-        Ok(Self {
-            backing_store,
-            visual_id,
-            class,
-            bit_gravity,
-            win_gravity,
-            backing_planes,
-            backing_pixel,
-            save_under,
-            map_is_installed,
-            map_state,
-            override_redirect,
-            colormap,
-            all_even_masks,
-            your_even_masks,
-            do_not_propagate_mask,
-        })
-    }
-}
-
-#[derive(Debug, Clone)]
-pub enum Reply {
-    GetWindowAttributes(WindowAttributes),
-}
-
-#[derive(Debug, Clone)]
-pub enum AwaitingReply {
-    NotReceived(ReplyType),
-    Received(Reply),
-}
-
-#[derive(Debug, Clone, Copy)]
-pub enum ReplyType {
-    GetWindowAttributes,
 }

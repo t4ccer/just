@@ -1,5 +1,5 @@
 use crate::{
-    utils::pad, BeBytes, Drawable, Font, GContext, Pixmap, Rectangle, ReplyType, Window,
+    replies::ReplyType, utils::pad, BeBytes, Drawable, Font, GContext, Pixmap, Rectangle, Window,
     WindowClass, WindowVisual,
 };
 use std::io::{self, Write};
@@ -128,6 +128,27 @@ impl BeBytes for MapWindow {
 }
 
 impl XRequest for MapWindow {}
+
+pub struct GetGeometry {
+    pub drawable: Drawable,
+}
+
+impl BeBytes for GetGeometry {
+    fn to_be_bytes(&self, w: &mut impl Write) -> io::Result<()> {
+        write_be_bytes!(w, opcodes::GET_GEOMETRY);
+        write_be_bytes!(w, 0u8); // unused
+        write_be_bytes!(w, 2u16); // size
+        write_be_bytes!(w, self.drawable.value());
+
+        Ok(())
+    }
+}
+
+impl XRequest for GetGeometry {
+    fn reply_type() -> Option<ReplyType> {
+        Some(ReplyType::GetGeometry)
+    }
+}
 
 #[derive(Debug, Clone)]
 pub struct PolyFillRectangle {
