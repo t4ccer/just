@@ -36,6 +36,8 @@ pub fn go() -> Result<(), Error> {
         gc.change(&mut display, gc_settings)?;
         window.draw_rectangle(&mut display, gc, rect)?;
 
+        display.connection.flush()?;
+
         // let window_params = window.get_attributes(&mut display)?;
         // dbg!(window_params);
 

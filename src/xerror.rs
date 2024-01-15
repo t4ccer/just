@@ -1,4 +1,4 @@
-use crate::{connection::XConnectionRead, error::Error, XResponse};
+use crate::{connection::XConnection, error::Error, XResponse};
 
 #[derive(Debug, Clone, Copy)]
 pub enum XError {
@@ -23,7 +23,7 @@ pub enum XError {
 }
 
 impl XResponse for XError {
-    fn from_be_bytes(conn: &mut XConnectionRead) -> Result<Self, Error> {
+    fn from_be_bytes(conn: &mut XConnection) -> Result<Self, Error> {
         let mut raw = [0u8; 32];
         conn.read_exact(&mut raw)?;
         assert!(raw[0] == 0);

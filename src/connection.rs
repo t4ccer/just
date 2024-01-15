@@ -18,63 +18,9 @@ impl Read for XConnectionReader {
     }
 }
 
-pub struct XConnectionRead {
-    pub(crate) inner: XConnectionReader,
-}
-
-impl XConnectionRead {
-    pub(crate) fn set_nonblocking(&mut self, nonblocking: bool) -> io::Result<()> {
-        match self.inner {
-            XConnectionReader::UnixStream(ref stream) => stream.set_nonblocking(nonblocking),
-        }
-    }
-
-    pub fn read_exact(&mut self, buf: &mut [u8]) -> io::Result<()> {
-        self.inner.read_exact(buf)
-    }
-
-    pub fn read_n_bytes(&mut self, to_read: usize) -> io::Result<Vec<u8>> {
-        let mut buf = vec![0u8; to_read];
-
-        self.inner.read_exact(&mut buf)?;
-
-        assert_eq!(buf.len(), to_read);
-
-        Ok(buf)
-    }
-
-    pub fn read_u8(&mut self) -> io::Result<u8> {
-        let mut res = [0u8; 1];
-        self.inner.read_exact(&mut res)?;
-        Ok(res[0])
-    }
-
-    pub fn read_u16_be(&mut self) -> io::Result<u16> {
-        let mut res = [0u8; 2];
-        self.inner.read_exact(&mut res)?;
-        Ok(u16::from_be_bytes(res))
-    }
-
-    pub fn read_u32_be(&mut self) -> io::Result<u32> {
-        let mut res = [0u8; 4];
-        self.inner.read_exact(&mut res)?;
-        Ok(u32::from_be_bytes(res))
-    }
-
-    pub fn read_many<T, E>(
-        &mut self,
-        len: usize,
-        parser: impl Fn(&mut Self) -> Result<T, E>,
-    ) -> Result<Vec<T>, E> {
-        (0..len)
-            .map(|_| parser(self))
-            .collect::<Result<Vec<T>, E>>()
-    }
-}
-
 pub struct XConnection {
-    pub(crate) read_end: XConnectionRead,
-    pub(crate) read_buf: VecDeque<u8>,
+    read_end: XConnectionReader,
+    read_buf: VecDeque<u8>,
     write_end: BufWriter<Box<dyn Write>>,
 }
 
@@ -83,12 +29,12 @@ impl TryFrom<UnixStream> for XConnection {
 
     fn try_from(stream: UnixStream) -> Result<Self, Error> {
         let read_end = stream.try_clone()?;
+        read_end.set_nonblocking(true)?;
+
         let write_end = stream;
 
         Ok(Self {
-            read_end: XConnectionRead {
-                inner: XConnectionReader::UnixStream(read_end),
-            },
+            read_end: XConnectionReader::UnixStream(read_end),
             write_end: BufWriter::new(Box::new(write_end)),
             read_buf: VecDeque::new(),
         })
@@ -98,7 +44,7 @@ impl TryFrom<UnixStream> for XConnection {
 impl XConnection {
     fn ensure_buffer_size(&mut self, size: usize) -> Result<(), Error> {
         while self.read_buf.len() < size {
-            self.fill_buf_unblocking()?;
+            self.fill_buf_nonblocking()?;
         }
         Ok(())
     }
@@ -106,6 +52,10 @@ impl XConnection {
     pub(crate) fn drain(&mut self, len: usize) -> Result<Drain<'_, u8>, Error> {
         self.ensure_buffer_size(len)?;
         Ok(self.read_buf.drain(0..len))
+    }
+
+    pub(crate) fn read_n_bytes(&mut self, len: usize) -> Result<Vec<u8>, Error> {
+        Ok(self.drain(len)?.collect())
     }
 
     pub(crate) fn read_u8(&mut self) -> Result<u8, Error> {
@@ -145,6 +95,24 @@ impl XConnection {
         Ok(ret)
     }
 
+    pub(crate) fn read_many<T, E>(
+        &mut self,
+        len: usize,
+        parser: impl Fn(&mut Self) -> Result<T, E>,
+    ) -> Result<Vec<T>, E> {
+        (0..len)
+            .map(|_| parser(self))
+            .collect::<Result<Vec<T>, E>>()
+    }
+
+    pub(crate) fn read_exact(&mut self, buf: &mut [u8]) -> Result<(), Error> {
+        for (idx, elem) in self.drain(buf.len())?.into_iter().enumerate() {
+            buf[idx] = elem;
+        }
+
+        Ok(())
+    }
+
     pub(crate) fn peek(&mut self, index: usize) -> Result<u8, Error> {
         self.ensure_buffer_size(1)?;
         Ok(*self.read_buf.get(index).unwrap())
@@ -164,7 +132,7 @@ impl XConnection {
     where
         T: XResponse,
     {
-        T::from_be_bytes(&mut self.read_end)
+        T::from_be_bytes(self)
     }
 
     pub fn from_env() -> Result<Self, Error> {
@@ -181,9 +149,9 @@ impl XConnection {
     }
 
     /// `true` if read any new data
-    pub fn fill_buf_unblocking(&mut self) -> Result<bool, Error> {
+    fn fill_buf_nonblocking(&mut self) -> Result<bool, Error> {
         let mut buf = vec![0u8; 0x1000];
-        match self.read_end.inner.read(&mut buf) {
+        match self.read_end.read(&mut buf) {
             Ok(n) => {
                 self.read_buf.extend(&buf[0..n]);
                 Ok(true)

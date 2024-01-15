@@ -1,10 +1,9 @@
 #![allow(dead_code)]
 
-use requests::{ChangeGC, GetWindowAttributes, XRequest};
-
 use crate::{
-    connection::{XConnection, XConnectionRead},
+    connection::XConnection,
     error::Error,
+    requests::{ChangeGC, GetWindowAttributes, XRequest},
     requests::{
         CreateGC, CreateWindow, GcParams, InitializeConnection, MapWindow, PolyFillRectangle,
     },
@@ -31,7 +30,7 @@ pub trait BeBytes: Sized {
 }
 
 pub trait XResponse: Sized {
-    fn from_be_bytes(conn: &mut XConnectionRead) -> Result<Self, Error>;
+    fn from_be_bytes(conn: &mut XConnection) -> Result<Self, Error>;
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -103,7 +102,7 @@ pub enum InitializeConnectionResponse {
 }
 
 impl XResponse for InitializeConnectionResponse {
-    fn from_be_bytes(conn: &mut XConnectionRead) -> Result<Self, Error> {
+    fn from_be_bytes(conn: &mut XConnection) -> Result<Self, Error> {
         let response_code = conn.read_u8()?;
         match response_code {
             0 => Ok(Self::Refused(
@@ -126,11 +125,11 @@ pub struct InitializeConnectionResponseRefused {
 }
 
 impl XResponse for InitializeConnectionResponseRefused {
-    fn from_be_bytes(conn: &mut XConnectionRead) -> Result<Self, Error> {
+    fn from_be_bytes(conn: &mut XConnection) -> Result<Self, Error> {
         let reason_length = conn.read_u8()?;
-        let protocol_major_version = conn.read_u16_be()?;
-        let protocol_minor_version = conn.read_u16_be()?;
-        let _ = conn.read_u16_be()?;
+        let protocol_major_version = conn.read_be_u16()?;
+        let protocol_minor_version = conn.read_be_u16()?;
+        let _ = conn.read_be_u16()?;
         let reason = conn.read_n_bytes(reason_length as usize)?;
         let _pad = conn.read_n_bytes(pad(reason_length as usize))?;
         Ok(Self {
@@ -237,15 +236,15 @@ pub struct Visual {
 }
 
 impl Visual {
-    fn from_be_bytes(conn: &mut XConnectionRead) -> Result<Self, Error> {
-        let id = conn.read_u32_be()?;
+    fn from_be_bytes(conn: &mut XConnection) -> Result<Self, Error> {
+        let id = conn.read_be_u32()?;
         let class = VisualClass::try_from(conn.read_u8()?).map_err(|_| Error::InvalidResponse)?;
         let bits_per_rgb_value = conn.read_u8()?;
-        let colormap_entries = conn.read_u16_be()?;
-        let red_mask = conn.read_u32_be()?;
-        let green_mask = conn.read_u32_be()?;
-        let blue_mask = conn.read_u32_be()?;
-        let _unused = conn.read_u32_be()?;
+        let colormap_entries = conn.read_be_u16()?;
+        let red_mask = conn.read_be_u32()?;
+        let green_mask = conn.read_be_u32()?;
+        let blue_mask = conn.read_be_u32()?;
+        let _unused = conn.read_be_u32()?;
         Ok(Self {
             id: VisualId(ResourceId {
                 value: NonZeroU32::new(id).unwrap(),
@@ -267,11 +266,11 @@ pub struct Depth {
 }
 
 impl Depth {
-    fn from_be_bytes(conn: &mut XConnectionRead) -> Result<Self, Error> {
+    fn from_be_bytes(conn: &mut XConnection) -> Result<Self, Error> {
         let depth = conn.read_u8()?;
         let _unused = conn.read_u8()?;
-        let visuals_length = conn.read_u16_be()?;
-        let _unused = conn.read_u32_be()?;
+        let visuals_length = conn.read_be_u16()?;
+        let _unused = conn.read_be_u32()?;
         let visuals = conn.read_many(visuals_length as usize, Visual::from_be_bytes)?;
         Ok(Self { depth, visuals })
     }
@@ -318,21 +317,21 @@ pub struct Screen {
 }
 
 impl Screen {
-    fn from_be_bytes(conn: &mut XConnectionRead) -> Result<Self, Error> {
+    fn from_be_bytes(conn: &mut XConnection) -> Result<Self, Error> {
         let root = Window(ResourceId {
-            value: NonZeroU32::new(conn.read_u32_be()?).unwrap(),
+            value: NonZeroU32::new(conn.read_be_u32()?).unwrap(),
         });
-        let default_colormat = conn.read_u32_be()?;
-        let white_pixel = conn.read_u32_be()?;
-        let black_pixel = conn.read_u32_be()?;
-        let current_input_masks = conn.read_u32_be()?;
-        let width_in_pixels = conn.read_u16_be()?;
-        let height_in_pixels = conn.read_u16_be()?;
-        let width_in_millimeters = conn.read_u16_be()?;
-        let height_in_millimeters = conn.read_u16_be()?;
-        let min_installed_maps = conn.read_u16_be()?;
-        let max_installed_maps = conn.read_u16_be()?;
-        let root_visual = conn.read_u32_be()?;
+        let default_colormat = conn.read_be_u32()?;
+        let white_pixel = conn.read_be_u32()?;
+        let black_pixel = conn.read_be_u32()?;
+        let current_input_masks = conn.read_be_u32()?;
+        let width_in_pixels = conn.read_be_u16()?;
+        let height_in_pixels = conn.read_be_u16()?;
+        let width_in_millimeters = conn.read_be_u16()?;
+        let height_in_millimeters = conn.read_be_u16()?;
+        let min_installed_maps = conn.read_be_u16()?;
+        let max_installed_maps = conn.read_be_u16()?;
+        let root_visual = conn.read_be_u32()?;
         let backing_stores =
             BackingStore::try_from(conn.read_u8()?).map_err(|_| Error::InvalidResponse)?;
         let save_unders = conn.read_u8()? == 1;
@@ -370,7 +369,7 @@ pub struct Format {
 }
 
 impl Format {
-    fn from_be_bytes(conn: &mut XConnectionRead) -> Result<Self, Error> {
+    fn from_be_bytes(conn: &mut XConnection) -> Result<Self, Error> {
         let mut format = [0u8; 8];
         conn.read_exact(&mut format)?;
         Ok(Format {
@@ -402,17 +401,17 @@ pub struct InitializeConnectionResponseSuccess {
 }
 
 impl XResponse for InitializeConnectionResponseSuccess {
-    fn from_be_bytes(conn: &mut XConnectionRead) -> Result<Self, Error> {
+    fn from_be_bytes(conn: &mut XConnection) -> Result<Self, Error> {
         let _unused = conn.read_u8()?;
-        let protocol_major_version = conn.read_u16_be()?;
-        let protocol_minor_version = conn.read_u16_be()?;
-        let _ = conn.read_u16_be()?;
-        let release_number = conn.read_u32_be()?;
-        let resource_id_base = conn.read_u32_be()?;
-        let resource_id_mask = conn.read_u32_be()?;
-        let motion_buffer_size = conn.read_u32_be()?;
-        let vendor_length = conn.read_u16_be()?;
-        let maximum_request_length = conn.read_u16_be()?;
+        let protocol_major_version = conn.read_be_u16()?;
+        let protocol_minor_version = conn.read_be_u16()?;
+        let _ = conn.read_be_u16()?;
+        let release_number = conn.read_be_u32()?;
+        let resource_id_base = conn.read_be_u32()?;
+        let resource_id_mask = conn.read_be_u32()?;
+        let motion_buffer_size = conn.read_be_u32()?;
+        let vendor_length = conn.read_be_u16()?;
+        let maximum_request_length = conn.read_be_u16()?;
         let screens_length = conn.read_u8()?;
         let formats_length = conn.read_u8()?;
         let image_byte_order = conn.read_u8()?;
@@ -421,7 +420,7 @@ impl XResponse for InitializeConnectionResponseSuccess {
         let bitmap_format_scanline_pad = conn.read_u8()?;
         let min_keycode = conn.read_u8()?;
         let max_keycode = conn.read_u8()?;
-        let _unused = conn.read_u32_be()?;
+        let _unused = conn.read_be_u32()?;
         let vendor = conn.read_n_bytes(vendor_length as usize)?;
         let _pad = conn.read_n_bytes(pad(vendor_length as usize))?;
         let pixmap_formats = conn.read_many(formats_length as usize, Format::from_be_bytes)?;
@@ -561,8 +560,6 @@ impl XDisplay {
         };
 
         let id_allocator = IdAllocator::new(response.resource_id_base, response.resource_id_mask);
-
-        connection.read_end.set_nonblocking(true)?;
 
         Ok(Self {
             id_allocator,
