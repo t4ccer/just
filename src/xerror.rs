@@ -53,10 +53,10 @@ impl XResponse for XError {
 
 #[derive(Debug, Clone, Copy)]
 pub struct XGenericError {
-    pub sequence_number: u16,
-    pub generic_value: u32,
-    pub minor_opcode: u16,
-    pub major_opcode: u8,
+    sequence_number: u16,
+    generic_value: u32,
+    minor_opcode: u16,
+    major_opcode: u8,
 }
 
 impl XGenericError {
@@ -70,22 +70,48 @@ impl XGenericError {
     }
 }
 
-macro_rules! impl_x_error {
-    ($name:ident) => {
+macro_rules! impl_x_error_base {
+    ($name:ident, $($rest:tt)*) => {
         #[derive(Debug, Clone, Copy)]
         #[repr(transparent)]
         pub struct $name {
-            pub generic: XGenericError,
+            generic: XGenericError,
         }
+
+        impl $name {
+            $($rest)*
+        }
+    };
+}
+
+macro_rules! impl_x_error {
+    ($name:ident) => {
+        impl_x_error!($name,);
     };
 
     ($name:ident, $generic:ident) => {
-        impl_x_error!($name);
-
-        impl $name {
+        impl_x_error! { $name,
             pub fn $generic(&self) -> u32 {
                 self.generic.generic_value
             }
+        }
+    };
+
+    ($name:ident, $($rest:tt)*) => {
+        impl_x_error_base! { $name,
+            pub fn sequence_number(&self) -> u16 {
+                self.generic.sequence_number
+            }
+
+            pub fn minor_opcode(&self) -> u16 {
+                self.generic.minor_opcode
+            }
+
+            pub fn major_opcode(&self) -> u8 {
+                self.generic.major_opcode
+            }
+
+            $($rest)*
         }
     };
 }

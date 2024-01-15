@@ -2,9 +2,36 @@ use crate::{
     replies::ReplyType, utils::pad, BeBytes, Drawable, Font, GContext, Pixmap, Rectangle, Window,
     WindowClass, WindowVisual,
 };
-use std::io::{self, Write};
+use std::{
+    io::{self, Write},
+    ops::BitOr,
+};
 
 mod opcodes;
+
+macro_rules! impl_raw_field {
+    ($ty:path, $setter:ident, $idx:expr) => {
+        pub fn $setter(mut self, new_value: $ty) -> Self {
+            self.values.values[$idx] = Some(new_value.into());
+            self
+        }
+    };
+}
+
+macro_rules! impl_raw_fields_go {
+    ($idx:expr $(,)?) => { };
+
+    ($idx:expr, $setter:ident: $ty:path, $($rest:tt)*) => {
+        impl_raw_field!($ty, $setter, $idx);
+        impl_raw_fields_go!($idx + 1, $($rest)*);
+    };
+}
+
+macro_rules! impl_raw_fields {
+    ($($rest:tt)*) => {
+        impl_raw_fields_go!(0, $($rest)*);
+    };
+}
 
 pub trait XRequest: BeBytes {
     fn reply_type() -> Option<ReplyType> {
@@ -51,6 +78,37 @@ impl BeBytes for InitializeConnection {
 impl XRequest for InitializeConnection {}
 
 #[derive(Debug, Clone)]
+pub struct WindowCreationAttributes {
+    values: ListOfValues<15>,
+}
+
+impl WindowCreationAttributes {
+    pub fn new() -> Self {
+        Self {
+            values: ListOfValues::new(),
+        }
+    }
+
+    impl_raw_fields! {
+      set_background_pixmap: u32,
+      set_background_pixel: u32,
+      set_border_pixmap: u32,
+      set_border_pixel: u32,
+      set_bit_gravity: u32,
+      set_win_gravity: u32,
+      set_backing_store: u32,
+      set_backing_planes: u32,
+      set_backing_pixel: u32,
+      set_override_redirect: u32,
+      set_save_under: u32,
+      set_event_mask: EventType,
+      set_do_not_propagate_mask: u32,
+      set_colormap: u32,
+      set_cursor: u32,
+    }
+}
+
+#[derive(Debug, Clone)]
 pub struct CreateWindow {
     pub depth: u8,
     pub wid: Window,
@@ -62,14 +120,16 @@ pub struct CreateWindow {
     pub border_width: u16,
     pub window_class: WindowClass,
     pub visual: WindowVisual,
-    // TODO: values
+    pub attributes: WindowCreationAttributes,
 }
 
 impl BeBytes for CreateWindow {
     fn to_be_bytes(&self, w: &mut impl Write) -> io::Result<()> {
+        let (bitmask, n) = self.attributes.values.mask_and_count();
+
         write_be_bytes!(w, opcodes::CREATE_WINDOW);
         write_be_bytes!(w, self.depth);
-        write_be_bytes!(w, 8u16); // length, TODO: values
+        write_be_bytes!(w, 8u16 + n); // length
         write_be_bytes!(w, self.wid.id().value());
         write_be_bytes!(w, self.parent.id().value());
         write_be_bytes!(w, self.x);
@@ -79,9 +139,8 @@ impl BeBytes for CreateWindow {
         write_be_bytes!(w, self.border_width);
         write_be_bytes!(w, self.window_class as u16);
         write_be_bytes!(w, self.visual.value());
-        write_be_bytes!(w, 0u32); // bitmask
-
-        // TODO: values
+        write_be_bytes!(w, bitmask);
+        self.attributes.values.to_be_bytes_if_set(w)?;
 
         Ok(())
     }
@@ -176,30 +235,6 @@ impl BeBytes for PolyFillRectangle {
 
 impl XRequest for PolyFillRectangle {}
 
-macro_rules! impl_raw_field {
-    ($ty:path, $setter:ident, $idx:expr) => {
-        pub fn $setter(mut self, new_value: $ty) -> Self {
-            self.values.values[$idx] = Some(new_value.into());
-            self
-        }
-    };
-}
-
-macro_rules! impl_raw_fields_go {
-    ($idx:expr $(,)?) => { };
-
-    ($idx:expr, $setter:ident: $ty:path, $($rest:tt)*) => {
-        impl_raw_field!($ty, $setter, $idx);
-        impl_raw_fields_go!($idx + 1, $($rest)*);
-    };
-}
-
-macro_rules! impl_raw_fields {
-    ($($rest:tt)*) => {
-        impl_raw_fields_go!(0, $($rest)*);
-    };
-}
-
 #[derive(Debug, Clone)]
 pub struct ListOfValues<const N: usize> {
     values: [Option<u32>; N],
@@ -235,11 +270,11 @@ impl<const N: usize> ListOfValues<N> {
 }
 
 #[derive(Debug, Clone)]
-pub struct GcParams {
+pub struct GContextSettings {
     values: ListOfValues<23>,
 }
 
-impl GcParams {
+impl GContextSettings {
     pub fn new() -> Self {
         Self {
             values: ListOfValues::new(),
@@ -277,7 +312,7 @@ impl GcParams {
 pub struct CreateGC {
     pub cid: GContext,
     pub drawable: Drawable,
-    pub values: GcParams,
+    pub values: GContextSettings,
 }
 
 impl BeBytes for CreateGC {
@@ -301,7 +336,7 @@ impl XRequest for CreateGC {}
 #[derive(Debug, Clone)]
 pub struct ChangeGC {
     pub gcontext: GContext,
-    pub values: GcParams,
+    pub values: GContextSettings,
 }
 
 impl BeBytes for ChangeGC {
@@ -334,4 +369,58 @@ impl BeBytes for GetInputFocus {
     }
 }
 
+// FIXME: Add response
 impl XRequest for GetInputFocus {}
+
+pub struct EventType {
+    value: u32,
+}
+
+// TODO: Macro for these
+impl EventType {
+    pub const KEY_PRESS: Self = Self { value: 0x00000001 };
+    pub const KEY_RELEASE: Self = Self { value: 0x00000002 };
+    pub const BUTTON_PRESS: Self = Self { value: 0x00000004 };
+    pub const BUTTON_RELEASE: Self = Self { value: 0x00000008 };
+    pub const ENTER_WINDOW: Self = Self { value: 0x00000010 };
+    pub const LEAVE_WINDOW: Self = Self { value: 0x00000020 };
+    pub const POINTER_MOTION: Self = Self { value: 0x00000040 };
+    pub const POINTER_MOTION_HINT: Self = Self { value: 0x00000080 };
+    pub const BUTTON1_MOTION: Self = Self { value: 0x00000100 };
+    pub const BUTTON2_MOTION: Self = Self { value: 0x00000200 };
+    pub const BUTTON3_MOTION: Self = Self { value: 0x00000400 };
+    pub const BUTTON4_MOTION: Self = Self { value: 0x00000800 };
+    pub const BUTTON5_MOTION: Self = Self { value: 0x00001000 };
+    pub const BUTTON_MOTION: Self = Self { value: 0x00002000 };
+    pub const KEYMAP_STATE: Self = Self { value: 0x00004000 };
+    pub const EXPOSURE: Self = Self { value: 0x00008000 };
+    pub const VISIBILITY_CHANGE: Self = Self { value: 0x00010000 };
+    pub const STRUCTURE_NOTIFY: Self = Self { value: 0x00020000 };
+    pub const RESIZE_REDIRECT: Self = Self { value: 0x00040000 };
+    pub const SUBSTRUCTURE_NOTIFY: Self = Self { value: 0x00080000 };
+    pub const SUBSTRUCTURE_REDIRECT: Self = Self { value: 0x00100000 };
+    pub const FOCUS_CHANGE: Self = Self { value: 0x00200000 };
+    pub const PROPERTY_CHANGE: Self = Self { value: 0x00400000 };
+    pub const COLORMAP_CHANGE: Self = Self { value: 0x00800000 };
+    pub const OWNER_GRAB_BUTTON: Self = Self { value: 0x01000000 };
+
+    fn contains(self, other: Self) -> bool {
+        (self.value & other.value) != 0
+    }
+}
+
+impl BitOr for EventType {
+    type Output = Self;
+
+    fn bitor(self, rhs: Self) -> Self::Output {
+        Self {
+            value: self.value | rhs.value,
+        }
+    }
+}
+
+impl Into<u32> for EventType {
+    fn into(self) -> u32 {
+        self.value
+    }
+}

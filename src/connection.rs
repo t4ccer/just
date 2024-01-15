@@ -20,7 +20,8 @@ impl Read for XConnectionReader {
 
 pub struct XConnection {
     read_end: XConnectionReader,
-    read_buf: VecDeque<u8>,
+    pub(crate) read_buf: VecDeque<u8>,
+    fill_buf: Vec<u8>,
     write_end: BufWriter<Box<dyn Write>>,
 }
 
@@ -37,6 +38,7 @@ impl TryFrom<UnixStream> for XConnection {
             read_end: XConnectionReader::UnixStream(read_end),
             write_end: BufWriter::new(Box::new(write_end)),
             read_buf: VecDeque::new(),
+            fill_buf: vec![0u8; 0x1000],
         })
     }
 }
@@ -154,11 +156,10 @@ impl XConnection {
     }
 
     /// `true` if read any new data
-    fn fill_buf_nonblocking(&mut self) -> Result<bool, Error> {
-        let mut buf = vec![0u8; 0x1000];
-        match self.read_end.read(&mut buf) {
+    pub(crate) fn fill_buf_nonblocking(&mut self) -> Result<bool, Error> {
+        match self.read_end.read(&mut self.fill_buf) {
             Ok(n) => {
-                self.read_buf.extend(&buf[0..n]);
+                self.read_buf.extend(&self.fill_buf[0..n]);
                 Ok(true)
             }
             Err(err) if err.kind() == io::ErrorKind::WouldBlock => Ok(false),

@@ -64,13 +64,13 @@ impl WindowAttributes {
 
 #[derive(Debug, Clone)]
 pub struct Geometry {
-    depth: u8,
-    root: Window,
-    x: i16,
-    y: i16,
-    width: u16,
-    height: u16,
-    border_width: u16,
+    pub depth: u8,
+    pub root: Window,
+    pub x: i16,
+    pub y: i16,
+    pub width: u16,
+    pub height: u16,
+    pub border_width: u16,
 }
 
 impl Geometry {
