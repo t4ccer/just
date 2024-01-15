@@ -1,5 +1,6 @@
 use crate::{
-    utils::pad, BeBytes, Drawable, GContext, Rectangle, Window, WindowClass, WindowVisual,
+    utils::pad, BeBytes, Drawable, Font, GContext, Pixmap, Rectangle, Window, WindowClass,
+    WindowVisual,
 };
 use std::io::{self, Write};
 
@@ -23,21 +24,21 @@ pub struct InitializeConnection {
 
 impl BeBytes for InitializeConnection {
     fn to_be_bytes(&self, w: &mut impl Write) -> io::Result<()> {
-        let n = self.authorization_protocol_name.len();
-        let p = pad(n);
-        let d = self.authorization_protocol_data.len();
-        let q = pad(d);
+        let authorization_name_len = self.authorization_protocol_name.len();
+        let authorization_name_pad = pad(authorization_name_len);
+        let authorization_data_len = self.authorization_protocol_data.len();
+        let authorization_data_pad = pad(authorization_data_len);
 
         w.write_all(b"B\0")?;
         write_be_bytes!(w, self.major_version);
         write_be_bytes!(w, self.minor_version);
-        write_be_bytes!(w, n as u16);
-        write_be_bytes!(w, d as u16);
+        write_be_bytes!(w, authorization_name_len as u16);
+        write_be_bytes!(w, authorization_data_len as u16);
         w.write_all(&[0u8; 2])?; // unused
         w.write_all(&self.authorization_protocol_name)?;
-        w.write_all(&vec![0u8; p])?; // unused, pad
+        w.write_all(&vec![0u8; authorization_name_pad])?; // unused, pad
         w.write_all(&self.authorization_protocol_data)?;
-        w.write_all(&vec![0u8; q])?; // unused, pad
+        w.write_all(&vec![0u8; authorization_data_pad])?; // unused, pad
 
         Ok(())
     }
@@ -129,55 +130,44 @@ impl BeBytes for PolyFillRectangle {
 impl XRequest for PolyFillRectangle {}
 
 macro_rules! impl_raw_field {
-    ($struct:path, $getter:ident, $setter:ident, $idx:expr) => {
-        #[allow(dead_code)]
-        impl $struct {
-            pub fn $getter(&self) -> Option<u32> {
-                self.raw_values[$idx]
-            }
-
-            pub fn $setter(mut self, new_value: u32) -> Self {
-                self.raw_values[$idx] = Some(new_value);
-                self
-            }
+    ($ty:path, $setter:ident, $idx:expr) => {
+        pub fn $setter(mut self, new_value: $ty) -> Self {
+            self.values.values[$idx] = Some(new_value.into());
+            self
         }
     };
 }
 
 macro_rules! impl_raw_fields_go {
-    ($struct:path, $idx:expr, $getter:ident, $setter:ident $(,)?) => {
-        impl_raw_field!($struct, $getter, $setter, $idx);
-    };
+    ($idx:expr $(,)?) => { };
 
-    ($struct:path, $idx:expr, $getter:ident, $setter:ident, $($rest:tt)*) => {
-        impl_raw_field!($struct, $getter, $setter, $idx);
-        impl_raw_fields_go!($struct, $idx + 1, $($rest)*);
+    ($idx:expr, $setter:ident: $ty:path, $($rest:tt)*) => {
+        impl_raw_field!($ty, $setter, $idx);
+        impl_raw_fields_go!($idx + 1, $($rest)*);
     };
 }
 
 macro_rules! impl_raw_fields {
-    ($struct:path, $($rest:tt)*) => {
-        impl_raw_fields_go!($struct, 0, $($rest)*);
+    ($($rest:tt)*) => {
+        impl_raw_fields_go!(0, $($rest)*);
     };
 }
 
 #[derive(Debug, Clone)]
-pub struct GcParams {
-    raw_values: [Option<u32>; 23],
+pub struct ListOfValues<const N: usize> {
+    values: [Option<u32>; N],
 }
 
-impl GcParams {
+impl<const N: usize> ListOfValues<N> {
     pub fn new() -> Self {
-        Self {
-            raw_values: [None; 23],
-        }
+        Self { values: [None; N] }
     }
 
     pub fn mask_and_count(&self) -> (u32, u16) {
         let mut bitmask: u32 = 0;
         let mut n: u16 = 0;
 
-        for value in self.raw_values.iter().rev() {
+        for value in self.values.iter().rev() {
             bitmask <<= 1;
             bitmask |= value.is_some() as u32;
             n += value.is_some() as u16;
@@ -187,7 +177,7 @@ impl GcParams {
     }
 
     pub fn to_be_bytes_if_set(&self, w: &mut impl Write) -> io::Result<()> {
-        for value in self.raw_values {
+        for value in self.values {
             if let Some(value) = value {
                 write_be_bytes!(w, value);
             }
@@ -197,42 +187,55 @@ impl GcParams {
     }
 }
 
-impl_raw_fields! {GcParams,
-  function, set_function,
-  plane_mask, set_plane_mask,
-  foreground, set_foreground,
-  background, set_background,
-  line_width, set_line_width,
-  line_style, set_line_style,
-  cap_style, set_cap_style,
-  join_style, set_join_style,
-  fill_style, set_fill_style,
-  fill_rule, set_fill_rule,
-  tile, set_tile,
-  stipple, set_stipple,
-  tile_stipple_x_origin, set_tile_stipple_x_origin,
-  tile_stipple_y_origin, set_tile_stipple_y_origin,
-  font, set_font,
-  subwindow_mode, set_subwindow_mode,
-  graphics_exposures, set_graphics_exposures,
-  clip_x_origin, set_clip_x_origin,
-  clip_y_origin, set_clip_y_origin,
-  clip_mask, set_clip_mask,
-  dash_offset, set_dash_offset,
-  dashes, set_dashes,
-  arc_mode, set_arc_mode,
+#[derive(Debug, Clone)]
+pub struct GcParams {
+    values: ListOfValues<23>,
+}
+
+impl GcParams {
+    pub fn new() -> Self {
+        Self {
+            values: ListOfValues::new(),
+        }
+    }
+
+    impl_raw_fields! {
+      set_function: u32, // TODO: type
+      set_plane_mask: u32,
+      set_foreground: u32,
+      set_background: u32,
+      set_line_width: u16,
+      set_line_style: u32, // TODO: type
+      set_cap_style: u32, // TODO: type
+      set_join_style: u32, // TODO: type
+      set_fill_style: u32, // TODO: type
+      set_fill_rule: u32, // TODO: type
+      set_tile: Pixmap,
+      set_stipple: Pixmap,
+      set_tile_stipple_x_origin: u16,
+      set_tile_stipple_y_origin: u16,
+      set_font: Font,
+      set_subwindow_mode: u32,
+      set_graphics_exposures: bool,
+      set_clip_x_origin: u16,
+      set_clip_y_origin: u16,
+      set_clip_mask: Pixmap, // TODO: or None
+      set_dash_offset: u16,
+      set_dashes: u8,
+      set_arc_mode: u32,
+    }
 }
 
 #[derive(Debug, Clone)]
-pub struct CreateGc {
+pub struct CreateGC {
     pub cid: GContext,
     pub drawable: Drawable,
     pub values: GcParams,
 }
 
-impl BeBytes for CreateGc {
+impl BeBytes for CreateGC {
     fn to_be_bytes(&self, w: &mut impl Write) -> io::Result<()> {
-        let (bitmask, n) = self.values.mask_and_count();
+        let (bitmask, n) = self.values.values.mask_and_count();
 
         write_be_bytes!(w, opcodes::CREATE_GC);
         write_be_bytes!(w, 0u8); // unused
@@ -240,13 +243,13 @@ impl BeBytes for CreateGc {
         write_be_bytes!(w, self.cid.id().value());
         write_be_bytes!(w, self.drawable.value());
         write_be_bytes!(w, bitmask);
-        self.values.to_be_bytes_if_set(w)?;
+        self.values.values.to_be_bytes_if_set(w)?;
 
         Ok(())
     }
 }
 
-impl XRequest for CreateGc {}
+impl XRequest for CreateGC {}
 
 #[derive(Debug, Clone)]
 pub struct ChangeGC {
@@ -256,14 +259,14 @@ pub struct ChangeGC {
 
 impl BeBytes for ChangeGC {
     fn to_be_bytes(&self, w: &mut impl Write) -> io::Result<()> {
-        let (bitmask, n) = self.values.mask_and_count();
+        let (bitmask, n) = self.values.values.mask_and_count();
 
         write_be_bytes!(w, opcodes::CHANGE_GC);
         write_be_bytes!(w, 0u8); // unused
         write_be_bytes!(w, 3 + n); // length
         write_be_bytes!(w, self.gcontext.id().value());
         write_be_bytes!(w, bitmask);
-        self.values.to_be_bytes_if_set(w)?;
+        self.values.values.to_be_bytes_if_set(w)?;
 
         Ok(())
     }

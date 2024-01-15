@@ -4,7 +4,7 @@ use crate::{
     connection::{XConnection, XConnectionRead},
     error::Error,
     requests::{
-        CreateGc, CreateWindow, GcParams, InitializeConnection, MapWindow, PolyFillRectangle,
+        CreateGC, CreateWindow, GcParams, InitializeConnection, MapWindow, PolyFillRectangle,
     },
     utils::*,
     xauth::XAuth,
@@ -42,6 +42,29 @@ impl ResourceId {
     }
 }
 
+macro_rules! impl_resource_id {
+    ($name:ident) => {
+        #[derive(Debug, Clone, Copy)]
+        pub struct $name(ResourceId);
+
+        impl $name {
+            pub fn id(self) -> ResourceId {
+                self.0
+            }
+        }
+
+        impl Into<u32> for $name {
+            fn into(self) -> u32 {
+                self.0.value()
+            }
+        }
+    };
+}
+
+impl_resource_id!(Pixmap);
+impl_resource_id!(VisualId);
+impl_resource_id!(Font);
+
 #[derive(Debug, Clone, Copy)]
 pub struct IdAllocator {
     id_base: u32,
@@ -62,7 +85,7 @@ impl IdAllocator {
         let new_part = self.id_mask & (self.next_id << self.id_mask.trailing_zeros());
         self.next_id += 1;
 
-        assert!(new_part != self.id_mask, "Invalid ID allocated");
+        assert_ne!(new_part, 0, "Invalid ID allocated");
 
         ResourceId {
             value: NonZeroU32::new(self.id_base | new_part).unwrap(),
@@ -115,14 +138,9 @@ impl XResponse for InitializeConnectionResponseRefused {
     }
 }
 
-#[derive(Debug, Clone, Copy)]
-pub struct Window(ResourceId);
+impl_resource_id!(Window);
 
 impl Window {
-    pub fn id(self) -> ResourceId {
-        self.0
-    }
-
     pub fn map(self, display: &mut XDisplay) -> Result<(), Error> {
         let request = MapWindow { window: self };
         display.connection.send_request(&request)?;
@@ -132,7 +150,7 @@ impl Window {
     pub fn create_gc(self, display: &mut XDisplay, values: GcParams) -> Result<GContext, Error> {
         let cid = GContext(display.id_allocator.allocate_id());
 
-        let request = CreateGc {
+        let request = CreateGC {
             cid,
             drawable: Drawable::Window(self),
             values,
@@ -148,10 +166,19 @@ impl Window {
         gc: GContext,
         rectangle: Rectangle,
     ) -> Result<(), Error> {
+        self.draw_rectangles(display, gc, vec![rectangle])
+    }
+
+    pub fn draw_rectangles(
+        self,
+        display: &mut XDisplay,
+        gc: GContext,
+        rectangles: Vec<Rectangle>,
+    ) -> Result<(), Error> {
         let request = PolyFillRectangle {
             drawable: Drawable::Window(self),
             gc,
-            rectangles: vec![rectangle],
+            rectangles,
         };
         display.connection.send_request(&request)?;
         Ok(())
@@ -182,7 +209,7 @@ impl TryFrom<u8> for VisualClass {
 
 #[derive(Debug)]
 pub struct Visual {
-    pub id: u32,
+    pub id: VisualId,
     pub class: VisualClass,
     pub bits_per_rgb_value: u8,
     pub colormap_entries: u16,
@@ -202,7 +229,9 @@ impl Visual {
         let blue_mask = conn.read_u32_be()?;
         let _unused = conn.read_u32_be()?;
         Ok(Self {
-            id,
+            id: VisualId(ResourceId {
+                value: NonZeroU32::new(id).unwrap(),
+            }),
             class,
             bits_per_rgb_value,
             colormap_entries,
@@ -422,15 +451,6 @@ pub enum WindowClass {
 }
 
 #[derive(Debug, Clone, Copy)]
-pub struct VisualId(ResourceId);
-
-impl VisualId {
-    pub fn id(self) -> ResourceId {
-        self.0
-    }
-}
-
-#[derive(Debug, Clone, Copy)]
 pub enum WindowVisual {
     CopyFromParent,
     Id(VisualId),
@@ -479,14 +499,9 @@ impl BeBytes for Rectangle {
     }
 }
 
-#[derive(Debug, Clone, Copy)]
-pub struct GContext(ResourceId);
+impl_resource_id!(GContext);
 
 impl GContext {
-    pub fn id(self) -> ResourceId {
-        self.0
-    }
-
     pub fn change(self, display: &mut XDisplay, settings: GcParams) -> Result<(), Error> {
         let request = ChangeGC {
             gcontext: self,

@@ -19,9 +19,7 @@ pub fn go() -> Result<(), Error> {
 
     loop {
         // Background
-        let gc_settings = GcParams::new()
-            .set_background(0x00000000)
-            .set_foreground(0x00000000);
+        let gc_settings = GcParams::new().set_foreground(0x222222);
         gc.change(&mut display, gc_settings)?;
         window.draw_rectangle(&mut display, gc, background)?;
 
@@ -34,9 +32,7 @@ pub fn go() -> Result<(), Error> {
         };
         y = (y + 5) % 1000;
 
-        let gc_settings = GcParams::new()
-            .set_background(0xffffffff)
-            .set_foreground(0xffffffff);
+        let gc_settings = GcParams::new().set_foreground(0x4eb4fa);
         gc.change(&mut display, gc_settings)?;
         window.draw_rectangle(&mut display, gc, rect)?;
 
