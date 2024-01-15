@@ -1,4 +1,6 @@
-use requests::ChangeGC;
+#![allow(dead_code)]
+
+use requests::{ChangeGC, GetWindowAttributes, XRequest};
 
 use crate::{
     connection::{XConnection, XConnectionRead},
@@ -10,6 +12,7 @@ use crate::{
     xauth::XAuth,
 };
 use std::{
+    collections::HashMap,
     fmt::Display,
     io::{self, Write},
     mem,
@@ -143,7 +146,7 @@ impl_resource_id!(Window);
 impl Window {
     pub fn map(self, display: &mut XDisplay) -> Result<(), Error> {
         let request = MapWindow { window: self };
-        display.connection.send_request(&request)?;
+        display.send_request(&request)?;
         Ok(())
     }
 
@@ -155,7 +158,7 @@ impl Window {
             drawable: Drawable::Window(self),
             values,
         };
-        display.connection.send_request(&request)?;
+        display.send_request(&request)?;
 
         Ok(cid)
     }
@@ -180,8 +183,23 @@ impl Window {
             gc,
             rectangles,
         };
-        display.connection.send_request(&request)?;
+        display.send_request(&request)?;
         Ok(())
+    }
+
+    pub fn get_attributes(self, display: &mut XDisplay) -> Result<WindowAttributes, Error> {
+        let request = GetWindowAttributes { window: self };
+        let sequence_number = display.send_request(&request)?;
+        display.connection.flush()?;
+
+        let reply = display.await_reply(sequence_number)?;
+
+        #[allow(irrefutable_let_patterns)]
+        if let Reply::GetWindowAttributes(reply) = reply {
+            return Ok(reply);
+        } else {
+            panic!("Unexpected reply type");
+        }
     }
 }
 
@@ -468,14 +486,14 @@ impl WindowVisual {
 #[derive(Debug, Clone, Copy)]
 pub enum Drawable {
     Window(Window),
-    Pixmap(u32), // TODO: Pixmap type
+    Pixmap(Pixmap),
 }
 
 impl Drawable {
     fn value(self) -> u32 {
         match self {
-            Drawable::Window(window) => window.id().value(),
-            Drawable::Pixmap(pixmap) => pixmap,
+            Drawable::Window(window) => window.into(),
+            Drawable::Pixmap(pixmap) => pixmap.into(),
         }
     }
 }
@@ -507,7 +525,7 @@ impl GContext {
             gcontext: self,
             values: settings,
         };
-        display.connection.send_request(&request)?;
+        display.send_request(&request)?;
         Ok(())
     }
 }
@@ -516,6 +534,8 @@ pub struct XDisplay {
     pub id_allocator: IdAllocator,
     pub screens: Vec<Screen>,
     pub connection: XConnection,
+    awaiting_replies: HashMap<SequenceNumber, AwaitingReply>,
+    next_sequence_number: SequenceNumber,
 }
 
 impl XDisplay {
@@ -532,7 +552,7 @@ impl XDisplay {
         connection.send_request(&init)?;
         connection.flush()?;
 
-        let response = connection.read_response::<InitializeConnectionResponse>()?;
+        let response = connection.read_expected_response::<InitializeConnectionResponse>()?;
         let response = match response {
             InitializeConnectionResponse::Refused(response) => {
                 return Err(Error::CouldNotOpenDisplay(response));
@@ -542,10 +562,14 @@ impl XDisplay {
 
         let id_allocator = IdAllocator::new(response.resource_id_base, response.resource_id_mask);
 
+        connection.read_end.set_nonblocking(true)?;
+
         Ok(Self {
             id_allocator,
             screens: response.screens,
             connection,
+            awaiting_replies: HashMap::new(),
+            next_sequence_number: SequenceNumber { value: 1 },
         })
     }
 
@@ -563,8 +587,165 @@ impl XDisplay {
             window_class: WindowClass::CopyFromParent,
             visual: WindowVisual::CopyFromParent,
         };
-        self.connection.send_request(&create_window)?;
+        self.send_request(&create_window)?;
 
         Ok(new_window_id)
     }
+
+    pub fn send_request<R: XRequest>(&mut self, request: &R) -> Result<SequenceNumber, Error> {
+        let this_sequence_number = self.next_sequence_number;
+        self.next_sequence_number = SequenceNumber {
+            value: self.next_sequence_number.value.wrapping_add(1),
+        };
+
+        self.connection.send_request(request)?;
+
+        if let Some(reply_type) = R::reply_type() {
+            let sequence_number_exists = self
+                .awaiting_replies
+                .insert(this_sequence_number, AwaitingReply::NotReceived(reply_type))
+                .is_none();
+            assert!(sequence_number_exists);
+        }
+
+        Ok(this_sequence_number)
+    }
+
+    pub fn await_reply(&mut self, awaited: SequenceNumber) -> Result<Reply, Error> {
+        if let Some((_, entry)) = self.awaiting_replies.remove_entry(&awaited) {
+            match entry {
+                AwaitingReply::Received(reply) => {
+                    return Ok(reply);
+                }
+                reply => {
+                    self.awaiting_replies.insert(awaited, reply);
+                }
+            }
+        }
+
+        loop {
+            let code: u8 = self.connection.read_u8()?;
+
+            match code {
+                0 => {
+                    let error_code: u8 = self.connection.read_u8()?;
+                    panic!("error: {}", error_code);
+                }
+                1 => {
+                    let sequence_number: SequenceNumber = SequenceNumber {
+                        value: ((self.connection.peek(1)? as u16) << 8)
+                            + self.connection.peek(2)? as u16,
+                    };
+
+                    let &AwaitingReply::NotReceived(reply_type) = self
+                        .awaiting_replies
+                        .get(&sequence_number)
+                        .expect("Sequence number must be known")
+                    else {
+                        panic!("Reply must not be received");
+                    };
+
+                    let reply = self.decode_reply_blocking(reply_type)?;
+                    if sequence_number == awaited {
+                        self.awaiting_replies.remove(&sequence_number);
+                        return Ok(reply);
+                    } else {
+                        self.awaiting_replies
+                            .insert(sequence_number, AwaitingReply::Received(reply));
+                    }
+                }
+                _ => panic!("Unsupported code: {}", code),
+            }
+        }
+    }
+
+    fn decode_reply_blocking(&mut self, reply_type: ReplyType) -> Result<Reply, Error> {
+        match reply_type {
+            ReplyType::GetWindowAttributes => {
+                let reply = WindowAttributes::from_be_bytes(&mut self.connection)?;
+                Ok(Reply::GetWindowAttributes(reply))
+            }
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, Hash, PartialEq, Eq, PartialOrd, Ord)]
+pub struct SequenceNumber {
+    value: u16,
+}
+
+#[derive(Debug, Clone)]
+pub struct WindowAttributes {
+    backing_store: u8,
+    visual_id: u32,
+    class: u16,
+    bit_gravity: u8,
+    win_gravity: u8,
+    backing_planes: u32,
+    backing_pixel: u32,
+    save_under: bool,
+    map_is_installed: bool,
+    map_state: u8,
+    override_redirect: bool,
+    colormap: u32,
+    all_even_masks: u32,
+    your_even_masks: u32,
+    do_not_propagate_mask: u16,
+}
+
+impl WindowAttributes {
+    fn from_be_bytes(conn: &mut XConnection) -> Result<Self, Error> {
+        let backing_store = conn.read_u8()?;
+        let _sequence_code = conn.read_be_u16()?;
+        let _reply_length = conn.read_be_u32()?;
+        let visual_id = conn.read_be_u32()?;
+        let class = conn.read_be_u16()?;
+        let bit_gravity = conn.read_u8()?;
+        let win_gravity = conn.read_u8()?;
+        let backing_planes = conn.read_be_u32()?;
+        let backing_pixel = conn.read_be_u32()?;
+        let save_under = conn.read_bool()?;
+        let map_is_installed = conn.read_bool()?;
+        let map_state = conn.read_u8()?;
+        let override_redirect = conn.read_bool()?;
+        let colormap = conn.read_be_u32()?;
+        let all_even_masks = conn.read_be_u32()?;
+        let your_even_masks = conn.read_be_u32()?;
+        let do_not_propagate_mask = conn.read_be_u16()?;
+        let _unused = conn.read_be_u16()?;
+
+        Ok(Self {
+            backing_store,
+            visual_id,
+            class,
+            bit_gravity,
+            win_gravity,
+            backing_planes,
+            backing_pixel,
+            save_under,
+            map_is_installed,
+            map_state,
+            override_redirect,
+            colormap,
+            all_even_masks,
+            your_even_masks,
+            do_not_propagate_mask,
+        })
+    }
+}
+
+#[derive(Debug, Clone)]
+pub enum Reply {
+    GetWindowAttributes(WindowAttributes),
+}
+
+#[derive(Debug, Clone)]
+pub enum AwaitingReply {
+    NotReceived(ReplyType),
+    Received(Reply),
+}
+
+#[derive(Debug, Clone, Copy)]
+pub enum ReplyType {
+    GetWindowAttributes,
 }

@@ -1,12 +1,16 @@
 use crate::{
-    utils::pad, BeBytes, Drawable, Font, GContext, Pixmap, Rectangle, Window, WindowClass,
-    WindowVisual,
+    utils::pad, BeBytes, Drawable, Font, GContext, Pixmap, Rectangle, ReplyType, Window,
+    WindowClass, WindowVisual,
 };
 use std::io::{self, Write};
 
 mod opcodes;
 
-pub trait XRequest: BeBytes {}
+pub trait XRequest: BeBytes {
+    fn reply_type() -> Option<ReplyType> {
+        None
+    }
+}
 
 macro_rules! write_be_bytes {
     ($w:expr, $content:expr) => {
@@ -84,6 +88,28 @@ impl BeBytes for CreateWindow {
 }
 
 impl XRequest for CreateWindow {}
+
+#[derive(Debug, Clone, Copy)]
+pub struct GetWindowAttributes {
+    pub window: Window,
+}
+
+impl BeBytes for GetWindowAttributes {
+    fn to_be_bytes(&self, w: &mut impl Write) -> io::Result<()> {
+        write_be_bytes!(w, opcodes::GET_WINDOW_ATTRIBUTES);
+        write_be_bytes!(w, 0u8); // unused
+        write_be_bytes!(w, 2u16); // length
+        write_be_bytes!(w, self.window.id().value());
+
+        Ok(())
+    }
+}
+
+impl XRequest for GetWindowAttributes {
+    fn reply_type() -> Option<ReplyType> {
+        Some(ReplyType::GetWindowAttributes)
+    }
+}
 
 #[derive(Debug, Clone, Copy)]
 pub struct MapWindow {

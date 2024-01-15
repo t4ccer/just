@@ -1,43 +1,46 @@
 use crate::{error::Error, requests::XRequest, XResponse};
 use std::{
-    io::{self, BufRead, BufReader, BufWriter, Read, Write},
+    collections::{vec_deque::Drain, VecDeque},
+    io::{self, BufWriter, Read, Write},
     os::unix::net::UnixStream,
     str::FromStr,
 };
 
+pub(crate) enum XConnectionReader {
+    UnixStream(UnixStream),
+}
+
+impl Read for XConnectionReader {
+    fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
+        match self {
+            XConnectionReader::UnixStream(stream) => stream.read(buf),
+        }
+    }
+}
+
 pub struct XConnectionRead {
-    pub(crate) inner: BufReader<Box<dyn Read>>,
+    pub(crate) inner: XConnectionReader,
 }
 
 impl XConnectionRead {
-    pub fn new(inner: BufReader<Box<dyn Read>>) -> Self {
-        Self { inner }
+    pub(crate) fn set_nonblocking(&mut self, nonblocking: bool) -> io::Result<()> {
+        match self.inner {
+            XConnectionReader::UnixStream(ref stream) => stream.set_nonblocking(nonblocking),
+        }
     }
 
     pub fn read_exact(&mut self, buf: &mut [u8]) -> io::Result<()> {
         self.inner.read_exact(buf)
     }
 
-    pub fn read_n_bytes(&mut self, mut to_read: usize) -> io::Result<Vec<u8>> {
-        let to_read_init = to_read;
-        let mut res = Vec::with_capacity(to_read_init);
+    pub fn read_n_bytes(&mut self, to_read: usize) -> io::Result<Vec<u8>> {
+        let mut buf = vec![0u8; to_read];
 
-        while to_read != 0 {
-            let available_data = self.inner.buffer().len();
+        self.inner.read_exact(&mut buf)?;
 
-            if to_read > available_data {
-                res.extend(&self.inner.buffer()[..]);
-                self.inner.consume(available_data);
-                self.inner.fill_buf()?;
-                to_read -= available_data;
-            } else {
-                res.extend(&self.inner.buffer()[..to_read]);
-                self.inner.consume(to_read);
-                to_read = 0;
-            }
-        }
+        assert_eq!(buf.len(), to_read);
 
-        Ok(res)
+        Ok(buf)
     }
 
     pub fn read_u8(&mut self) -> io::Result<u8> {
@@ -71,6 +74,7 @@ impl XConnectionRead {
 
 pub struct XConnection {
     pub(crate) read_end: XConnectionRead,
+    pub(crate) read_buf: VecDeque<u8>,
     write_end: BufWriter<Box<dyn Write>>,
 }
 
@@ -78,15 +82,75 @@ impl TryFrom<UnixStream> for XConnection {
     type Error = Error;
 
     fn try_from(stream: UnixStream) -> Result<Self, Error> {
+        let read_end = stream.try_clone()?;
+        let write_end = stream;
+
         Ok(Self {
-            read_end: XConnectionRead::new(BufReader::new(Box::new(stream.try_clone()?))),
-            write_end: BufWriter::new(Box::new(stream)),
+            read_end: XConnectionRead {
+                inner: XConnectionReader::UnixStream(read_end),
+            },
+            write_end: BufWriter::new(Box::new(write_end)),
+            read_buf: VecDeque::new(),
         })
     }
 }
 
 impl XConnection {
-    pub fn send_request(&mut self, request: &impl XRequest) -> Result<(), Error> {
+    fn ensure_buffer_size(&mut self, size: usize) -> Result<(), Error> {
+        while self.read_buf.len() < size {
+            self.fill_buf_unblocking()?;
+        }
+        Ok(())
+    }
+
+    pub(crate) fn drain(&mut self, len: usize) -> Result<Drain<'_, u8>, Error> {
+        self.ensure_buffer_size(len)?;
+        Ok(self.read_buf.drain(0..len))
+    }
+
+    pub(crate) fn read_u8(&mut self) -> Result<u8, Error> {
+        self.ensure_buffer_size(1)?;
+        Ok(self.read_buf.pop_front().unwrap())
+    }
+
+    pub(crate) fn read_bool(&mut self) -> Result<bool, Error> {
+        Ok(self.read_u8()? != 0)
+    }
+
+    pub(crate) fn read_be_u16(&mut self) -> Result<u16, Error> {
+        let mut buf = self.drain(2)?;
+        let mut ret: u16 = 0;
+        ret += buf.next().unwrap() as u16;
+        ret <<= 8;
+        ret += buf.next().unwrap() as u16;
+
+        debug_assert!(buf.next().is_none());
+
+        Ok(ret)
+    }
+
+    pub(crate) fn read_be_u32(&mut self) -> Result<u32, Error> {
+        let mut buf = self.drain(4)?;
+        let mut ret: u32 = 0;
+        ret += buf.next().unwrap() as u32;
+        ret <<= 8;
+        ret += buf.next().unwrap() as u32;
+        ret <<= 8;
+        ret += buf.next().unwrap() as u32;
+        ret <<= 8;
+        ret += buf.next().unwrap() as u32;
+
+        debug_assert!(buf.next().is_none());
+
+        Ok(ret)
+    }
+
+    pub(crate) fn peek(&mut self, index: usize) -> Result<u8, Error> {
+        self.ensure_buffer_size(1)?;
+        Ok(*self.read_buf.get(index).unwrap())
+    }
+
+    pub(crate) fn send_request<R: XRequest>(&mut self, request: &R) -> Result<(), Error> {
         request.to_be_bytes(&mut self.write_end)?;
         Ok(())
     }
@@ -96,7 +160,7 @@ impl XConnection {
         Ok(())
     }
 
-    pub fn read_response<T>(&mut self) -> Result<T, Error>
+    pub fn read_expected_response<T>(&mut self) -> Result<T, Error>
     where
         T: XResponse,
     {
@@ -114,6 +178,19 @@ impl XConnection {
         let socket_path = format!("/tmp/.X11-unix/X{}", display.display_sequence);
         let stream = UnixStream::connect(socket_path)?;
         Self::try_from(stream)
+    }
+
+    /// `true` if read any new data
+    pub fn fill_buf_unblocking(&mut self) -> Result<bool, Error> {
+        let mut buf = vec![0u8; 0x1000];
+        match self.read_end.inner.read(&mut buf) {
+            Ok(n) => {
+                self.read_buf.extend(&buf[0..n]);
+                Ok(true)
+            }
+            Err(err) if err.kind() == io::ErrorKind::WouldBlock => Ok(false),
+            Err(err) => Err(err)?,
+        }
     }
 }
 
