@@ -1,4 +1,4 @@
-use justshow::{
+use justshow::x11::{
     error::Error,
     events::Event,
     requests::{EventType, GContextSettings, WindowCreationAttributes},

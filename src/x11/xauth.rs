@@ -1,4 +1,4 @@
-use crate::{error::Error, utils::bin_parse};
+use crate::x11::{error::Error, utils::bin_parse};
 use std::{fs, io::Read};
 
 #[allow(dead_code)]

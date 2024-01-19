@@ -1,4 +1,4 @@
-use crate::InitializeConnectionResponseRefused;
+use crate::x11::InitializeConnectionResponseRefused;
 use std::io;
 
 #[derive(Debug)]

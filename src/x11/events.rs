@@ -1,6 +1,6 @@
 use std::num::NonZeroU32;
 
-use crate::{connection::XConnection, error::Error, ResourceId, Window};
+use crate::x11::{connection::XConnection, error::Error, ResourceId, Window};
 
 #[derive(Debug, Clone)]
 pub struct KeyPressRelease {

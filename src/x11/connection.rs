@@ -1,4 +1,4 @@
-use crate::{error::Error, requests::XRequest, XResponse};
+use crate::x11::{error::Error, requests::XRequest, XResponse};
 use std::{
     collections::{vec_deque::Drain, VecDeque},
     io::{self, BufWriter, Read, Write},

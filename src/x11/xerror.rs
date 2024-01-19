@@ -1,4 +1,4 @@
-use crate::{connection::XConnection, error::Error, XResponse};
+use crate::x11::{connection::XConnection, error::Error, XResponse};
 
 #[derive(Debug, Clone, Copy)]
 pub enum XError {

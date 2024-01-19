@@ -1,4 +1,4 @@
-use crate::{
+use crate::x11::{
     replies::ReplyType, utils::pad, BeBytes, Drawable, Font, GContext, Pixmap, Rectangle, Window,
     WindowClass, WindowVisual,
 };
