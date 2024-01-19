@@ -69,37 +69,31 @@ impl XConnection {
         Ok(self.read_u8()? != 0)
     }
 
-    pub(crate) fn read_be_u16(&mut self) -> Result<u16, Error> {
+    pub(crate) fn read_le_u16(&mut self) -> Result<u16, Error> {
         let mut buf = self.drain(2)?;
-        let mut ret: u16 = 0;
-        ret += buf.next().unwrap() as u16;
-        ret <<= 8;
-        ret += buf.next().unwrap() as u16;
+        let b1 = buf.next().unwrap();
+        let b2 = buf.next().unwrap();
 
         debug_assert!(buf.next().is_none());
 
-        Ok(ret)
+        Ok(u16::from_le_bytes([b1, b2]))
     }
 
-    pub(crate) fn read_be_i16(&mut self) -> Result<i16, Error> {
-        let raw = self.read_be_u16()?;
-        Ok(i16::from_be_bytes(raw.to_be_bytes()))
+    pub(crate) fn read_le_i16(&mut self) -> Result<i16, Error> {
+        let raw = self.read_le_u16()?;
+        Ok(i16::from_le_bytes(raw.to_le_bytes()))
     }
 
-    pub(crate) fn read_be_u32(&mut self) -> Result<u32, Error> {
+    pub(crate) fn read_le_u32(&mut self) -> Result<u32, Error> {
         let mut buf = self.drain(4)?;
-        let mut ret: u32 = 0;
-        ret += buf.next().unwrap() as u32;
-        ret <<= 8;
-        ret += buf.next().unwrap() as u32;
-        ret <<= 8;
-        ret += buf.next().unwrap() as u32;
-        ret <<= 8;
-        ret += buf.next().unwrap() as u32;
+        let b1 = buf.next().unwrap();
+        let b2 = buf.next().unwrap();
+        let b3 = buf.next().unwrap();
+        let b4 = buf.next().unwrap();
 
         debug_assert!(buf.next().is_none());
 
-        Ok(ret)
+        Ok(u32::from_le_bytes([b1, b2, b3, b4]))
     }
 
     pub(crate) fn read_many<T, E>(
@@ -126,7 +120,7 @@ impl XConnection {
     }
 
     pub(crate) fn send_request<R: XRequest>(&mut self, request: &R) -> Result<(), Error> {
-        request.to_be_bytes(&mut self.write_end)?;
+        request.to_le_bytes(&mut self.write_end)?;
         Ok(())
     }
 
@@ -139,7 +133,7 @@ impl XConnection {
     where
         T: XResponse,
     {
-        T::from_be_bytes(self)
+        T::from_le_bytes(self)
     }
 
     pub fn from_env() -> Result<Self, Error> {

@@ -22,25 +22,25 @@ pub struct WindowAttributes {
 }
 
 impl WindowAttributes {
-    pub(crate) fn from_be_bytes(conn: &mut XConnection) -> Result<Self, Error> {
+    pub(crate) fn from_le_bytes(conn: &mut XConnection) -> Result<Self, Error> {
         let backing_store = conn.read_u8()?;
-        let _sequence_code = conn.read_be_u16()?;
-        let _reply_length = conn.read_be_u32()?;
-        let visual_id = conn.read_be_u32()?;
-        let class = conn.read_be_u16()?;
+        let _sequence_code = conn.read_le_u16()?;
+        let _reply_length = conn.read_le_u32()?;
+        let visual_id = conn.read_le_u32()?;
+        let class = conn.read_le_u16()?;
         let bit_gravity = conn.read_u8()?;
         let win_gravity = conn.read_u8()?;
-        let backing_planes = conn.read_be_u32()?;
-        let backing_pixel = conn.read_be_u32()?;
+        let backing_planes = conn.read_le_u32()?;
+        let backing_pixel = conn.read_le_u32()?;
         let save_under = conn.read_bool()?;
         let map_is_installed = conn.read_bool()?;
         let map_state = conn.read_u8()?;
         let override_redirect = conn.read_bool()?;
-        let colormap = conn.read_be_u32()?;
-        let all_even_masks = conn.read_be_u32()?;
-        let your_even_masks = conn.read_be_u32()?;
-        let do_not_propagate_mask = conn.read_be_u16()?;
-        let _unused = conn.read_be_u16()?;
+        let colormap = conn.read_le_u32()?;
+        let all_even_masks = conn.read_le_u32()?;
+        let your_even_masks = conn.read_le_u32()?;
+        let do_not_propagate_mask = conn.read_le_u16()?;
+        let _unused = conn.read_le_u16()?;
 
         Ok(Self {
             backing_store,
@@ -74,18 +74,18 @@ pub struct Geometry {
 }
 
 impl Geometry {
-    pub(crate) fn from_be_bytes(conn: &mut XConnection) -> Result<Self, Error> {
+    pub(crate) fn from_le_bytes(conn: &mut XConnection) -> Result<Self, Error> {
         let depth = conn.read_u8()?;
-        let _sequence_code = conn.read_be_u16()?;
-        let _reply_length = conn.read_be_u32()?;
+        let _sequence_code = conn.read_le_u16()?;
+        let _reply_length = conn.read_le_u32()?;
         let root = Window(ResourceId {
-            value: NonZeroU32::new(conn.read_be_u32()?).unwrap(),
+            value: NonZeroU32::new(conn.read_le_u32()?).unwrap(),
         });
-        let x = conn.read_be_i16()?;
-        let y = conn.read_be_i16()?;
-        let width = conn.read_be_u16()?;
-        let height = conn.read_be_u16()?;
-        let border_width = conn.read_be_u16()?;
+        let x = conn.read_le_i16()?;
+        let y = conn.read_le_i16()?;
+        let width = conn.read_le_u16()?;
+        let height = conn.read_le_u16()?;
+        let border_width = conn.read_le_u16()?;
         conn.drain(10)?;
 
         Ok(Self {

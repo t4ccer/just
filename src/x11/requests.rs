@@ -39,9 +39,9 @@ pub trait XRequest: BeBytes {
     }
 }
 
-macro_rules! write_be_bytes {
+macro_rules! write_le_bytes {
     ($w:expr, $content:expr) => {
-        $w.write_all(&(($content).to_be_bytes()))?;
+        $w.write_all(&(($content).to_le_bytes()))?;
     };
 }
 
@@ -54,17 +54,17 @@ pub struct InitializeConnection {
 }
 
 impl BeBytes for InitializeConnection {
-    fn to_be_bytes(&self, w: &mut impl Write) -> io::Result<()> {
+    fn to_le_bytes(&self, w: &mut impl Write) -> io::Result<()> {
         let authorization_name_len = self.authorization_protocol_name.len();
         let authorization_name_pad = pad(authorization_name_len);
         let authorization_data_len = self.authorization_protocol_data.len();
         let authorization_data_pad = pad(authorization_data_len);
 
-        w.write_all(b"B\0")?;
-        write_be_bytes!(w, self.major_version);
-        write_be_bytes!(w, self.minor_version);
-        write_be_bytes!(w, authorization_name_len as u16);
-        write_be_bytes!(w, authorization_data_len as u16);
+        w.write_all(b"l\0")?;
+        write_le_bytes!(w, self.major_version);
+        write_le_bytes!(w, self.minor_version);
+        write_le_bytes!(w, authorization_name_len as u16);
+        write_le_bytes!(w, authorization_data_len as u16);
         w.write_all(&[0u8; 2])?; // unused
         w.write_all(&self.authorization_protocol_name)?;
         w.write_all(&vec![0u8; authorization_name_pad])?; // unused, pad
@@ -124,23 +124,23 @@ pub struct CreateWindow {
 }
 
 impl BeBytes for CreateWindow {
-    fn to_be_bytes(&self, w: &mut impl Write) -> io::Result<()> {
+    fn to_le_bytes(&self, w: &mut impl Write) -> io::Result<()> {
         let (bitmask, n) = self.attributes.values.mask_and_count();
 
-        write_be_bytes!(w, opcodes::CREATE_WINDOW);
-        write_be_bytes!(w, self.depth);
-        write_be_bytes!(w, 8u16 + n); // length
-        write_be_bytes!(w, self.wid.id().value());
-        write_be_bytes!(w, self.parent.id().value());
-        write_be_bytes!(w, self.x);
-        write_be_bytes!(w, self.y);
-        write_be_bytes!(w, self.width);
-        write_be_bytes!(w, self.height);
-        write_be_bytes!(w, self.border_width);
-        write_be_bytes!(w, self.window_class as u16);
-        write_be_bytes!(w, self.visual.value());
-        write_be_bytes!(w, bitmask);
-        self.attributes.values.to_be_bytes_if_set(w)?;
+        write_le_bytes!(w, opcodes::CREATE_WINDOW);
+        write_le_bytes!(w, self.depth);
+        write_le_bytes!(w, 8u16 + n); // length
+        write_le_bytes!(w, self.wid.id().value());
+        write_le_bytes!(w, self.parent.id().value());
+        write_le_bytes!(w, self.x);
+        write_le_bytes!(w, self.y);
+        write_le_bytes!(w, self.width);
+        write_le_bytes!(w, self.height);
+        write_le_bytes!(w, self.border_width);
+        write_le_bytes!(w, self.window_class as u16);
+        write_le_bytes!(w, self.visual.value());
+        write_le_bytes!(w, bitmask);
+        self.attributes.values.to_le_bytes_if_set(w)?;
 
         Ok(())
     }
@@ -154,11 +154,11 @@ pub struct GetWindowAttributes {
 }
 
 impl BeBytes for GetWindowAttributes {
-    fn to_be_bytes(&self, w: &mut impl Write) -> io::Result<()> {
-        write_be_bytes!(w, opcodes::GET_WINDOW_ATTRIBUTES);
-        write_be_bytes!(w, 0u8); // unused
-        write_be_bytes!(w, 2u16); // length
-        write_be_bytes!(w, self.window.id().value());
+    fn to_le_bytes(&self, w: &mut impl Write) -> io::Result<()> {
+        write_le_bytes!(w, opcodes::GET_WINDOW_ATTRIBUTES);
+        write_le_bytes!(w, 0u8); // unused
+        write_le_bytes!(w, 2u16); // length
+        write_le_bytes!(w, self.window.id().value());
 
         Ok(())
     }
@@ -176,11 +176,11 @@ pub struct MapWindow {
 }
 
 impl BeBytes for MapWindow {
-    fn to_be_bytes(&self, w: &mut impl Write) -> io::Result<()> {
-        write_be_bytes!(w, opcodes::MAP_WINDOW);
-        write_be_bytes!(w, 0u8); // unused
-        write_be_bytes!(w, 2u16); // size
-        write_be_bytes!(w, self.window.id().value());
+    fn to_le_bytes(&self, w: &mut impl Write) -> io::Result<()> {
+        write_le_bytes!(w, opcodes::MAP_WINDOW);
+        write_le_bytes!(w, 0u8); // unused
+        write_le_bytes!(w, 2u16); // size
+        write_le_bytes!(w, self.window.id().value());
 
         Ok(())
     }
@@ -193,11 +193,11 @@ pub struct GetGeometry {
 }
 
 impl BeBytes for GetGeometry {
-    fn to_be_bytes(&self, w: &mut impl Write) -> io::Result<()> {
-        write_be_bytes!(w, opcodes::GET_GEOMETRY);
-        write_be_bytes!(w, 0u8); // unused
-        write_be_bytes!(w, 2u16); // size
-        write_be_bytes!(w, self.drawable.value());
+    fn to_le_bytes(&self, w: &mut impl Write) -> io::Result<()> {
+        write_le_bytes!(w, opcodes::GET_GEOMETRY);
+        write_le_bytes!(w, 0u8); // unused
+        write_le_bytes!(w, 2u16); // size
+        write_le_bytes!(w, self.drawable.value());
 
         Ok(())
     }
@@ -217,16 +217,16 @@ pub struct PolyFillRectangle {
 }
 
 impl BeBytes for PolyFillRectangle {
-    fn to_be_bytes(&self, w: &mut impl Write) -> io::Result<()> {
+    fn to_le_bytes(&self, w: &mut impl Write) -> io::Result<()> {
         let n: u16 = self.rectangles.len() as u16;
 
-        write_be_bytes!(w, opcodes::POLY_FILL_RECTANGLE);
-        write_be_bytes!(w, 0u8); // unused
-        write_be_bytes!(w, 3 + (2 * n)); // request length
-        write_be_bytes!(w, self.drawable.value());
-        write_be_bytes!(w, self.gc.id().value());
+        write_le_bytes!(w, opcodes::POLY_FILL_RECTANGLE);
+        write_le_bytes!(w, 0u8); // unused
+        write_le_bytes!(w, 3 + (2 * n)); // request length
+        write_le_bytes!(w, self.drawable.value());
+        write_le_bytes!(w, self.gc.id().value());
         for rectangle in &self.rectangles {
-            rectangle.to_be_bytes(w)?;
+            rectangle.to_le_bytes(w)?;
         }
 
         Ok(())
@@ -258,10 +258,10 @@ impl<const N: usize> ListOfValues<N> {
         (bitmask, n)
     }
 
-    pub fn to_be_bytes_if_set(&self, w: &mut impl Write) -> io::Result<()> {
+    pub fn to_le_bytes_if_set(&self, w: &mut impl Write) -> io::Result<()> {
         for value in self.values {
             if let Some(value) = value {
-                write_be_bytes!(w, value);
+                write_le_bytes!(w, value);
             }
         }
 
@@ -316,16 +316,16 @@ pub struct CreateGC {
 }
 
 impl BeBytes for CreateGC {
-    fn to_be_bytes(&self, w: &mut impl Write) -> io::Result<()> {
+    fn to_le_bytes(&self, w: &mut impl Write) -> io::Result<()> {
         let (bitmask, n) = self.values.values.mask_and_count();
 
-        write_be_bytes!(w, opcodes::CREATE_GC);
-        write_be_bytes!(w, 0u8); // unused
-        write_be_bytes!(w, 4u16 + n); // length
-        write_be_bytes!(w, self.cid.id().value());
-        write_be_bytes!(w, self.drawable.value());
-        write_be_bytes!(w, bitmask);
-        self.values.values.to_be_bytes_if_set(w)?;
+        write_le_bytes!(w, opcodes::CREATE_GC);
+        write_le_bytes!(w, 0u8); // unused
+        write_le_bytes!(w, 4u16 + n); // length
+        write_le_bytes!(w, self.cid.id().value());
+        write_le_bytes!(w, self.drawable.value());
+        write_le_bytes!(w, bitmask);
+        self.values.values.to_le_bytes_if_set(w)?;
 
         Ok(())
     }
@@ -340,15 +340,15 @@ pub struct ChangeGC {
 }
 
 impl BeBytes for ChangeGC {
-    fn to_be_bytes(&self, w: &mut impl Write) -> io::Result<()> {
+    fn to_le_bytes(&self, w: &mut impl Write) -> io::Result<()> {
         let (bitmask, n) = self.values.values.mask_and_count();
 
-        write_be_bytes!(w, opcodes::CHANGE_GC);
-        write_be_bytes!(w, 0u8); // unused
-        write_be_bytes!(w, 3 + n); // length
-        write_be_bytes!(w, self.gcontext.id().value());
-        write_be_bytes!(w, bitmask);
-        self.values.values.to_be_bytes_if_set(w)?;
+        write_le_bytes!(w, opcodes::CHANGE_GC);
+        write_le_bytes!(w, 0u8); // unused
+        write_le_bytes!(w, 3 + n); // length
+        write_le_bytes!(w, self.gcontext.id().value());
+        write_le_bytes!(w, bitmask);
+        self.values.values.to_le_bytes_if_set(w)?;
 
         Ok(())
     }
@@ -360,10 +360,10 @@ impl XRequest for ChangeGC {}
 pub struct GetInputFocus;
 
 impl BeBytes for GetInputFocus {
-    fn to_be_bytes(&self, w: &mut impl Write) -> io::Result<()> {
-        write_be_bytes!(w, &opcodes::GET_INPUT_FOCUS);
-        write_be_bytes!(w, &0u8); // unused
-        write_be_bytes!(w, &1u16); // length
+    fn to_le_bytes(&self, w: &mut impl Write) -> io::Result<()> {
+        write_le_bytes!(w, &opcodes::GET_INPUT_FOCUS);
+        write_le_bytes!(w, &0u8); // unused
+        write_le_bytes!(w, &1u16); // length
 
         Ok(())
     }

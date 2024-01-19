@@ -18,18 +18,18 @@ pub struct KeyPressRelease {
 }
 
 impl KeyPressRelease {
-    pub(crate) fn from_be_bytes(conn: &mut XConnection) -> Result<Self, Error> {
+    pub(crate) fn from_le_bytes(conn: &mut XConnection) -> Result<Self, Error> {
         let detail = conn.read_u8()?;
-        let _sequence_number = conn.read_be_u16()?;
-        let time = conn.read_be_u32()?;
-        let root = conn.read_be_u32()?;
-        let event = conn.read_be_u32()?;
-        let child = conn.read_be_u32()?;
-        let root_x = conn.read_be_i16()?;
-        let root_y = conn.read_be_i16()?;
-        let event_x = conn.read_be_i16()?;
-        let event_y = conn.read_be_i16()?;
-        let state = conn.read_be_u16()?;
+        let _sequence_number = conn.read_le_u16()?;
+        let time = conn.read_le_u32()?;
+        let root = conn.read_le_u32()?;
+        let event = conn.read_le_u32()?;
+        let child = conn.read_le_u32()?;
+        let root_x = conn.read_le_i16()?;
+        let root_y = conn.read_le_i16()?;
+        let event_x = conn.read_le_i16()?;
+        let event_y = conn.read_le_i16()?;
+        let state = conn.read_le_u16()?;
         let same_screen = conn.read_bool()?;
         let _unused = conn.drain(1)?;
 
@@ -57,14 +57,14 @@ pub struct ResizeRequest {
 }
 
 impl ResizeRequest {
-    pub(crate) fn from_be_bytes(conn: &mut XConnection) -> Result<Self, Error> {
+    pub(crate) fn from_le_bytes(conn: &mut XConnection) -> Result<Self, Error> {
         let _unused = conn.read_u8()?;
-        let _sequence_number = conn.read_be_u16()?;
+        let _sequence_number = conn.read_le_u16()?;
         let window = Window(ResourceId {
-            value: NonZeroU32::new(conn.read_be_u32()?).unwrap(),
+            value: NonZeroU32::new(conn.read_le_u32()?).unwrap(),
         });
-        let width = conn.read_be_u16()?;
-        let height = conn.read_be_u16()?;
+        let width = conn.read_le_u16()?;
+        let height = conn.read_le_u16()?;
 
         Ok(Self {
             window,
@@ -82,14 +82,14 @@ pub struct MapNotify {
 }
 
 impl MapNotify {
-    pub(crate) fn from_be_bytes(conn: &mut XConnection) -> Result<Self, Error> {
+    pub(crate) fn from_le_bytes(conn: &mut XConnection) -> Result<Self, Error> {
         let _unused = conn.read_u8()?;
-        let _sequence_number = conn.read_be_u16()?;
+        let _sequence_number = conn.read_le_u16()?;
         let event = Window(ResourceId {
-            value: NonZeroU32::new(conn.read_be_u32()?).unwrap(),
+            value: NonZeroU32::new(conn.read_le_u32()?).unwrap(),
         });
         let window = Window(ResourceId {
-            value: NonZeroU32::new(conn.read_be_u32()?).unwrap(),
+            value: NonZeroU32::new(conn.read_le_u32()?).unwrap(),
         });
         let override_redirect = conn.read_bool()?;
         let _unused = conn.drain(19)?;
@@ -109,14 +109,14 @@ pub struct MapRequest {
 }
 
 impl MapRequest {
-    pub(crate) fn from_be_bytes(conn: &mut XConnection) -> Result<Self, Error> {
+    pub(crate) fn from_le_bytes(conn: &mut XConnection) -> Result<Self, Error> {
         let _unused = conn.read_u8()?;
-        let _sequence_number = conn.read_be_u16()?;
+        let _sequence_number = conn.read_le_u16()?;
         let parent = Window(ResourceId {
-            value: NonZeroU32::new(conn.read_be_u32()?).unwrap(),
+            value: NonZeroU32::new(conn.read_le_u32()?).unwrap(),
         });
         let window = Window(ResourceId {
-            value: NonZeroU32::new(conn.read_be_u32()?).unwrap(),
+            value: NonZeroU32::new(conn.read_le_u32()?).unwrap(),
         });
         let _unused = conn.drain(20)?;
 
@@ -138,22 +138,22 @@ pub struct ConfigureNotify {
 }
 
 impl ConfigureNotify {
-    pub(crate) fn from_be_bytes(conn: &mut XConnection) -> Result<Self, Error> {
+    pub(crate) fn from_le_bytes(conn: &mut XConnection) -> Result<Self, Error> {
         let _unused = conn.read_u8()?;
-        let _sequence_number = conn.read_be_u16()?;
+        let _sequence_number = conn.read_le_u16()?;
         let event = Window(ResourceId {
-            value: NonZeroU32::new(conn.read_be_u32()?).unwrap(),
+            value: NonZeroU32::new(conn.read_le_u32()?).unwrap(),
         });
         let window = Window(ResourceId {
-            value: NonZeroU32::new(conn.read_be_u32()?).unwrap(),
+            value: NonZeroU32::new(conn.read_le_u32()?).unwrap(),
         });
         let above_sibling =
-            NonZeroU32::new(conn.read_be_u32()?).map(|value| Window(ResourceId { value }));
-        let x = conn.read_be_i16()?;
-        let y = conn.read_be_i16()?;
-        let width = conn.read_be_u16()?;
-        let height = conn.read_be_u16()?;
-        let border_width = conn.read_be_u16()?;
+            NonZeroU32::new(conn.read_le_u32()?).map(|value| Window(ResourceId { value }));
+        let x = conn.read_le_i16()?;
+        let y = conn.read_le_i16()?;
+        let width = conn.read_le_u16()?;
+        let height = conn.read_le_u16()?;
+        let border_width = conn.read_le_u16()?;
         let override_redirect = conn.read_bool()?;
         let _unused = conn.drain(5)?;
 

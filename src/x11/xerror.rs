@@ -1,4 +1,5 @@
-use crate::x11::{connection::XConnection, error::Error, XResponse};
+use crate::x11::{connection::XConnection, error::Error};
+use std::mem;
 
 #[derive(Debug, Clone, Copy)]
 pub enum XError {
@@ -22,13 +23,15 @@ pub enum XError {
     Implementation(XImplementationError),
 }
 
-impl XResponse for XError {
-    fn from_be_bytes(conn: &mut XConnection) -> Result<Self, Error> {
+impl XError {
+    /// Bytes must start after error code, i.e. from third byte counting from one
+    pub fn from_le_bytes(conn: &mut XConnection, error_code: u8) -> Result<Self, Error> {
         let mut raw = [0u8; 32];
-        conn.read_exact(&mut raw)?;
-        assert!(raw[0] == 0);
-        let generic = XGenericError::from_be_bytes(&raw);
-        match raw[1] {
+        raw[0] = 0;
+        raw[1] = error_code;
+        conn.read_exact(&mut raw[2..])?;
+        let generic = XGenericError::from_le_bytes(raw);
+        match error_code {
             1 => Ok(Self::Request(XRequestError { generic })),
             2 => Ok(Self::Value(XValueError { generic })),
             3 => Ok(Self::Window(XWindowError { generic })),
@@ -52,21 +55,20 @@ impl XResponse for XError {
 }
 
 #[derive(Debug, Clone, Copy)]
-pub struct XGenericError {
+#[repr(C)]
+struct XGenericError {
+    error: u8,
+    code: u8,
     sequence_number: u16,
     generic_value: u32,
     minor_opcode: u16,
     major_opcode: u8,
+    _pad: [u8; 21],
 }
 
 impl XGenericError {
-    fn from_be_bytes(raw: &[u8; 32]) -> Self {
-        Self {
-            sequence_number: u16::from_be_bytes([raw[2], raw[3]]),
-            generic_value: u32::from_be_bytes([raw[4], raw[5], raw[6], raw[7]]),
-            minor_opcode: u16::from_be_bytes([raw[8], raw[9]]),
-            major_opcode: raw[10],
-        }
+    fn from_le_bytes(raw: [u8; 32]) -> Self {
+        unsafe { mem::transmute(raw) }
     }
 }
 

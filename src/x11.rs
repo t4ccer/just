@@ -11,6 +11,7 @@ use crate::x11::{
     },
     utils::*,
     xauth::XAuth,
+    xerror::XError,
 };
 use std::{
     collections::{vec_deque::Drain, HashMap, VecDeque},
@@ -30,11 +31,11 @@ pub mod xauth;
 pub mod xerror;
 
 pub trait BeBytes: Sized {
-    fn to_be_bytes(&self, w: &mut impl Write) -> io::Result<()>;
+    fn to_le_bytes(&self, w: &mut impl Write) -> io::Result<()>;
 }
 
 pub trait XResponse: Sized {
-    fn from_be_bytes(conn: &mut XConnection) -> Result<Self, Error>;
+    fn from_le_bytes(conn: &mut XConnection) -> Result<Self, Error>;
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -106,14 +107,14 @@ pub enum InitializeConnectionResponse {
 }
 
 impl XResponse for InitializeConnectionResponse {
-    fn from_be_bytes(conn: &mut XConnection) -> Result<Self, Error> {
+    fn from_le_bytes(conn: &mut XConnection) -> Result<Self, Error> {
         let response_code = conn.read_u8()?;
         match response_code {
             0 => Ok(Self::Refused(
-                InitializeConnectionResponseRefused::from_be_bytes(conn)?,
+                InitializeConnectionResponseRefused::from_le_bytes(conn)?,
             )),
             1 => Ok(Self::Success(
-                InitializeConnectionResponseSuccess::from_be_bytes(conn)?,
+                InitializeConnectionResponseSuccess::from_le_bytes(conn)?,
             )),
             2 => todo!("Authenticate"),
             _ => Err(Error::InvalidResponse),
@@ -129,11 +130,11 @@ pub struct InitializeConnectionResponseRefused {
 }
 
 impl XResponse for InitializeConnectionResponseRefused {
-    fn from_be_bytes(conn: &mut XConnection) -> Result<Self, Error> {
+    fn from_le_bytes(conn: &mut XConnection) -> Result<Self, Error> {
         let reason_length = conn.read_u8()?;
-        let protocol_major_version = conn.read_be_u16()?;
-        let protocol_minor_version = conn.read_be_u16()?;
-        let _ = conn.read_be_u16()?;
+        let protocol_major_version = conn.read_le_u16()?;
+        let protocol_minor_version = conn.read_le_u16()?;
+        let _ = conn.read_le_u16()?;
         let reason = conn.read_n_bytes(reason_length as usize)?;
         let _pad = conn.read_n_bytes(pad(reason_length as usize))?;
         Ok(Self {
@@ -260,15 +261,15 @@ pub struct Visual {
 }
 
 impl Visual {
-    fn from_be_bytes(conn: &mut XConnection) -> Result<Self, Error> {
-        let id = conn.read_be_u32()?;
+    fn from_le_bytes(conn: &mut XConnection) -> Result<Self, Error> {
+        let id = conn.read_le_u32()?;
         let class = VisualClass::try_from(conn.read_u8()?).map_err(|_| Error::InvalidResponse)?;
         let bits_per_rgb_value = conn.read_u8()?;
-        let colormap_entries = conn.read_be_u16()?;
-        let red_mask = conn.read_be_u32()?;
-        let green_mask = conn.read_be_u32()?;
-        let blue_mask = conn.read_be_u32()?;
-        let _unused = conn.read_be_u32()?;
+        let colormap_entries = conn.read_le_u16()?;
+        let red_mask = conn.read_le_u32()?;
+        let green_mask = conn.read_le_u32()?;
+        let blue_mask = conn.read_le_u32()?;
+        let _unused = conn.read_le_u32()?;
         Ok(Self {
             id: VisualId(ResourceId {
                 value: NonZeroU32::new(id).unwrap(),
@@ -290,12 +291,12 @@ pub struct Depth {
 }
 
 impl Depth {
-    fn from_be_bytes(conn: &mut XConnection) -> Result<Self, Error> {
+    fn from_le_bytes(conn: &mut XConnection) -> Result<Self, Error> {
         let depth = conn.read_u8()?;
         let _unused = conn.read_u8()?;
-        let visuals_length = conn.read_be_u16()?;
-        let _unused = conn.read_be_u32()?;
-        let visuals = conn.read_many(visuals_length as usize, Visual::from_be_bytes)?;
+        let visuals_length = conn.read_le_u16()?;
+        let _unused = conn.read_le_u32()?;
+        let visuals = conn.read_many(visuals_length as usize, Visual::from_le_bytes)?;
         Ok(Self { depth, visuals })
     }
 }
@@ -341,28 +342,28 @@ pub struct Screen {
 }
 
 impl Screen {
-    fn from_be_bytes(conn: &mut XConnection) -> Result<Self, Error> {
+    fn from_le_bytes(conn: &mut XConnection) -> Result<Self, Error> {
         let root = Window(ResourceId {
-            value: NonZeroU32::new(conn.read_be_u32()?).unwrap(),
+            value: NonZeroU32::new(conn.read_le_u32()?).unwrap(),
         });
-        let default_colormat = conn.read_be_u32()?;
-        let white_pixel = conn.read_be_u32()?;
-        let black_pixel = conn.read_be_u32()?;
-        let current_input_masks = conn.read_be_u32()?;
-        let width_in_pixels = conn.read_be_u16()?;
-        let height_in_pixels = conn.read_be_u16()?;
-        let width_in_millimeters = conn.read_be_u16()?;
-        let height_in_millimeters = conn.read_be_u16()?;
-        let min_installed_maps = conn.read_be_u16()?;
-        let max_installed_maps = conn.read_be_u16()?;
-        let root_visual = conn.read_be_u32()?;
+        let default_colormat = conn.read_le_u32()?;
+        let white_pixel = conn.read_le_u32()?;
+        let black_pixel = conn.read_le_u32()?;
+        let current_input_masks = conn.read_le_u32()?;
+        let width_in_pixels = conn.read_le_u16()?;
+        let height_in_pixels = conn.read_le_u16()?;
+        let width_in_millimeters = conn.read_le_u16()?;
+        let height_in_millimeters = conn.read_le_u16()?;
+        let min_installed_maps = conn.read_le_u16()?;
+        let max_installed_maps = conn.read_le_u16()?;
+        let root_visual = conn.read_le_u32()?;
         let backing_stores =
             BackingStore::try_from(conn.read_u8()?).map_err(|_| Error::InvalidResponse)?;
         let save_unders = conn.read_u8()? == 1;
         let root_depth = conn.read_u8()?;
         let allowed_depths_lenght = conn.read_u8()?;
         let allowed_depths =
-            conn.read_many(allowed_depths_lenght as usize, Depth::from_be_bytes)?;
+            conn.read_many(allowed_depths_lenght as usize, Depth::from_le_bytes)?;
 
         Ok(Self {
             root,
@@ -393,7 +394,7 @@ pub struct Format {
 }
 
 impl Format {
-    fn from_be_bytes(conn: &mut XConnection) -> Result<Self, Error> {
+    fn from_le_bytes(conn: &mut XConnection) -> Result<Self, Error> {
         let mut format = [0u8; 8];
         conn.read_exact(&mut format)?;
         Ok(Format {
@@ -425,17 +426,17 @@ pub struct InitializeConnectionResponseSuccess {
 }
 
 impl XResponse for InitializeConnectionResponseSuccess {
-    fn from_be_bytes(conn: &mut XConnection) -> Result<Self, Error> {
+    fn from_le_bytes(conn: &mut XConnection) -> Result<Self, Error> {
         let _unused = conn.read_u8()?;
-        let protocol_major_version = conn.read_be_u16()?;
-        let protocol_minor_version = conn.read_be_u16()?;
-        let _ = conn.read_be_u16()?;
-        let release_number = conn.read_be_u32()?;
-        let resource_id_base = conn.read_be_u32()?;
-        let resource_id_mask = conn.read_be_u32()?;
-        let motion_buffer_size = conn.read_be_u32()?;
-        let vendor_length = conn.read_be_u16()?;
-        let maximum_request_length = conn.read_be_u16()?;
+        let protocol_major_version = conn.read_le_u16()?;
+        let protocol_minor_version = conn.read_le_u16()?;
+        let _ = conn.read_le_u16()?;
+        let release_number = conn.read_le_u32()?;
+        let resource_id_base = conn.read_le_u32()?;
+        let resource_id_mask = conn.read_le_u32()?;
+        let motion_buffer_size = conn.read_le_u32()?;
+        let vendor_length = conn.read_le_u16()?;
+        let maximum_request_length = conn.read_le_u16()?;
         let screens_length = conn.read_u8()?;
         let formats_length = conn.read_u8()?;
         let image_byte_order = conn.read_u8()?;
@@ -444,11 +445,11 @@ impl XResponse for InitializeConnectionResponseSuccess {
         let bitmap_format_scanline_pad = conn.read_u8()?;
         let min_keycode = conn.read_u8()?;
         let max_keycode = conn.read_u8()?;
-        let _unused = conn.read_be_u32()?;
+        let _unused = conn.read_le_u32()?;
         let vendor = conn.read_n_bytes(vendor_length as usize)?;
         let _pad = conn.read_n_bytes(pad(vendor_length as usize))?;
-        let pixmap_formats = conn.read_many(formats_length as usize, Format::from_be_bytes)?;
-        let screens = conn.read_many(screens_length as usize, Screen::from_be_bytes)?;
+        let pixmap_formats = conn.read_many(formats_length as usize, Format::from_le_bytes)?;
+        let screens = conn.read_many(screens_length as usize, Screen::from_le_bytes)?;
 
         Ok(Self {
             protocol_major_version,
@@ -530,11 +531,11 @@ pub struct Rectangle {
 }
 
 impl BeBytes for Rectangle {
-    fn to_be_bytes(&self, w: &mut impl Write) -> io::Result<()> {
-        w.write_all(&self.x.to_be_bytes())?;
-        w.write_all(&self.y.to_be_bytes())?;
-        w.write_all(&self.width.to_be_bytes())?;
-        w.write_all(&self.height.to_be_bytes())?;
+    fn to_le_bytes(&self, w: &mut impl Write) -> io::Result<()> {
+        w.write_all(&self.x.to_le_bytes())?;
+        w.write_all(&self.y.to_le_bytes())?;
+        w.write_all(&self.width.to_le_bytes())?;
+        w.write_all(&self.height.to_le_bytes())?;
 
         Ok(())
     }
@@ -659,12 +660,14 @@ impl XDisplay {
         match code {
             0 => {
                 let error_code: u8 = self.connection.read_u8()?;
-                panic!("error: {}", error_code);
+                let error = XError::from_le_bytes(&mut self.connection, error_code)?;
+                panic!("error: {:?}", error);
             }
             1 => {
+                // TODO: not use peek
                 let sequence_number: SequenceNumber = SequenceNumber {
-                    value: ((self.connection.peek(1)? as u16) << 8)
-                        + self.connection.peek(2)? as u16,
+                    value: ((self.connection.peek(2)? as u16) << 8)
+                        + self.connection.peek(1)? as u16,
                 };
 
                 let &AwaitingReply::NotReceived(reply_type) = self
@@ -692,11 +695,11 @@ impl XDisplay {
     fn decode_reply_blocking(&mut self, reply_type: ReplyType) -> Result<Reply, Error> {
         match reply_type {
             ReplyType::GetWindowAttributes => {
-                let reply = WindowAttributes::from_be_bytes(&mut self.connection)?;
+                let reply = WindowAttributes::from_le_bytes(&mut self.connection)?;
                 Ok(Reply::GetWindowAttributes(reply))
             }
             ReplyType::GetGeometry => {
-                let reply = Geometry::from_be_bytes(&mut self.connection)?;
+                let reply = Geometry::from_le_bytes(&mut self.connection)?;
                 Ok(Reply::GetGeometry(reply))
             }
         }
@@ -705,28 +708,28 @@ impl XDisplay {
     fn decode_event_blocking(&mut self, event_code: u8) -> Result<Event, Error> {
         match event_code {
             0 | 1 => unreachable!("Invalid event code: {}", event_code),
-            2 => Ok(Event::KeyPress(KeyPressRelease::from_be_bytes(
+            2 => Ok(Event::KeyPress(KeyPressRelease::from_le_bytes(
                 &mut self.connection,
             )?)),
-            3 => Ok(Event::KeyRelease(KeyPressRelease::from_be_bytes(
+            3 => Ok(Event::KeyRelease(KeyPressRelease::from_le_bytes(
                 &mut self.connection,
             )?)),
-            4 => Ok(Event::ButtonPress(KeyPressRelease::from_be_bytes(
+            4 => Ok(Event::ButtonPress(KeyPressRelease::from_le_bytes(
                 &mut self.connection,
             )?)),
-            5 => Ok(Event::ButtonRelease(KeyPressRelease::from_be_bytes(
+            5 => Ok(Event::ButtonRelease(KeyPressRelease::from_le_bytes(
                 &mut self.connection,
             )?)),
-            19 => Ok(Event::MapNotify(MapNotify::from_be_bytes(
+            19 => Ok(Event::MapNotify(MapNotify::from_le_bytes(
                 &mut self.connection,
             )?)),
-            20 => Ok(Event::MapRequest(MapRequest::from_be_bytes(
+            20 => Ok(Event::MapRequest(MapRequest::from_le_bytes(
                 &mut self.connection,
             )?)),
-            22 => Ok(Event::ConfigureNotify(ConfigureNotify::from_be_bytes(
+            22 => Ok(Event::ConfigureNotify(ConfigureNotify::from_le_bytes(
                 &mut self.connection,
             )?)),
-            25 => Ok(Event::ResizeRequest(ResizeRequest::from_be_bytes(
+            25 => Ok(Event::ResizeRequest(ResizeRequest::from_le_bytes(
                 &mut self.connection,
             )?)),
             _ => {
