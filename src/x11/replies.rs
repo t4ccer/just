@@ -1,5 +1,3 @@
-use std::num::NonZeroU32;
-
 use crate::x11::{connection::XConnection, error::Error, ResourceId, Window};
 
 #[derive(Debug, Clone)]
@@ -79,7 +77,7 @@ impl Geometry {
         let _sequence_code = conn.read_le_u16()?;
         let _reply_length = conn.read_le_u32()?;
         let root = Window(ResourceId {
-            value: NonZeroU32::new(conn.read_le_u32()?).unwrap(),
+            value: conn.read_le_u32()?,
         });
         let x = conn.read_le_i16()?;
         let y = conn.read_le_i16()?;

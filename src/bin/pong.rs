@@ -261,7 +261,9 @@ pub fn go() -> Result<(), Error> {
                         window_size.y = event.height;
                     }
                 }
-                _ => {}
+                event => {
+                    dbg!(event);
+                }
             }
         }
 

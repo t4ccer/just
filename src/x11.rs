@@ -3,7 +3,7 @@
 use crate::x11::{
     connection::XConnection,
     error::Error,
-    events::{ConfigureNotify, Event, KeyPressRelease, MapNotify, MapRequest, ResizeRequest},
+    events::Event,
     replies::{AwaitingReply, Geometry, Reply, ReplyType, WindowAttributes},
     requests::{
         ChangeGC, CreateGC, CreateWindow, GContextSettings, GetGeometry, GetWindowAttributes,
@@ -18,7 +18,6 @@ use std::{
     fmt::Display,
     io::{self, Write},
     mem,
-    num::NonZeroU32,
 };
 
 pub mod connection;
@@ -39,19 +38,21 @@ pub trait XResponse: Sized {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[repr(transparent)]
 pub struct ResourceId {
-    value: NonZeroU32,
+    value: u32,
 }
 
 impl ResourceId {
     pub fn value(self) -> u32 {
-        self.value.get()
+        self.value
     }
 }
 
 macro_rules! impl_resource_id {
     ($name:ident) => {
         #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+        #[repr(transparent)]
         pub struct $name(ResourceId);
 
         impl $name {
@@ -71,6 +72,29 @@ macro_rules! impl_resource_id {
 impl_resource_id!(Pixmap);
 impl_resource_id!(VisualId);
 impl_resource_id!(Font);
+impl_resource_id!(Atom);
+impl_resource_id!(Colormap);
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+#[repr(transparent)]
+pub struct OrNone<T>(T);
+
+impl<T> OrNone<T>
+where
+    T: Into<u32> + Copy,
+{
+    pub fn new(inner: T) -> Self {
+        Self(inner)
+    }
+
+    pub fn value(self) -> Option<T> {
+        if self.0.into() == 0u32 {
+            None
+        } else {
+            Some(self.0)
+        }
+    }
+}
 
 #[derive(Debug, Clone, Copy)]
 pub struct IdAllocator {
@@ -95,7 +119,7 @@ impl IdAllocator {
         assert_ne!(new_part, 0, "Invalid ID allocated");
 
         ResourceId {
-            value: NonZeroU32::new(self.id_base | new_part).unwrap(),
+            value: self.id_base | new_part,
         }
     }
 }
@@ -271,9 +295,7 @@ impl Visual {
         let blue_mask = conn.read_le_u32()?;
         let _unused = conn.read_le_u32()?;
         Ok(Self {
-            id: VisualId(ResourceId {
-                value: NonZeroU32::new(id).unwrap(),
-            }),
+            id: VisualId(ResourceId { value: id }),
             class,
             bits_per_rgb_value,
             colormap_entries,
@@ -344,7 +366,7 @@ pub struct Screen {
 impl Screen {
     fn from_le_bytes(conn: &mut XConnection) -> Result<Self, Error> {
         let root = Window(ResourceId {
-            value: NonZeroU32::new(conn.read_le_u32()?).unwrap(),
+            value: conn.read_le_u32()?,
         });
         let default_colormat = conn.read_le_u32()?;
         let white_pixel = conn.read_le_u32()?;
@@ -706,39 +728,10 @@ impl XDisplay {
     }
 
     fn decode_event_blocking(&mut self, event_code: u8) -> Result<Event, Error> {
-        match event_code {
-            0 | 1 => unreachable!("Invalid event code: {}", event_code),
-            2 => Ok(Event::KeyPress(KeyPressRelease::from_le_bytes(
-                &mut self.connection,
-            )?)),
-            3 => Ok(Event::KeyRelease(KeyPressRelease::from_le_bytes(
-                &mut self.connection,
-            )?)),
-            4 => Ok(Event::ButtonPress(KeyPressRelease::from_le_bytes(
-                &mut self.connection,
-            )?)),
-            5 => Ok(Event::ButtonRelease(KeyPressRelease::from_le_bytes(
-                &mut self.connection,
-            )?)),
-            19 => Ok(Event::MapNotify(MapNotify::from_le_bytes(
-                &mut self.connection,
-            )?)),
-            20 => Ok(Event::MapRequest(MapRequest::from_le_bytes(
-                &mut self.connection,
-            )?)),
-            22 => Ok(Event::ConfigureNotify(ConfigureNotify::from_le_bytes(
-                &mut self.connection,
-            )?)),
-            25 => Ok(Event::ResizeRequest(ResizeRequest::from_le_bytes(
-                &mut self.connection,
-            )?)),
-            _ => {
-                dbg!(event_code);
-                self.connection.drain(31)?;
-                Ok(Event::Temp)
-                // unimplemented!("Unsuported event code: {}", event_code)
-            }
-        }
+        let mut raw = [0u8; 32];
+        raw[0] = event_code;
+        self.connection.read_exact(&mut raw[1..])?;
+        Event::from_le_bytes(raw).ok_or(Error::InvalidResponse)
     }
 
     fn has_pending_events(&mut self) -> Result<bool, Error> {
@@ -756,6 +749,7 @@ impl XDisplay {
 }
 
 #[derive(Debug, Clone, Copy, Hash, PartialEq, Eq, PartialOrd, Ord)]
+#[repr(transparent)]
 pub struct SequenceNumber {
     value: u16,
 }
