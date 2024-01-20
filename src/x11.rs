@@ -61,9 +61,9 @@ macro_rules! impl_resource_id {
             }
         }
 
-        impl Into<u32> for $name {
-            fn into(self) -> u32 {
-                self.0.value()
+        impl From<$name> for u32 {
+            fn from(value: $name) -> u32 {
+                value.0.value()
             }
         }
     };
@@ -227,7 +227,7 @@ impl Window {
         let reply = display.await_reply(sequence_number)?;
 
         if let Reply::GetWindowAttributes(reply) = reply {
-            return Ok(reply);
+            Ok(reply)
         } else {
             panic!("Unexpected reply type");
         }
@@ -244,7 +244,7 @@ impl Window {
         let reply = display.await_reply(sequence_number)?;
 
         if let Reply::GetGeometry(reply) = reply {
-            return Ok(reply);
+            Ok(reply)
         } else {
             panic!("Unexpected reply type");
         }
@@ -583,6 +583,7 @@ pub struct XDisplay {
     awaiting_replies: HashMap<SequenceNumber, AwaitingReply>,
     next_sequence_number: SequenceNumber,
     event_queue: VecDeque<Event>,
+    pub maximum_request_length: u16,
 }
 
 impl XDisplay {
@@ -621,6 +622,7 @@ impl XDisplay {
             awaiting_replies: HashMap::new(),
             next_sequence_number: SequenceNumber { value: 1 },
             event_queue: VecDeque::new(),
+            maximum_request_length: response.maximum_request_length,
         })
     }
 
@@ -652,7 +654,7 @@ impl XDisplay {
         Ok(new_window_id)
     }
 
-    fn send_request<R: XRequest>(&mut self, request: &R) -> Result<SequenceNumber, Error> {
+    pub fn send_request<R: XRequest>(&mut self, request: &R) -> Result<SequenceNumber, Error> {
         let this_sequence_number = self.next_sequence_number;
         self.next_sequence_number = SequenceNumber {
             value: self.next_sequence_number.value.wrapping_add(1),
@@ -754,7 +756,7 @@ impl XDisplay {
             self.decode_response_blocking()?;
         }
 
-        Ok(self.event_queue.drain(..).into_iter())
+        Ok(self.event_queue.drain(..))
     }
 }
 

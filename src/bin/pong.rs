@@ -2,7 +2,7 @@ use justshow::x11::{
     error::Error,
     events::Event,
     requests::{EventType, GContextSettings, PutImage, PutImageFormat, WindowCreationAttributes},
-    Drawable, GContext, Rectangle, Window, XDisplay,
+    Drawable, GContext, Window, XDisplay,
 };
 use std::time::{Duration, SystemTime};
 
@@ -33,6 +33,8 @@ struct Pad {
     player: Player,
 }
 
+const FPS: u64 = 60;
+
 impl Pad {
     fn update(&mut self, window_size: V2<u16>) {
         let velocity = 15;
@@ -55,22 +57,19 @@ impl Pad {
         };
     }
 
-    fn display(&self, window: Window, gc: GContext, display: &mut XDisplay) -> Result<(), Error> {
-        let gc_settings = match self.player {
-            Player::Left => GContextSettings::new().set_foreground(0x4eb4fa),
-            Player::Right => GContextSettings::new().set_foreground(0xf92672),
+    fn display(&self, img: &mut Image) {
+        let color = match self.player {
+            Player::Left => 0x4eb4fa,
+            Player::Right => 0xf92672,
         };
-        gc.change(display, gc_settings)?;
 
-        let rect = Rectangle {
-            x: self.position.x,
-            y: self.position.y,
-            width: self.size.x,
-            height: self.size.y,
-        };
-        window.draw_rectangle(display, gc, rect)?;
-
-        Ok(())
+        img.rectangle(
+            self.size.x,
+            self.size.y,
+            self.position.x as u16,
+            self.position.y as u16,
+            color,
+        );
     }
 }
 
@@ -98,7 +97,6 @@ impl Ball {
             if offset == 0 {
                 self.direction.x = 0;
                 self.direction.y = 0;
-                return;
             }
 
             self.position.x = bound;
@@ -117,7 +115,6 @@ impl Ball {
             if offset == 0 {
                 self.direction.x = 0;
                 self.direction.y = 0;
-                return;
             }
 
             self.position.x = bound;
@@ -137,19 +134,14 @@ impl Ball {
         }
     }
 
-    fn display(&self, window: Window, gc: GContext, display: &mut XDisplay) -> Result<(), Error> {
-        let gc_settings = GContextSettings::new().set_foreground(0xffffff);
-        gc.change(display, gc_settings)?;
-
-        let rect = Rectangle {
-            x: self.position.x,
-            y: self.position.y,
-            width: self.size.x,
-            height: self.size.y,
-        };
-        window.draw_rectangle(display, gc, rect)?;
-
-        Ok(())
+    fn display(&self, img: &mut Image) {
+        img.rectangle(
+            self.size.x,
+            self.size.y,
+            self.position.x as u16,
+            self.position.y as u16,
+            0xffffff,
+        );
     }
 
     fn reset(&mut self, window_size: V2<u16>) {
@@ -162,15 +154,82 @@ impl Ball {
         let bound: u16 = 50;
 
         self.position.x =
-            (r.wrapping_mul(7) as u16 % (window_size.x as u16 - bound)) as i16 + (bound as i16);
+            (r.wrapping_mul(7) as u16 % (window_size.x - bound)) as i16 + (bound as i16);
         self.position.y =
-            (r.wrapping_mul(13) as u16 % (window_size.y as u16 - bound)) as i16 + (bound as i16);
+            (r.wrapping_mul(13) as u16 % (window_size.y - bound)) as i16 + (bound as i16);
 
         let base_velocity = 5;
 
         let v = [-base_velocity, base_velocity];
         self.direction.x = v[r.wrapping_mul(17) as usize % 2];
         self.direction.y = v[r.wrapping_mul(19) as usize % 2];
+    }
+}
+
+struct Image {
+    width: u16,
+    height: u16,
+    data: Vec<u8>,
+}
+
+impl Image {
+    fn new(width: u16, height: u16) -> Self {
+        Self {
+            width,
+            height,
+            data: vec![0; width as usize * height as usize * 4],
+        }
+    }
+
+    fn rectangle(&mut self, width: u16, height: u16, start_x: u16, start_y: u16, color: u32) {
+        let [a, r, g, b] = color.to_le_bytes();
+        for y in start_y..(start_y + height) {
+            for x in start_x..(start_x + width) {
+                let index = (y as usize * self.width as usize + x as usize) * 4;
+
+                self.data[index] = a;
+                self.data[index + 1] = r;
+                self.data[index + 2] = g;
+                self.data[index + 3] = b;
+            }
+        }
+    }
+
+    fn display(
+        &self,
+        gc: GContext,
+        depth: u8,
+        window: Window,
+        display: &mut XDisplay,
+    ) -> Result<(), Error> {
+        let chunk_size: u16 =
+            ((display.maximum_request_length as usize - 24) / self.width as usize) as u16;
+        for line in (0..self.height).step_by(chunk_size as usize) {
+            let chunk_size = if line + chunk_size > self.height {
+                self.height - line
+            } else {
+                chunk_size
+            };
+
+            let data = &self.data[(self.width as usize * line as usize * 4)
+                ..(self.width as usize * (line as usize + chunk_size as usize) * 4)];
+            assert_eq!(data.len(), self.width as usize * chunk_size as usize * 4);
+
+            let req = PutImage {
+                format: PutImageFormat::ZPixmap,
+                drawable: Drawable::Window(window),
+                gc,
+                width: self.width,
+                height: chunk_size,
+                dst_x: 0,
+                dst_y: line as i16,
+                left_pad: 0,
+                depth,
+                data,
+            };
+            display.send_request(&req)?;
+        }
+        Ok(())
     }
 }
 
@@ -215,41 +274,23 @@ pub fn go() -> Result<(), Error> {
     };
     ball.reset(window_size);
 
-    'main_loop: loop {
-        // Background
-        let gc_settings = GContextSettings::new().set_foreground(0x222222);
-        gc.change(&mut display, gc_settings)?;
-        let background = Rectangle {
-            x: 0,
-            y: 0,
-            width: window_size.x,
-            height: window_size.y,
-        };
-        window.draw_rectangle(&mut display, gc, background)?;
+    let mut img = Image::new(window_size.x, window_size.y);
 
-        let rect = vec![0u8; 100 * 100 * 4];
-        let req = PutImage {
-            format: PutImageFormat::ZPixmap,
-            drawable: Drawable::Window(window),
-            gc,
-            width: 100,
-            height: 100,
-            dst_x: 200,
-            dst_y: 100,
-            left_pad: 0,
-            depth: 24, // TODO: Get this from window attributes
-            data: &rect,
-        };
-        display.connection.send_request(&req)?;
+    'main_loop: loop {
+        let frame_start = std::time::Instant::now();
+
+        // Background
+        img.rectangle(window_size.x, window_size.y, 0, 0, 0x222222);
 
         left_pad.update(window_size);
         right_pad.update(window_size);
         ball.update(window_size, &left_pad, &right_pad);
 
-        left_pad.display(window, gc, &mut display)?;
-        right_pad.display(window, gc, &mut display)?;
-        ball.display(window, gc, &mut display)?;
+        left_pad.display(&mut img);
+        right_pad.display(&mut img);
+        ball.display(&mut img);
 
+        img.display(gc, window_geometry.depth, window, &mut display)?;
         display.connection.flush()?;
 
         for event in display.events()? {
@@ -268,21 +309,25 @@ pub fn go() -> Result<(), Error> {
                     45 => right_pad.direction = PadDirection::None,
                     40 => left_pad.direction = PadDirection::None,
                     41 => left_pad.direction = PadDirection::None,
-                    _ => (),
+                    _ => {}
                 },
                 Event::ConfigureNotify(event) => {
                     if event.event == window {
                         window_size.x = event.width;
                         window_size.y = event.height;
+                        img = Image::new(window_size.x, window_size.y);
                     }
                 }
-                event => {
-                    dbg!(event);
-                }
+                _event => {}
             }
         }
 
-        std::thread::sleep(Duration::from_millis(16));
+        let frame_end = std::time::Instant::now();
+        let frame_duration = frame_end - frame_start;
+        if let Some(final_sleep) = Duration::from_micros(1000000 / FPS).checked_sub(frame_duration)
+        {
+            std::thread::sleep(final_sleep);
+        }
     }
 
     Ok(())

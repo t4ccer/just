@@ -19,7 +19,7 @@ impl XAuth {
         let (name, raw) = bin_parse::sized_u16_be_vec(raw)?;
         let (data, raw) = bin_parse::sized_u16_be_vec(raw)?;
 
-        (raw.len() == 0).then_some(Self {
+        (raw.is_empty()).then_some(Self {
             family,
             address,
             seat,

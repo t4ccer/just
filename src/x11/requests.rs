@@ -82,6 +82,12 @@ pub struct WindowCreationAttributes {
     values: ListOfValues<15>,
 }
 
+impl Default for WindowCreationAttributes {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl WindowCreationAttributes {
     pub fn new() -> Self {
         Self {
@@ -240,6 +246,12 @@ pub struct ListOfValues<const N: usize> {
     values: [Option<u32>; N],
 }
 
+impl<const N: usize> Default for ListOfValues<N> {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl<const N: usize> ListOfValues<N> {
     pub fn new() -> Self {
         Self { values: [None; N] }
@@ -259,10 +271,8 @@ impl<const N: usize> ListOfValues<N> {
     }
 
     pub fn to_le_bytes_if_set(&self, w: &mut impl Write) -> io::Result<()> {
-        for value in self.values {
-            if let Some(value) = value {
-                write_le_bytes!(w, value);
-            }
+        for value in self.values.iter().flatten() {
+            write_le_bytes!(w, value);
         }
 
         Ok(())
@@ -272,6 +282,12 @@ impl<const N: usize> ListOfValues<N> {
 #[derive(Debug, Clone)]
 pub struct GContextSettings {
     values: ListOfValues<23>,
+}
+
+impl Default for GContextSettings {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 impl GContextSettings {
@@ -402,10 +418,11 @@ impl<'data> LeBytes for PutImage<'data> {
     fn to_le_bytes(&self, w: &mut impl Write) -> io::Result<()> {
         let n = self.data.len();
         let p = pad(n);
+        let len = (6 + ((n + p) / 4)) as u16;
 
         write_le_bytes!(w, &opcodes::PUT_IMAGE);
         write_le_bytes!(w, self.format as u8);
-        write_le_bytes!(w, (6 + ((n + p) / 4)) as u16);
+        write_le_bytes!(w, len);
         write_le_bytes!(w, self.drawable.value());
         write_le_bytes!(w, self.gc.id().value());
         write_le_bytes!(w, self.width);
@@ -415,7 +432,7 @@ impl<'data> LeBytes for PutImage<'data> {
         write_le_bytes!(w, self.left_pad);
         write_le_bytes!(w, self.depth);
         w.write_all(&[0u8; 2])?; // unused
-        w.write_all(&self.data)?;
+        w.write_all(self.data)?;
         w.write_all(&vec![0u8; p])?; // pad
 
         Ok(())
@@ -471,8 +488,8 @@ impl BitOr for EventType {
     }
 }
 
-impl Into<u32> for EventType {
-    fn into(self) -> u32 {
-        self.value
+impl From<EventType> for u32 {
+    fn from(val: EventType) -> Self {
+        val.value
     }
 }

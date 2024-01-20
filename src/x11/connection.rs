@@ -19,25 +19,58 @@ impl Read for XConnectionReader {
     }
 }
 
+struct BlockingWriter<W> {
+    inner: W,
+}
+
+impl<W> BlockingWriter<W> {
+    fn new(inner: W) -> Self {
+        Self { inner }
+    }
+
+    fn do_blocking<T>(&mut self, f: impl Fn(&mut Self) -> io::Result<T>) -> io::Result<T> {
+        loop {
+            match f(self) {
+                Ok(ok) => return Ok(ok),
+                Err(err) if err.kind() == io::ErrorKind::WouldBlock => {}
+                Err(err) => return Err(err),
+            }
+        }
+    }
+}
+
+impl<W> Write for BlockingWriter<W>
+where
+    W: Write,
+{
+    fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
+        self.do_blocking(|w| w.inner.write(buf))
+    }
+
+    fn flush(&mut self) -> io::Result<()> {
+        self.do_blocking(|w| w.inner.flush())
+    }
+}
+
 pub struct XConnection {
     read_end: XConnectionReader,
     pub(crate) read_buf: VecDeque<u8>,
     fill_buf: Vec<u8>,
-    write_end: BufWriter<Box<dyn Write>>,
+    write_end: BlockingWriter<BufWriter<Box<dyn Write>>>,
 }
 
 impl TryFrom<UnixStream> for XConnection {
     type Error = Error;
 
     fn try_from(stream: UnixStream) -> Result<Self, Error> {
-        let read_end = stream.try_clone()?;
-        read_end.set_nonblocking(true)?;
+        stream.set_nonblocking(true)?;
 
+        let read_end = stream.try_clone()?;
         let write_end = stream;
 
         Ok(Self {
             read_end: XConnectionReader::UnixStream(read_end),
-            write_end: BufWriter::new(Box::new(write_end)),
+            write_end: BlockingWriter::new(BufWriter::new(Box::new(write_end))),
             read_buf: VecDeque::new(),
             fill_buf: vec![0u8; 0x1000],
         })
@@ -118,7 +151,7 @@ impl XConnection {
     }
 
     pub(crate) fn read_exact(&mut self, buf: &mut [u8]) -> Result<(), Error> {
-        for (idx, elem) in self.drain(buf.len())?.into_iter().enumerate() {
+        for (idx, elem) in self.drain(buf.len())?.enumerate() {
             buf[idx] = elem;
         }
 
@@ -130,7 +163,7 @@ impl XConnection {
         Ok(*self.read_buf.get(index).unwrap())
     }
 
-    pub fn send_request<R: XRequest>(&mut self, request: &R) -> Result<(), Error> {
+    pub(crate) fn send_request<R: XRequest>(&mut self, request: &R) -> Result<(), Error> {
         request.to_le_bytes(&mut self.write_end)?;
         Ok(())
     }
@@ -143,7 +176,7 @@ impl XConnection {
     pub fn from_env() -> Result<Self, Error> {
         let display = DisplayVar::from_env()?;
 
-        if &display.hostname != "" {
+        if !display.hostname.is_empty() {
             return Err(Error::CouldNotConnectTo(display.to_string()));
         }
 
