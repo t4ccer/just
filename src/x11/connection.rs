@@ -9,12 +9,16 @@ use std::{
 
 pub(crate) enum XConnectionReader {
     UnixStream(UnixStream),
+    #[cfg(test)]
+    Empty,
 }
 
 impl Read for XConnectionReader {
     fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
         match self {
             XConnectionReader::UnixStream(stream) => stream.read(buf),
+            #[cfg(test)]
+            XConnectionReader::Empty => Err(io::Error::new(io::ErrorKind::UnexpectedEof, "EOF")),
         }
     }
 }
@@ -82,9 +86,21 @@ pub enum ConnectionKind {
 }
 
 impl XConnection {
+    #[cfg(test)]
+    pub fn dummy(data: VecDeque<u8>) -> Self {
+        Self {
+            read_end: XConnectionReader::Empty,
+            read_buf: data,
+            fill_buf: Vec::new(),
+            write_end: BlockingWriter::new(BufWriter::new(Box::new(std::io::empty()))),
+        }
+    }
+
     pub fn kind(&self) -> ConnectionKind {
         match self.read_end {
             XConnectionReader::UnixStream(_) => ConnectionKind::UnixStream,
+            #[cfg(test)]
+            XConnectionReader::Empty => unimplemented!(),
         }
     }
 

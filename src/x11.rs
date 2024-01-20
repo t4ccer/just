@@ -59,6 +59,11 @@ macro_rules! impl_resource_id {
             pub fn id(self) -> ResourceId {
                 self.0
             }
+
+            pub fn to_le_bytes(self) -> [u8; 4] {
+                let raw: u32 = self.into();
+                raw.to_le_bytes()
+            }
         }
 
         impl From<$name> for u32 {
@@ -583,6 +588,7 @@ pub struct XDisplay {
     awaiting_replies: HashMap<SequenceNumber, AwaitingReply>,
     next_sequence_number: SequenceNumber,
     event_queue: VecDeque<Event>,
+    error_queue: VecDeque<XError>,
     pub maximum_request_length: u16,
 }
 
@@ -622,6 +628,7 @@ impl XDisplay {
             awaiting_replies: HashMap::new(),
             next_sequence_number: SequenceNumber { value: 1 },
             event_queue: VecDeque::new(),
+            error_queue: VecDeque::new(),
             maximum_request_length: response.maximum_request_length,
         })
     }
@@ -673,7 +680,7 @@ impl XDisplay {
         Ok(this_sequence_number)
     }
 
-    fn await_reply(&mut self, awaited: SequenceNumber) -> Result<Reply, Error> {
+    pub fn await_reply(&mut self, awaited: SequenceNumber) -> Result<Reply, Error> {
         loop {
             if let Some((_, entry)) = self.awaiting_replies.remove_entry(&awaited) {
                 match entry {
@@ -695,7 +702,7 @@ impl XDisplay {
             0 => {
                 let error_code: u8 = self.connection.read_u8()?;
                 let error = XError::from_le_bytes(&mut self.connection, error_code)?;
-                panic!("error: {:?}", error);
+                self.error_queue.push_back(error);
             }
             1 => {
                 // TODO: not use peek
@@ -729,13 +736,18 @@ impl XDisplay {
     fn decode_reply_blocking(&mut self, reply_type: ReplyType) -> Result<Reply, Error> {
         match reply_type {
             ReplyType::GetWindowAttributes => {
-                let reply = WindowAttributes::from_le_bytes(&mut self.connection)?;
+                let reply = replies::WindowAttributes::from_le_bytes(&mut self.connection)?;
                 Ok(Reply::GetWindowAttributes(reply))
             }
             ReplyType::GetGeometry => {
-                let reply = Geometry::from_le_bytes(&mut self.connection)?;
+                let reply = replies::Geometry::from_le_bytes(&mut self.connection)?;
                 Ok(Reply::GetGeometry(reply))
             }
+            ReplyType::GetFontPath => {
+                let reply = replies::GetFontPath::from_le_bytes(&mut self.connection)?;
+                Ok(Reply::GetFontPath(reply))
+            }
+            _ => todo!(),
         }
     }
 
@@ -758,10 +770,75 @@ impl XDisplay {
 
         Ok(self.event_queue.drain(..))
     }
+
+    /// Drain all errors from queue
+    pub fn errors(&mut self) -> Drain<'_, XError> {
+        self.error_queue.drain(..)
+    }
 }
 
 #[derive(Debug, Clone, Copy, Hash, PartialEq, Eq, PartialOrd, Ord)]
 #[repr(transparent)]
 pub struct SequenceNumber {
     value: u16,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
+pub struct ListOfStr {
+    strings: Vec<Vec<u8>>,
+}
+
+impl ListOfStr {
+    pub(crate) fn from_le_bytes(
+        strings_count: usize,
+        conn: &mut XConnection,
+    ) -> Result<Self, Error> {
+        let mut strings = Vec::with_capacity(strings_count);
+        for _ in 0..strings_count {
+            let string_len = conn.read_u8()?;
+            let s = conn.read_n_bytes(string_len as usize)?;
+            strings.push(s);
+        }
+        Ok(Self { strings })
+    }
+}
+
+impl LeBytes for ListOfStr {
+    fn to_le_bytes(&self, w: &mut impl Write) -> io::Result<()> {
+        for string in &self.strings {
+            let string_len = string.len();
+            assert!(string_len <= u8::MAX as usize, "String too long");
+
+            w.write_all(&[string_len as u8])?;
+            w.write_all(string)?;
+        }
+
+        Ok(())
+    }
+}
+
+#[test]
+fn list_of_str_roundtrip() {
+    let raw_data = b"\x0e/file/path/abc\x12/file/path/abcdefg";
+    let mut conn = XConnection::dummy(VecDeque::from(raw_data.to_vec()));
+
+    let decoded = ListOfStr::from_le_bytes(2, &mut conn).unwrap();
+    let expected = ListOfStr {
+        strings: vec![
+            vec![
+                47, 102, 105, 108, 101, 47, 112, 97, 116, 104, 47, 97, 98, 99,
+            ],
+            vec![
+                47, 102, 105, 108, 101, 47, 112, 97, 116, 104, 47, 97, 98, 99, 100, 101, 102, 103,
+            ],
+        ],
+    };
+    assert_eq!(decoded, expected);
+
+    let encoded = {
+        let mut buf = Vec::new();
+        decoded.to_le_bytes(&mut buf).unwrap();
+        buf
+    };
+    assert_eq!(encoded, raw_data.to_vec());
 }

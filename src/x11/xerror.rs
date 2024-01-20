@@ -1,5 +1,5 @@
 use crate::x11::{connection::XConnection, error::Error};
-use std::mem;
+use std::{fmt, mem};
 
 #[derive(Debug, Clone, Copy)]
 pub enum XError {
@@ -74,7 +74,7 @@ impl XGenericError {
 
 macro_rules! impl_x_error_base {
     ($name:ident, $($rest:tt)*) => {
-        #[derive(Debug, Clone, Copy)]
+        #[derive(Clone, Copy)]
         #[repr(transparent)]
         pub struct $name {
             generic: XGenericError,
@@ -89,6 +89,16 @@ macro_rules! impl_x_error_base {
 macro_rules! impl_x_error {
     ($name:ident) => {
         impl_x_error!($name,);
+
+        impl fmt::Debug for $name {
+            fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+                f.debug_struct(stringify!($name))
+                    .field("sequence_number", &self.generic.sequence_number)
+                    .field("minor_opcode", &self.generic.minor_opcode)
+                    .field("major_opcode", &self.generic.major_opcode)
+                    .finish()
+            }
+        }
     };
 
     ($name:ident, $generic:ident) => {
@@ -96,6 +106,17 @@ macro_rules! impl_x_error {
             pub fn $generic(&self) -> u32 {
                 self.generic.generic_value
             }
+        }
+
+        impl fmt::Debug for $name {
+                fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+                    f.debug_struct(stringify!($name))
+                        .field("sequence_number", &self.generic.sequence_number)
+                        .field("minor_opcode", &self.generic.minor_opcode)
+                        .field("major_opcode", &self.generic.major_opcode)
+                        .field(stringify!($generic), &self.generic.generic_value)
+                        .finish()
+                }
         }
     };
 

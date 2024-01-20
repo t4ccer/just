@@ -1,5 +1,3 @@
-#![allow(dead_code)]
-
 pub const CREATE_WINDOW: u8 = 1;
 pub const CHANGE_WINDOW_ATTRIBUTES: u8 = 2;
 pub const GET_WINDOW_ATTRIBUTES: u8 = 3;

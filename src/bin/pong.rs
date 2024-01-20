@@ -293,6 +293,10 @@ pub fn go() -> Result<(), Error> {
         img.display(gc, window_geometry.depth, window, &mut display)?;
         display.connection.flush()?;
 
+        for error in display.errors() {
+            dbg!(error);
+        }
+
         for event in display.events()? {
             match event {
                 Event::KeyPress(event) => match event.detail {

@@ -1,4 +1,4 @@
-use crate::x11::{connection::XConnection, error::Error, ResourceId, Window};
+use crate::x11::{connection::XConnection, error::Error, ListOfStr, ResourceId, Window};
 
 #[derive(Debug, Clone)]
 pub struct WindowAttributes {
@@ -99,9 +99,28 @@ impl Geometry {
 }
 
 #[derive(Debug, Clone)]
+pub struct GetFontPath {
+    pub paths: ListOfStr,
+}
+
+impl GetFontPath {
+    pub(crate) fn from_le_bytes(conn: &mut XConnection) -> Result<Self, Error> {
+        let _unused = conn.read_u8()?;
+        let _sequence_code = conn.read_le_u16()?;
+        let _reply_length = conn.read_le_u32()?;
+        let no_of_strs_in_path = dbg!(conn.read_le_u16())?;
+        drop(conn.drain(22)?); // unused
+        let paths = ListOfStr::from_le_bytes(no_of_strs_in_path as usize, conn)?;
+
+        Ok(Self { paths })
+    }
+}
+
+#[derive(Debug, Clone)]
 pub enum Reply {
     GetWindowAttributes(WindowAttributes),
     GetGeometry(Geometry),
+    GetFontPath(GetFontPath),
 }
 
 #[derive(Debug, Clone)]
@@ -114,4 +133,22 @@ pub enum AwaitingReply {
 pub enum ReplyType {
     GetWindowAttributes,
     GetGeometry,
+    QueryTree,
+    GetInputFocus,
+    InternAtom,
+    GetAtomName,
+    GetProperty,
+    ListProperties,
+    GetSelectionOwner,
+    GrabPointer,
+    GrabKeyboard,
+    QueryPointer,
+    GetMotionEvents,
+    TranslateCoordinates,
+    QueryKeymap,
+    QueryFont,
+    QueryTextExtents,
+    ListFonts,
+    ListFontsWithInfo,
+    GetFontPath,
 }
