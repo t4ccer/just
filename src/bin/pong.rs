@@ -1,7 +1,8 @@
 use justshow::x11::{
     error::Error,
     events::Event,
-    requests::{EventType, GContextSettings, PutImage, PutImageFormat, WindowCreationAttributes},
+    events::EventType,
+    requests::{GContextSettings, PutImage, PutImageFormat, WindowCreationAttributes},
     Drawable, GContext, Window, XDisplay,
 };
 use std::time::{Duration, SystemTime};

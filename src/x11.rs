@@ -79,6 +79,7 @@ impl_resource_id!(VisualId);
 impl_resource_id!(Font);
 impl_resource_id!(Atom);
 impl_resource_id!(Colormap);
+impl_resource_id!(Cursor);
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 #[repr(transparent)]
@@ -547,9 +548,30 @@ impl Drawable {
             Drawable::Pixmap(pixmap) => pixmap.into(),
         }
     }
+
+    pub(crate) fn to_le_bytes(&self) -> [u8; 4] {
+        match self {
+            Drawable::Window(window) => window.to_le_bytes(),
+            Drawable::Pixmap(pixmap) => pixmap.to_le_bytes(),
+        }
+    }
 }
 
 #[derive(Debug, Clone, Copy)]
+#[repr(C)]
+pub struct Point {
+    pub x: i16,
+    pub y: i16,
+}
+
+impl Point {
+    pub(crate) fn to_le_bytes(self) -> [u8; 4] {
+        unsafe { mem::transmute(self) }
+    }
+}
+
+#[derive(Debug, Clone, Copy)]
+#[repr(C)]
 pub struct Rectangle {
     pub x: i16,
     pub y: i16,
@@ -557,14 +579,9 @@ pub struct Rectangle {
     pub height: u16,
 }
 
-impl LeBytes for Rectangle {
-    fn to_le_bytes(&self, w: &mut impl Write) -> io::Result<()> {
-        w.write_all(&self.x.to_le_bytes())?;
-        w.write_all(&self.y.to_le_bytes())?;
-        w.write_all(&self.width.to_le_bytes())?;
-        w.write_all(&self.height.to_le_bytes())?;
-
-        Ok(())
+impl Rectangle {
+    fn to_le_bytes(self) -> [u8; 8] {
+        unsafe { mem::transmute(self) }
     }
 }
 
@@ -785,10 +802,14 @@ pub struct SequenceNumber {
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub struct ListOfStr {
-    strings: Vec<Vec<u8>>,
+    pub strings: Vec<Vec<u8>>,
 }
 
 impl ListOfStr {
+    pub(crate) fn encoded_len(&self) -> usize {
+        self.strings.iter().map(|s| s.len() + 1).sum()
+    }
+
     pub(crate) fn from_le_bytes(
         strings_count: usize,
         conn: &mut XConnection,

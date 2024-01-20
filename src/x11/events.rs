@@ -1,5 +1,5 @@
 use crate::x11::{Atom, Colormap, OrNone, Window};
-use std::mem;
+use std::{mem, ops::BitOr};
 
 use super::ResourceId;
 
@@ -817,5 +817,58 @@ impl Event {
             34 => Some(Event::MappingNotify(MappingNotify::from_le_bytes(raw)?)),
             _ => None,
         }
+    }
+}
+
+pub struct EventType {
+    value: u32,
+}
+
+// TODO: Macro for these
+impl EventType {
+    pub const KEY_PRESS: Self = Self { value: 0x00000001 };
+    pub const KEY_RELEASE: Self = Self { value: 0x00000002 };
+    pub const BUTTON_PRESS: Self = Self { value: 0x00000004 };
+    pub const BUTTON_RELEASE: Self = Self { value: 0x00000008 };
+    pub const ENTER_WINDOW: Self = Self { value: 0x00000010 };
+    pub const LEAVE_WINDOW: Self = Self { value: 0x00000020 };
+    pub const POINTER_MOTION: Self = Self { value: 0x00000040 };
+    pub const POINTER_MOTION_HINT: Self = Self { value: 0x00000080 };
+    pub const BUTTON1_MOTION: Self = Self { value: 0x00000100 };
+    pub const BUTTON2_MOTION: Self = Self { value: 0x00000200 };
+    pub const BUTTON3_MOTION: Self = Self { value: 0x00000400 };
+    pub const BUTTON4_MOTION: Self = Self { value: 0x00000800 };
+    pub const BUTTON5_MOTION: Self = Self { value: 0x00001000 };
+    pub const BUTTON_MOTION: Self = Self { value: 0x00002000 };
+    pub const KEYMAP_STATE: Self = Self { value: 0x00004000 };
+    pub const EXPOSURE: Self = Self { value: 0x00008000 };
+    pub const VISIBILITY_CHANGE: Self = Self { value: 0x00010000 };
+    pub const STRUCTURE_NOTIFY: Self = Self { value: 0x00020000 };
+    pub const RESIZE_REDIRECT: Self = Self { value: 0x00040000 };
+    pub const SUBSTRUCTURE_NOTIFY: Self = Self { value: 0x00080000 };
+    pub const SUBSTRUCTURE_REDIRECT: Self = Self { value: 0x00100000 };
+    pub const FOCUS_CHANGE: Self = Self { value: 0x00200000 };
+    pub const PROPERTY_CHANGE: Self = Self { value: 0x00400000 };
+    pub const COLORMAP_CHANGE: Self = Self { value: 0x00800000 };
+    pub const OWNER_GRAB_BUTTON: Self = Self { value: 0x01000000 };
+
+    fn contains(self, other: Self) -> bool {
+        (self.value & other.value) != 0
+    }
+}
+
+impl BitOr for EventType {
+    type Output = Self;
+
+    fn bitor(self, rhs: Self) -> Self::Output {
+        Self {
+            value: self.value | rhs.value,
+        }
+    }
+}
+
+impl From<EventType> for u32 {
+    fn from(val: EventType) -> Self {
+        val.value
     }
 }
