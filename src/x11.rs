@@ -29,7 +29,7 @@ mod utils;
 pub mod xauth;
 pub mod xerror;
 
-pub trait BeBytes: Sized {
+pub trait LeBytes: Sized {
     fn to_le_bytes(&self, w: &mut impl Write) -> io::Result<()>;
 }
 
@@ -552,7 +552,7 @@ pub struct Rectangle {
     pub height: u16,
 }
 
-impl BeBytes for Rectangle {
+impl LeBytes for Rectangle {
     fn to_le_bytes(&self, w: &mut impl Write) -> io::Result<()> {
         w.write_all(&self.x.to_le_bytes())?;
         w.write_all(&self.y.to_le_bytes())?;

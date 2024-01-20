@@ -1,5 +1,5 @@
 use crate::x11::{
-    replies::ReplyType, utils::pad, BeBytes, Drawable, Font, GContext, Pixmap, Rectangle, Window,
+    replies::ReplyType, utils::pad, Drawable, Font, GContext, LeBytes, Pixmap, Rectangle, Window,
     WindowClass, WindowVisual,
 };
 use std::{
@@ -33,7 +33,7 @@ macro_rules! impl_raw_fields {
     };
 }
 
-pub trait XRequest: BeBytes {
+pub trait XRequest: LeBytes {
     fn reply_type() -> Option<ReplyType> {
         None
     }
@@ -53,7 +53,7 @@ pub struct InitializeConnection {
     pub authorization_protocol_data: Vec<u8>,
 }
 
-impl BeBytes for InitializeConnection {
+impl LeBytes for InitializeConnection {
     fn to_le_bytes(&self, w: &mut impl Write) -> io::Result<()> {
         let authorization_name_len = self.authorization_protocol_name.len();
         let authorization_name_pad = pad(authorization_name_len);
@@ -123,7 +123,7 @@ pub struct CreateWindow {
     pub attributes: WindowCreationAttributes,
 }
 
-impl BeBytes for CreateWindow {
+impl LeBytes for CreateWindow {
     fn to_le_bytes(&self, w: &mut impl Write) -> io::Result<()> {
         let (bitmask, n) = self.attributes.values.mask_and_count();
 
@@ -153,7 +153,7 @@ pub struct GetWindowAttributes {
     pub window: Window,
 }
 
-impl BeBytes for GetWindowAttributes {
+impl LeBytes for GetWindowAttributes {
     fn to_le_bytes(&self, w: &mut impl Write) -> io::Result<()> {
         write_le_bytes!(w, opcodes::GET_WINDOW_ATTRIBUTES);
         write_le_bytes!(w, 0u8); // unused
@@ -175,7 +175,7 @@ pub struct MapWindow {
     pub window: Window,
 }
 
-impl BeBytes for MapWindow {
+impl LeBytes for MapWindow {
     fn to_le_bytes(&self, w: &mut impl Write) -> io::Result<()> {
         write_le_bytes!(w, opcodes::MAP_WINDOW);
         write_le_bytes!(w, 0u8); // unused
@@ -192,7 +192,7 @@ pub struct GetGeometry {
     pub drawable: Drawable,
 }
 
-impl BeBytes for GetGeometry {
+impl LeBytes for GetGeometry {
     fn to_le_bytes(&self, w: &mut impl Write) -> io::Result<()> {
         write_le_bytes!(w, opcodes::GET_GEOMETRY);
         write_le_bytes!(w, 0u8); // unused
@@ -216,7 +216,7 @@ pub struct PolyFillRectangle {
     pub rectangles: Vec<Rectangle>,
 }
 
-impl BeBytes for PolyFillRectangle {
+impl LeBytes for PolyFillRectangle {
     fn to_le_bytes(&self, w: &mut impl Write) -> io::Result<()> {
         let n: u16 = self.rectangles.len() as u16;
 
@@ -315,7 +315,7 @@ pub struct CreateGC {
     pub values: GContextSettings,
 }
 
-impl BeBytes for CreateGC {
+impl LeBytes for CreateGC {
     fn to_le_bytes(&self, w: &mut impl Write) -> io::Result<()> {
         let (bitmask, n) = self.values.values.mask_and_count();
 
@@ -339,7 +339,7 @@ pub struct ChangeGC {
     pub values: GContextSettings,
 }
 
-impl BeBytes for ChangeGC {
+impl LeBytes for ChangeGC {
     fn to_le_bytes(&self, w: &mut impl Write) -> io::Result<()> {
         let (bitmask, n) = self.values.values.mask_and_count();
 
@@ -359,7 +359,7 @@ impl XRequest for ChangeGC {}
 #[derive(Debug, Clone)]
 pub struct GetInputFocus;
 
-impl BeBytes for GetInputFocus {
+impl LeBytes for GetInputFocus {
     fn to_le_bytes(&self, w: &mut impl Write) -> io::Result<()> {
         write_le_bytes!(w, &opcodes::GET_INPUT_FOCUS);
         write_le_bytes!(w, &0u8); // unused
@@ -371,6 +371,58 @@ impl BeBytes for GetInputFocus {
 
 // FIXME: Add response
 impl XRequest for GetInputFocus {}
+
+#[derive(Debug, Clone, Copy)]
+#[repr(u8)]
+pub enum PutImageFormat {
+    Bitmap = 0,
+    XYPixmap = 1,
+
+    /// Probably the one you want. Pixels stores as scanlines
+    ZPixmap = 2,
+}
+
+#[derive(Debug, Clone)]
+pub struct PutImage<'data> {
+    pub format: PutImageFormat,
+    pub drawable: Drawable,
+    pub gc: GContext,
+    pub width: u16,
+    pub height: u16,
+    pub dst_x: i16,
+    pub dst_y: i16,
+    pub left_pad: u8,
+
+    /// If format is [`PutImageFormat::ZPixmap`], `depth` must equal to depth of `drawable`
+    pub depth: u8,
+    pub data: &'data [u8],
+}
+
+impl<'data> LeBytes for PutImage<'data> {
+    fn to_le_bytes(&self, w: &mut impl Write) -> io::Result<()> {
+        let n = self.data.len();
+        let p = pad(n);
+
+        write_le_bytes!(w, &opcodes::PUT_IMAGE);
+        write_le_bytes!(w, self.format as u8);
+        write_le_bytes!(w, (6 + ((n + p) / 4)) as u16);
+        write_le_bytes!(w, self.drawable.value());
+        write_le_bytes!(w, self.gc.id().value());
+        write_le_bytes!(w, self.width);
+        write_le_bytes!(w, self.height);
+        write_le_bytes!(w, self.dst_x);
+        write_le_bytes!(w, self.dst_y);
+        write_le_bytes!(w, self.left_pad);
+        write_le_bytes!(w, self.depth);
+        w.write_all(&[0u8; 2])?; // unused
+        w.write_all(&self.data)?;
+        w.write_all(&vec![0u8; p])?; // pad
+
+        Ok(())
+    }
+}
+
+impl<'data> XRequest for PutImage<'data> {}
 
 pub struct EventType {
     value: u32,

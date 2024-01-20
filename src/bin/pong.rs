@@ -1,8 +1,8 @@
 use justshow::x11::{
     error::Error,
     events::Event,
-    requests::{EventType, GContextSettings, WindowCreationAttributes},
-    GContext, Rectangle, Window, XDisplay,
+    requests::{EventType, GContextSettings, PutImage, PutImageFormat, WindowCreationAttributes},
+    Drawable, GContext, Rectangle, Window, XDisplay,
 };
 use std::time::{Duration, SystemTime};
 
@@ -226,6 +226,21 @@ pub fn go() -> Result<(), Error> {
             height: window_size.y,
         };
         window.draw_rectangle(&mut display, gc, background)?;
+
+        let rect = vec![0u8; 100 * 100 * 4];
+        let req = PutImage {
+            format: PutImageFormat::ZPixmap,
+            drawable: Drawable::Window(window),
+            gc,
+            width: 100,
+            height: 100,
+            dst_x: 200,
+            dst_y: 100,
+            left_pad: 0,
+            depth: 24, // TODO: Get this from window attributes
+            data: &rect,
+        };
+        display.connection.send_request(&req)?;
 
         left_pad.update(window_size);
         right_pad.update(window_size);

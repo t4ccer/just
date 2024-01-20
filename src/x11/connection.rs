@@ -130,7 +130,7 @@ impl XConnection {
         Ok(*self.read_buf.get(index).unwrap())
     }
 
-    pub(crate) fn send_request<R: XRequest>(&mut self, request: &R) -> Result<(), Error> {
+    pub fn send_request<R: XRequest>(&mut self, request: &R) -> Result<(), Error> {
         request.to_le_bytes(&mut self.write_end)?;
         Ok(())
     }
@@ -146,6 +146,8 @@ impl XConnection {
         if &display.hostname != "" {
             return Err(Error::CouldNotConnectTo(display.to_string()));
         }
+
+        // TODO: Use display.screen for something
 
         let socket_path = format!("/tmp/.X11-unix/X{}", display.display_sequence);
         let stream = UnixStream::connect(&socket_path)
@@ -207,8 +209,11 @@ impl FromStr for DisplayVar {
 
 impl Display for DisplayVar {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        // TODO: screen
-        write!(f, "{}:{}", self.hostname, self.display_sequence)
+        write!(f, "{}:{}", self.hostname, self.display_sequence)?;
+        if let Some(screen) = self.screen {
+            write!(f, ".{}", screen)?;
+        }
+        Ok(())
     }
 }
 
