@@ -6,6 +6,7 @@ use super::utils::display_maybe_utf8;
 #[derive(Debug)]
 pub enum Error {
     InvalidXAuthFile(String),
+    CouldNotReadXAuthFile(String, io::Error),
     InvalidDisplayEnv,
     InvalidResponse,
     NoEnv(&'static str),
@@ -27,6 +28,13 @@ impl Display for Error {
         match self {
             Error::InvalidXAuthFile(file_path) => {
                 write!(f, "Could not decode Xauthority file '{}'", file_path)
+            }
+            Error::CouldNotReadXAuthFile(file_path, inner) => {
+                write!(
+                    f,
+                    "Could not read Xauthority file '{}': {}",
+                    file_path, inner
+                )
             }
             Error::InvalidDisplayEnv => {
                 write!(f, "Could not decode $DISPLAY environment variable")

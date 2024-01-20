@@ -30,18 +30,30 @@ impl XAuth {
 
     pub fn from_file<P>(path: P) -> Result<Self, Error>
     where
-        P: AsRef<std::path::Path> + Display,
+        P: AsRef<std::path::Path> + Display + Clone,
     {
-        let err = Error::InvalidXAuthFile(path.to_string());
-        let mut auth_file = fs::File::open(path)?;
+        let mut auth_file = fs::File::open(path.clone())
+            .map_err(|err| (Error::CouldNotReadXAuthFile(path.to_string(), err)))?;
         let mut auth_raw = Vec::new();
         auth_file.read_to_end(&mut auth_raw)?;
-        XAuth::from_bytes(&auth_raw).ok_or(err)
+        XAuth::from_bytes(&auth_raw).ok_or(Error::InvalidXAuthFile(path.to_string()))
+    }
+
+    fn home_path() -> Option<String> {
+        let var = "HOME";
+        let home = std::env::var(var).ok()?;
+        Some(format!("{}/.Xauthority", home))
     }
 
     pub fn from_env() -> Result<Self, Error> {
         let var = "XAUTHORITY";
-        let file_path = std::env::var(var).map_err(|_| Error::NoEnv(var))?;
-        Self::from_file(file_path)
+        let file_path = std::env::var(var).map_err(|_| Error::NoEnv(var));
+        match file_path {
+            Ok(file_path) => Self::from_file(file_path),
+            Err(_) => {
+                let file_path = Self::home_path().ok_or(Error::NoEnv(var))?;
+                Self::from_file(file_path)
+            }
+        }
     }
 }
