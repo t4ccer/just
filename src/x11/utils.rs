@@ -1,4 +1,4 @@
-pub mod bin_parse {
+pub(crate) mod bin_parse {
     #[inline]
     pub fn u16_be(raw: &[u8]) -> Option<(u16, &[u8])> {
         let (bytes, raw) = raw.split_at(2);
@@ -16,11 +16,11 @@ pub mod bin_parse {
     }
 }
 
-pub fn pad(e: usize) -> usize {
+pub(crate) fn pad(e: usize) -> usize {
     (4 - (e % 4)) % 4
 }
 
-pub fn display_maybe_utf8(buf: &[u8]) -> String {
+pub(crate) fn display_maybe_utf8(buf: &[u8]) -> String {
     if let Ok(utf8) = std::str::from_utf8(buf) {
         utf8.to_string()
     } else {

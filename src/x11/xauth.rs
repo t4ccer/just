@@ -1,5 +1,5 @@
 use crate::x11::{error::Error, utils::bin_parse};
-use std::{fs, io::Read};
+use std::{fmt::Display, fs, io::Read};
 
 #[allow(dead_code)]
 #[derive(Debug)]
@@ -30,12 +30,13 @@ impl XAuth {
 
     pub fn from_file<P>(path: P) -> Result<Self, Error>
     where
-        P: AsRef<std::path::Path>,
+        P: AsRef<std::path::Path> + Display,
     {
+        let err = Error::InvalidXAuthFile(path.to_string());
         let mut auth_file = fs::File::open(path)?;
         let mut auth_raw = Vec::new();
         auth_file.read_to_end(&mut auth_raw)?;
-        XAuth::from_bytes(&auth_raw).ok_or(Error::InvalidXAuth)
+        XAuth::from_bytes(&auth_raw).ok_or(err)
     }
 
     pub fn from_env() -> Result<Self, Error> {

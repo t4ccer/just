@@ -180,7 +180,7 @@ pub fn go() -> Result<(), Error> {
     let window_attributes = WindowCreationAttributes::new().set_event_mask(
         EventType::KEY_PRESS | EventType::KEY_RELEASE | EventType::STRUCTURE_NOTIFY,
     );
-    let window = display.create_simple_window(window_attributes)?;
+    let window = display.create_simple_window(0, 0, 600, 800, 0, window_attributes)?;
 
     window.map(&mut display)?;
 
@@ -274,5 +274,10 @@ pub fn go() -> Result<(), Error> {
 }
 
 fn main() {
-    go().unwrap();
+    match go() {
+        Ok(()) => {}
+        Err(err) => {
+            eprintln!("pong: error: {}", err);
+        }
+    }
 }

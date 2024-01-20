@@ -1,7 +1,7 @@
 #![allow(dead_code)]
 
 use crate::x11::{
-    connection::XConnection,
+    connection::{ConnectionKind, XConnection},
     error::Error,
     events::Event,
     replies::{AwaitingReply, Geometry, Reply, ReplyType, WindowAttributes},
@@ -588,18 +588,23 @@ pub struct XDisplay {
 impl XDisplay {
     pub fn open() -> Result<Self, Error> {
         let mut connection = XConnection::from_env()?;
-        let auth = XAuth::from_env()?;
+        let (authorization_protocol_name, authorization_protocol_data) = match connection.kind() {
+            ConnectionKind::UnixStream => {
+                let auth = XAuth::from_env()?;
+                (auth.name, auth.data)
+            }
+        };
 
         let init = InitializeConnection {
             major_version: 11,
             minor_version: 0,
-            authorization_protocol_name: auth.name,
-            authorization_protocol_data: auth.data,
+            authorization_protocol_name,
+            authorization_protocol_data,
         };
         connection.send_request(&init)?;
         connection.flush()?;
 
-        let response = connection.read_expected_response::<InitializeConnectionResponse>()?;
+        let response = InitializeConnectionResponse::from_le_bytes(&mut connection)?;
         let response = match response {
             InitializeConnectionResponse::Refused(response) => {
                 return Err(Error::CouldNotOpenDisplay(response));
@@ -621,6 +626,11 @@ impl XDisplay {
 
     pub fn create_simple_window(
         &mut self,
+        x: i16,
+        y: i16,
+        width: u16,
+        height: u16,
+        border_width: u16,
         attributes: WindowCreationAttributes,
     ) -> Result<Window, Error> {
         let new_window_id = Window(self.id_allocator.allocate_id());
@@ -628,11 +638,11 @@ impl XDisplay {
             depth: self.screens[0].allowed_depths[0].depth,
             wid: new_window_id,
             parent: self.screens[0].root,
-            x: 0,
-            y: 0,
-            width: 800,
-            height: 600,
-            border_width: 0,
+            x,
+            y,
+            width,
+            height,
+            border_width,
             window_class: WindowClass::CopyFromParent,
             visual: WindowVisual::CopyFromParent,
             attributes,

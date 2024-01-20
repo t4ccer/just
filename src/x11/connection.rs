@@ -1,6 +1,7 @@
-use crate::x11::{error::Error, requests::XRequest, XResponse};
+use crate::x11::{error::Error, requests::XRequest};
 use std::{
     collections::{vec_deque::Drain, VecDeque},
+    fmt::Display,
     io::{self, BufWriter, Read, Write},
     os::unix::net::UnixStream,
     str::FromStr,
@@ -43,7 +44,17 @@ impl TryFrom<UnixStream> for XConnection {
     }
 }
 
+pub enum ConnectionKind {
+    UnixStream,
+}
+
 impl XConnection {
+    pub fn kind(&self) -> ConnectionKind {
+        match self.read_end {
+            XConnectionReader::UnixStream(_) => ConnectionKind::UnixStream,
+        }
+    }
+
     fn ensure_buffer_size(&mut self, size: usize) -> Result<(), Error> {
         while self.read_buf.len() < size {
             self.fill_buf_nonblocking()?;
@@ -115,7 +126,7 @@ impl XConnection {
     }
 
     pub(crate) fn peek(&mut self, index: usize) -> Result<u8, Error> {
-        self.ensure_buffer_size(1)?;
+        self.ensure_buffer_size(index)?;
         Ok(*self.read_buf.get(index).unwrap())
     }
 
@@ -129,23 +140,16 @@ impl XConnection {
         Ok(())
     }
 
-    pub fn read_expected_response<T>(&mut self) -> Result<T, Error>
-    where
-        T: XResponse,
-    {
-        T::from_le_bytes(self)
-    }
-
     pub fn from_env() -> Result<Self, Error> {
         let display = DisplayVar::from_env()?;
 
         if &display.hostname != "" {
-            eprintln!("Unsupported hostname: {}", display.hostname);
-            todo!()
+            return Err(Error::CouldNotConnectTo(display.to_string()));
         }
 
         let socket_path = format!("/tmp/.X11-unix/X{}", display.display_sequence);
-        let stream = UnixStream::connect(socket_path)?;
+        let stream = UnixStream::connect(&socket_path)
+            .map_err(|err| Error::CouldNotOpenUnixSocket(socket_path, err))?;
         Self::try_from(stream)
     }
 
@@ -198,6 +202,13 @@ impl FromStr for DisplayVar {
             display_sequence,
             screen,
         })
+    }
+}
+
+impl Display for DisplayVar {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        // TODO: screen
+        write!(f, "{}:{}", self.hostname, self.display_sequence)
     }
 }
 
