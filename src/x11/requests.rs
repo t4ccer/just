@@ -4,6 +4,7 @@ use crate::x11::{
     WindowVisual,
 };
 use std::{
+    fmt,
     io::{self, Write},
     mem,
 };
@@ -33,9 +34,29 @@ macro_rules! impl_raw_fields_go {
     };
 }
 
+macro_rules! impl_raw_fields_debug {
+    ($d:expr, $self:expr, $idx:expr $(,)?) => { };
+
+    ($d:expr, $self:expr, $idx:expr, $setter:ident : $ty:path, $($rest:tt)*) => {
+        // strip `set_` prfix
+        $d.field(&stringify!($setter)[4..], &$self.values.values[$idx]);
+        impl_raw_fields_debug!($d, $self, $idx + 1, $($rest)*);
+    };
+}
+
 macro_rules! impl_raw_fields {
-    ($($rest:tt)*) => {
-        impl_raw_fields_go!(0, $($rest)*);
+    ($name:ident, $($rest:tt)*) => {
+        impl $name {
+            impl_raw_fields_go!(0, $($rest)*);
+        }
+
+        impl fmt::Debug for $name {
+            fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+                let mut d = f.debug_struct(stringify!($name));
+                impl_raw_fields_debug!(d, self, 0, $($rest)*);
+                d.finish()
+            }
+        }
     };
 }
 
@@ -195,7 +216,7 @@ ChangeWindowAttributes
           encodings are the same as for CreateWindow
 */
 
-#[derive(Debug, Clone)]
+#[derive(Clone)]
 pub struct WindowCreationAttributes {
     values: ListOfValues<15>,
 }
@@ -212,24 +233,25 @@ impl WindowCreationAttributes {
             values: ListOfValues::new(),
         }
     }
+}
 
-    impl_raw_fields! {
-      set_background_pixmap: u32,
-      set_background_pixel: u32,
-      set_border_pixmap: u32,
-      set_border_pixel: u32,
-      set_bit_gravity: u32,
-      set_win_gravity: u32,
-      set_backing_store: u32,
-      set_backing_planes: u32,
-      set_backing_pixel: u32,
-      set_override_redirect: u32,
-      set_save_under: u32,
-      set_event_mask: EventType,
-      set_do_not_propagate_mask: u32,
-      set_colormap: u32,
-      set_cursor: u32,
-    }
+impl_raw_fields! {
+    WindowCreationAttributes,
+    set_background_pixmap: u32,
+    set_background_pixel: u32,
+    set_border_pixmap: u32,
+    set_border_pixel: u32,
+    set_bit_gravity: u32,
+    set_win_gravity: u32,
+    set_backing_store: u32,
+    set_backing_planes: u32,
+    set_backing_pixel: u32,
+    set_override_redirect: u32,
+    set_save_under: u32,
+    set_event_mask: EventType,
+    set_do_not_propagate_mask: u32,
+    set_colormap: u32,
+    set_cursor: u32,
 }
 
 #[derive(Debug, Clone)]
@@ -2210,7 +2232,7 @@ CreateGC
           1     PieSlice
 */
 
-#[derive(Debug, Clone)]
+#[derive(Clone)]
 pub struct GContextSettings {
     values: ListOfValues<23>,
 }
@@ -2227,32 +2249,33 @@ impl GContextSettings {
             values: ListOfValues::new(),
         }
     }
+}
 
-    impl_raw_fields! {
-      set_function: u32, // TODO: type
-      set_plane_mask: u32,
-      set_foreground: u32,
-      set_background: u32,
-      set_line_width: u16,
-      set_line_style: u32, // TODO: type
-      set_cap_style: u32, // TODO: type
-      set_join_style: u32, // TODO: type
-      set_fill_style: u32, // TODO: type
-      set_fill_rule: u32, // TODO: type
-      set_tile: Pixmap,
-      set_stipple: Pixmap,
-      set_tile_stipple_x_origin: u16,
-      set_tile_stipple_y_origin: u16,
-      set_font: Font,
-      set_subwindow_mode: u32,
-      set_graphics_exposures: bool,
-      set_clip_x_origin: u16,
-      set_clip_y_origin: u16,
-      set_clip_mask: Pixmap, // TODO: or None
-      set_dash_offset: u16,
-      set_dashes: u8,
-      set_arc_mode: u32,
-    }
+impl_raw_fields! {
+    GContextSettings,
+    set_function: u32, // TODO: type
+    set_plane_mask: u32,
+    set_foreground: u32,
+    set_background: u32,
+    set_line_width: u16,
+    set_line_style: u32, // TODO: type
+    set_cap_style: u32, // TODO: type
+    set_join_style: u32, // TODO: type
+    set_fill_style: u32, // TODO: type
+    set_fill_rule: u32, // TODO: type
+    set_tile: Pixmap,
+    set_stipple: Pixmap,
+    set_tile_stipple_x_origin: u16,
+    set_tile_stipple_y_origin: u16,
+    set_font: Font,
+    set_subwindow_mode: u32,
+    set_graphics_exposures: bool,
+    set_clip_x_origin: u16,
+    set_clip_y_origin: u16,
+    set_clip_mask: Pixmap, // TODO: or None
+    set_dash_offset: u16,
+    set_dashes: u8,
+    set_arc_mode: u32,
 }
 
 #[derive(Debug, Clone)]
@@ -4381,7 +4404,7 @@ ChangeKeyboardControl
           2     Default
 */
 
-#[derive(Debug, Clone)]
+#[derive(Clone)]
 pub struct ChangeKeyboardControlValues {
     values: ListOfValues<8>,
 }
@@ -4392,22 +4415,23 @@ impl ChangeKeyboardControlValues {
             values: ListOfValues::new(),
         }
     }
+}
 
-    impl_raw_fields! {
-        // FIXME: proper types but they lack `u32: From<i*>` impl
-        // set_key_click_percent: i8,
-        // set_bell_percent: i8,
-        // set_bell_pitch: i16,
-        // set_bell_duration: i16,
-        set_key_click_percent: u32,
-        set_bell_percent: u32,
-        set_bell_pitch: u32,
-        set_bell_duration: u32,
-        set_led: u8,
-        set_led_mode: bool,
-        set_key: KeyCode,
-        set_auto_repeat_m: u8,
-    }
+impl_raw_fields! {
+    ChangeKeyboardControlValues,
+    // FIXME: proper types but they lack `u32: From<i*>` impl
+    // set_key_click_percent: i8,
+    // set_bell_percent: i8,
+    // set_bell_pitch: i16,
+    // set_bell_duration: i16,
+    set_key_click_percent: u32,
+    set_bell_percent: u32,
+    set_bell_pitch: u32,
+    set_bell_duration: u32,
+    set_led: u8,
+    set_led_mode: bool,
+    set_key: KeyCode,
+    set_auto_repeat_m: u8,
 }
 
 #[derive(Debug, Clone)]

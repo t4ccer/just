@@ -643,7 +643,7 @@ impl XDisplay {
             screens: response.screens,
             connection,
             awaiting_replies: HashMap::new(),
-            next_sequence_number: SequenceNumber { value: 1 },
+            next_sequence_number: SequenceNumber { inner: 1 },
             event_queue: VecDeque::new(),
             error_queue: VecDeque::new(),
             maximum_request_length: response.maximum_request_length,
@@ -679,9 +679,9 @@ impl XDisplay {
     }
 
     pub fn send_request<R: XRequest>(&mut self, request: &R) -> Result<SequenceNumber, Error> {
-        let this_sequence_number = self.next_sequence_number;
+        let this_sequence_number = self.next_sequence_number.inner;
         self.next_sequence_number = SequenceNumber {
-            value: self.next_sequence_number.value.wrapping_add(1),
+            inner: self.next_sequence_number.inner.wrapping_add(1),
         };
 
         self.connection.send_request(request)?;
@@ -689,17 +689,24 @@ impl XDisplay {
         if let Some(reply_type) = R::reply_type() {
             let sequence_number_exists = self
                 .awaiting_replies
-                .insert(this_sequence_number, AwaitingReply::NotReceived(reply_type))
+                .insert(
+                    SequenceNumber {
+                        inner: this_sequence_number,
+                    },
+                    AwaitingReply::NotReceived(reply_type),
+                )
                 .is_none();
             assert!(sequence_number_exists);
         }
 
-        Ok(this_sequence_number)
+        Ok(SequenceNumber {
+            inner: this_sequence_number,
+        })
     }
 
     pub fn await_reply(&mut self, awaited: SequenceNumber) -> Result<Reply, Error> {
         loop {
-            if let Some((_, entry)) = self.awaiting_replies.remove_entry(&awaited) {
+            if let Some((awaited, entry)) = self.awaiting_replies.remove_entry(&awaited) {
                 match entry {
                     AwaitingReply::Received(reply) => {
                         return Ok(reply);
@@ -713,6 +720,23 @@ impl XDisplay {
         }
     }
 
+    pub fn discard_reply(&mut self, to_discard: SequenceNumber) -> Result<(), Error> {
+        let entry = self
+            .awaiting_replies
+            .get(&to_discard)
+            .expect("Sequence number must be known");
+
+        match entry {
+            &AwaitingReply::NotReceived(ty) => self
+                .awaiting_replies
+                .insert(to_discard, AwaitingReply::Discarded(ty)),
+            AwaitingReply::Discarded(_) => unreachable!("Discarded sequence number twice"),
+            AwaitingReply::Received(_) => self.awaiting_replies.remove(&to_discard),
+        };
+
+        Ok(())
+    }
+
     fn decode_response_blocking(&mut self) -> Result<(), Error> {
         let code: u8 = self.connection.read_u8()?;
         match code {
@@ -722,24 +746,29 @@ impl XDisplay {
                 self.error_queue.push_back(error);
             }
             1 => {
-                // TODO: not use peek
+                // TODO: Try to avoid using peek
                 let sequence_number: SequenceNumber = SequenceNumber {
-                    value: ((self.connection.peek(2)? as u16) << 8)
+                    inner: ((self.connection.peek(2)? as u16) << 8)
                         + self.connection.peek(1)? as u16,
                 };
 
-                let &AwaitingReply::NotReceived(reply_type) = self
+                match self
                     .awaiting_replies
                     .get(&sequence_number)
                     .expect("Sequence number must be known")
-                else {
-                    panic!("Reply must not be received");
+                {
+                    &AwaitingReply::NotReceived(reply_type) => {
+                        let reply = self.decode_reply_blocking(reply_type)?;
+                        self.awaiting_replies
+                            .insert(sequence_number, AwaitingReply::Received(reply));
+                    }
+                    &AwaitingReply::Discarded(reply_type) => {
+                        let _discarded_reply = self.decode_reply_blocking(reply_type)?;
+                    }
+                    AwaitingReply::Received(_) => {
+                        unreachable!("Received response twice for the same sequence number")
+                    }
                 };
-
-                let reply = self.decode_reply_blocking(reply_type)?;
-
-                self.awaiting_replies
-                    .insert(sequence_number, AwaitingReply::Received(reply));
             }
             event_code => {
                 let event = self.decode_event_blocking(event_code)?;
@@ -794,10 +823,13 @@ impl XDisplay {
     }
 }
 
-#[derive(Debug, Clone, Copy, Hash, PartialEq, Eq, PartialOrd, Ord)]
+// NOTE: Should we use `#[must_use]` here?
+// NOTE: Don't derive Clone and Copy, it's not implemented on purpose to emulate linearity.
+// i.e. you cannot disacrd reply twice, etc.
+#[derive(Debug, Hash, PartialEq, Eq, PartialOrd, Ord)]
 #[repr(transparent)]
 pub struct SequenceNumber {
-    value: u16,
+    inner: u16,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]

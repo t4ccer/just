@@ -7,6 +7,121 @@ use justshow::x11::{
 };
 use std::time::{Duration, SystemTime};
 
+const FPS: u64 = 60;
+
+pub fn go() -> Result<(), Error> {
+    let mut display = XDisplay::open()?;
+
+    let window_attributes = WindowCreationAttributes::new().set_event_mask(
+        EventType::KEY_PRESS | EventType::KEY_RELEASE | EventType::STRUCTURE_NOTIFY,
+    );
+    let window = display.create_simple_window(0, 0, 600, 800, 0, window_attributes)?;
+
+    window.map(&mut display)?;
+
+    let gc = window.create_gc(&mut display, GContextSettings::new())?;
+
+    let pad_size = V2 { x: 20, y: 150 };
+
+    let mut left_pad = Pad {
+        position: V2 { x: 0, y: 0 },
+        size: pad_size,
+        direction: PadDirection::None,
+        player: Player::Left,
+    };
+
+    let mut right_pad = Pad {
+        position: V2 { x: 0, y: 0 },
+        size: pad_size,
+        direction: PadDirection::None,
+        player: Player::Right,
+    };
+
+    let window_geometry = window.get_geometry(&mut display)?;
+    let mut window_size = V2 {
+        x: window_geometry.width,
+        y: window_geometry.height,
+    };
+
+    let mut ball = Ball {
+        position: V2 { x: 0, y: 0 },
+        size: V2 { x: 32, y: 32 },
+        direction: V2 { x: 0, y: 0 },
+    };
+    ball.reset(window_size);
+
+    let mut canvas = Canvas::new(window_size.x, window_size.y);
+
+    'main_loop: loop {
+        let frame_start = std::time::Instant::now();
+
+        // Background
+        canvas.rectangle(window_size.x, window_size.y, 0, 0, 0x222222);
+
+        left_pad.update(window_size);
+        right_pad.update(window_size);
+        ball.update(window_size, &left_pad, &right_pad);
+
+        left_pad.display(&mut canvas);
+        right_pad.display(&mut canvas);
+        ball.display(&mut canvas);
+
+        canvas.display(gc, window_geometry.depth, window, &mut display)?;
+        display.connection.flush()?;
+
+        for error in display.errors() {
+            dbg!(error);
+        }
+
+        for event in display.events()? {
+            match event {
+                Event::KeyPress(event) => match event.detail {
+                    24 => break 'main_loop,
+                    44 => right_pad.direction = PadDirection::Down,
+                    45 => right_pad.direction = PadDirection::Up,
+                    40 => left_pad.direction = PadDirection::Down,
+                    41 => left_pad.direction = PadDirection::Up,
+                    27 => ball.reset(window_size),
+                    _ => {}
+                },
+                Event::KeyRelease(event) => match event.detail {
+                    44 => right_pad.direction = PadDirection::None,
+                    45 => right_pad.direction = PadDirection::None,
+                    40 => left_pad.direction = PadDirection::None,
+                    41 => left_pad.direction = PadDirection::None,
+                    _ => {}
+                },
+                Event::ConfigureNotify(event) => {
+                    if event.event == window {
+                        window_size.x = event.width;
+                        window_size.y = event.height;
+                        canvas = Canvas::new(window_size.x, window_size.y);
+                    }
+                }
+                _event => {}
+            }
+        }
+
+        let frame_end = std::time::Instant::now();
+        let frame_duration = frame_end - frame_start;
+        if let Some(final_sleep) = Duration::from_micros(1000000 / FPS).checked_sub(frame_duration)
+        {
+            std::thread::sleep(final_sleep);
+        }
+    }
+
+    Ok(())
+}
+
+fn main() {
+    match go() {
+        Ok(()) => {}
+        Err(err) => {
+            eprintln!("pong: error: {}", err);
+        }
+    }
+}
+
 #[derive(Debug, Clone, Copy)]
 enum Player {
     Left,
@@ -34,8 +149,6 @@ struct Pad {
     player: Player,
 }
 
-const FPS: u64 = 60;
-
 impl Pad {
     fn update(&mut self, window_size: V2<u16>) {
         let velocity = 15;
@@ -58,13 +171,13 @@ impl Pad {
         };
     }
 
-    fn display(&self, img: &mut Image) {
+    fn display(&self, canvas: &mut Canvas) {
         let color = match self.player {
             Player::Left => 0x4eb4fa,
             Player::Right => 0xf92672,
         };
 
-        img.rectangle(
+        canvas.rectangle(
             self.size.x,
             self.size.y,
             self.position.x as u16,
@@ -135,8 +248,8 @@ impl Ball {
         }
     }
 
-    fn display(&self, img: &mut Image) {
-        img.rectangle(
+    fn display(&self, canvas: &mut Canvas) {
+        canvas.rectangle(
             self.size.x,
             self.size.y,
             self.position.x as u16,
@@ -167,13 +280,14 @@ impl Ball {
     }
 }
 
-struct Image {
+// TODO: Move it its own module
+struct Canvas {
     width: u16,
     height: u16,
     data: Vec<u8>,
 }
 
-impl Image {
+impl Canvas {
     fn new(width: u16, height: u16) -> Self {
         Self {
             width,
@@ -231,118 +345,5 @@ impl Image {
             display.send_request(&req)?;
         }
         Ok(())
-    }
-}
-
-pub fn go() -> Result<(), Error> {
-    let mut display = XDisplay::open()?;
-
-    let window_attributes = WindowCreationAttributes::new().set_event_mask(
-        EventType::KEY_PRESS | EventType::KEY_RELEASE | EventType::STRUCTURE_NOTIFY,
-    );
-    let window = display.create_simple_window(0, 0, 600, 800, 0, window_attributes)?;
-
-    window.map(&mut display)?;
-
-    let gc = window.create_gc(&mut display, GContextSettings::new())?;
-
-    let pad_size = V2 { x: 20, y: 150 };
-
-    let mut left_pad = Pad {
-        position: V2 { x: 0, y: 0 },
-        size: pad_size,
-        direction: PadDirection::None,
-        player: Player::Left,
-    };
-
-    let mut right_pad = Pad {
-        position: V2 { x: 0, y: 0 },
-        size: pad_size,
-        direction: PadDirection::None,
-        player: Player::Right,
-    };
-
-    let window_geometry = window.get_geometry(&mut display)?;
-    let mut window_size = V2 {
-        x: window_geometry.width,
-        y: window_geometry.height,
-    };
-
-    let mut ball = Ball {
-        position: V2 { x: 0, y: 0 },
-        size: V2 { x: 32, y: 32 },
-        direction: V2 { x: 0, y: 0 },
-    };
-    ball.reset(window_size);
-
-    let mut img = Image::new(window_size.x, window_size.y);
-
-    'main_loop: loop {
-        let frame_start = std::time::Instant::now();
-
-        // Background
-        img.rectangle(window_size.x, window_size.y, 0, 0, 0x222222);
-
-        left_pad.update(window_size);
-        right_pad.update(window_size);
-        ball.update(window_size, &left_pad, &right_pad);
-
-        left_pad.display(&mut img);
-        right_pad.display(&mut img);
-        ball.display(&mut img);
-
-        img.display(gc, window_geometry.depth, window, &mut display)?;
-        display.connection.flush()?;
-
-        for error in display.errors() {
-            dbg!(error);
-        }
-
-        for event in display.events()? {
-            match event {
-                Event::KeyPress(event) => match event.detail {
-                    24 => break 'main_loop,
-                    44 => right_pad.direction = PadDirection::Down,
-                    45 => right_pad.direction = PadDirection::Up,
-                    40 => left_pad.direction = PadDirection::Down,
-                    41 => left_pad.direction = PadDirection::Up,
-                    27 => ball.reset(window_size),
-                    _ => {}
-                },
-                Event::KeyRelease(event) => match event.detail {
-                    44 => right_pad.direction = PadDirection::None,
-                    45 => right_pad.direction = PadDirection::None,
-                    40 => left_pad.direction = PadDirection::None,
-                    41 => left_pad.direction = PadDirection::None,
-                    _ => {}
-                },
-                Event::ConfigureNotify(event) => {
-                    if event.event == window {
-                        window_size.x = event.width;
-                        window_size.y = event.height;
-                        img = Image::new(window_size.x, window_size.y);
-                    }
-                }
-                _event => {}
-            }
-        }
-
-        let frame_end = std::time::Instant::now();
-        let frame_duration = frame_end - frame_start;
-        if let Some(final_sleep) = Duration::from_micros(1000000 / FPS).checked_sub(frame_duration)
-        {
-            std::thread::sleep(final_sleep);
-        }
-    }
-
-    Ok(())
-}
-
-fn main() {
-    match go() {
-        Ok(()) => {}
-        Err(err) => {
-            eprintln!("pong: error: {}", err);
-        }
     }
 }

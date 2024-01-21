@@ -125,7 +125,13 @@ pub enum Reply {
 
 #[derive(Debug, Clone)]
 pub enum AwaitingReply {
+    /// Response not received yet, but when received will be inserted to the map of responses
     NotReceived(ReplyType),
+
+    /// Response not received yet, but when received will be discared
+    Discarded(ReplyType),
+
+    /// Response already received and waiting to be used or discarded
     Received(Reply),
 }
 
