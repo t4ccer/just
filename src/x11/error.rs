@@ -1,7 +1,5 @@
-use crate::x11::InitializeConnectionResponseRefused;
+use crate::x11::{utils::display_maybe_utf8, InitializeConnectionResponseRefused};
 use std::{fmt::Display, io};
-
-use super::utils::display_maybe_utf8;
 
 #[derive(Debug)]
 pub enum Error {

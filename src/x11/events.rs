@@ -1,7 +1,5 @@
-use crate::x11::{Atom, Colormap, OrNone, Window};
+use crate::x11::{Atom, Colormap, OrNone, ResourceId, Window};
 use std::{mem, ops::BitOr};
-
-use super::ResourceId;
 
 fn invalid_bool(value: u8) -> bool {
     value != 0 && value != 1
