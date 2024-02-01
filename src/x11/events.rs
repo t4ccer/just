@@ -730,7 +730,7 @@ impl MappingNotify {
 
 #[derive(Debug, Clone)]
 #[repr(u8)]
-pub enum Event {
+pub enum SomeEvent {
     KeyPress(KeyPressRelease) = 2,
     KeyRelease(KeyPressRelease) = 3,
     ButtonPress(KeyPressRelease) = 4,
@@ -766,7 +766,7 @@ pub enum Event {
     MappingNotify(MappingNotify) = 34,
 }
 
-impl Event {
+impl SomeEvent {
     pub(crate) fn from_le_bytes(raw: [u8; 32]) -> Option<Self> {
         // TODO: Detect high upper bit set for extension events
         let event_code = raw[0];
@@ -796,25 +796,37 @@ impl Event {
             19 => Some(Self::MapNotify(MapNotify::from_le_bytes(raw)?)),
             20 => Some(Self::MapRequest(MapRequest::from_le_bytes(raw)?)),
             21 => Some(Self::ReparentNotify(ReparentNotify::from_le_bytes(raw)?)),
-            22 => Some(Event::ConfigureNotify(ConfigureNotify::from_le_bytes(raw)?)),
-            23 => Some(Event::ConfigureRequest(ConfigureRequest::from_le_bytes(
+            22 => Some(SomeEvent::ConfigureNotify(ConfigureNotify::from_le_bytes(
                 raw,
             )?)),
-            24 => Some(Event::GravityNotify(GravityNotify::from_le_bytes(raw)?)),
-            25 => Some(Event::ResizeRequest(ResizeRequest::from_le_bytes(raw)?)),
-            26 => Some(Event::CirculateNotify(CirculateNotify::from_le_bytes(raw)?)),
-            27 => Some(Event::CirculateRequest(CirculateRequest::from_le_bytes(
+            23 => Some(SomeEvent::ConfigureRequest(
+                ConfigureRequest::from_le_bytes(raw)?,
+            )),
+            24 => Some(SomeEvent::GravityNotify(GravityNotify::from_le_bytes(raw)?)),
+            25 => Some(SomeEvent::ResizeRequest(ResizeRequest::from_le_bytes(raw)?)),
+            26 => Some(SomeEvent::CirculateNotify(CirculateNotify::from_le_bytes(
                 raw,
             )?)),
-            28 => Some(Event::PropertyNotify(PropertyNotify::from_le_bytes(raw)?)),
-            29 => Some(Event::SelectionClear(SelectionClear::from_le_bytes(raw)?)),
-            30 => Some(Event::SelectionRequest(SelectionRequest::from_le_bytes(
+            27 => Some(SomeEvent::CirculateRequest(
+                CirculateRequest::from_le_bytes(raw)?,
+            )),
+            28 => Some(SomeEvent::PropertyNotify(PropertyNotify::from_le_bytes(
                 raw,
             )?)),
-            31 => Some(Event::SelectionNotify(SelectionNotify::from_le_bytes(raw)?)),
-            32 => Some(Event::ColormapNotify(ColormapNotify::from_le_bytes(raw)?)),
-            33 => Some(Event::ClientMessage(ClientMessage::from_le_bytes(raw)?)),
-            34 => Some(Event::MappingNotify(MappingNotify::from_le_bytes(raw)?)),
+            29 => Some(SomeEvent::SelectionClear(SelectionClear::from_le_bytes(
+                raw,
+            )?)),
+            30 => Some(SomeEvent::SelectionRequest(
+                SelectionRequest::from_le_bytes(raw)?,
+            )),
+            31 => Some(SomeEvent::SelectionNotify(SelectionNotify::from_le_bytes(
+                raw,
+            )?)),
+            32 => Some(SomeEvent::ColormapNotify(ColormapNotify::from_le_bytes(
+                raw,
+            )?)),
+            33 => Some(SomeEvent::ClientMessage(ClientMessage::from_le_bytes(raw)?)),
+            34 => Some(SomeEvent::MappingNotify(MappingNotify::from_le_bytes(raw)?)),
             _ => None,
         }
     }

@@ -1,7 +1,32 @@
-use crate::x11::{connection::XConnection, error::Error, ListOfStr, ResourceId, Window};
+use crate::x11::{
+    connection::XConnection, error::Error, requests::opcodes, ListOfStr, ResourceId, Window,
+};
+
+pub trait XReply: Sized {
+    fn from_reply(reply: SomeReply) -> Option<Self>;
+}
+
+macro_rules! impl_xreply_go {
+    ($inner:ty, $wrapper:path) => {
+        impl XReply for $inner {
+            fn from_reply(reply: SomeReply) -> Option<Self> {
+                match reply {
+                    $wrapper(r) => Some(r),
+                    _ => None,
+                }
+            }
+        }
+    };
+}
+
+macro_rules! impl_xreply {
+    ($t:tt) => {
+        impl_xreply_go!($t, SomeReply::$t);
+    };
+}
 
 #[derive(Debug, Clone)]
-pub struct WindowAttributes {
+pub struct GetWindowAttributes {
     backing_store: u8,
     visual_id: u32,
     class: u16,
@@ -19,7 +44,9 @@ pub struct WindowAttributes {
     do_not_propagate_mask: u16,
 }
 
-impl WindowAttributes {
+impl_xreply!(GetWindowAttributes);
+
+impl GetWindowAttributes {
     pub(crate) fn from_le_bytes(conn: &mut XConnection) -> Result<Self, Error> {
         let backing_store = conn.read_u8()?;
         let _sequence_code = conn.read_le_u16()?;
@@ -61,7 +88,7 @@ impl WindowAttributes {
 }
 
 #[derive(Debug, Clone)]
-pub struct Geometry {
+pub struct GetGeometry {
     pub depth: u8,
     pub root: Window,
     pub x: i16,
@@ -71,7 +98,9 @@ pub struct Geometry {
     pub border_width: u16,
 }
 
-impl Geometry {
+impl_xreply!(GetGeometry);
+
+impl GetGeometry {
     pub(crate) fn from_le_bytes(conn: &mut XConnection) -> Result<Self, Error> {
         let depth = conn.read_u8()?;
         let _sequence_code = conn.read_le_u16()?;
@@ -116,15 +145,17 @@ impl GetFontPath {
     }
 }
 
+impl_xreply!(GetFontPath);
+
 #[derive(Debug, Clone)]
-pub enum Reply {
-    GetWindowAttributes(WindowAttributes),
-    GetGeometry(Geometry),
+pub enum SomeReply {
+    GetWindowAttributes(GetWindowAttributes),
+    GetGeometry(GetGeometry),
     GetFontPath(GetFontPath),
 }
 
 #[derive(Debug, Clone)]
-pub enum AwaitingReply {
+pub(crate) enum AwaitingReply {
     /// Response not received yet, but when received will be inserted to the map of responses
     NotReceived(ReplyType),
 
@@ -132,49 +163,50 @@ pub enum AwaitingReply {
     Discarded(ReplyType),
 
     /// Response already received and waiting to be used or discarded
-    Received(Reply),
+    Received(SomeReply),
 }
 
 #[derive(Debug, Clone, Copy)]
+#[repr(u8)]
 pub enum ReplyType {
-    GetWindowAttributes,
-    GetGeometry,
-    QueryTree,
-    GetInputFocus,
-    InternAtom,
-    GetAtomName,
-    GetProperty,
-    ListProperties,
-    GetSelectionOwner,
-    GrabPointer,
-    GrabKeyboard,
-    QueryPointer,
-    GetMotionEvents,
-    TranslateCoordinates,
-    QueryKeymap,
-    QueryFont,
-    QueryTextExtents,
-    ListFonts,
-    ListFontsWithInfo,
-    GetFontPath,
-    GetImage,
-    ListInstalledColormaps,
-    AllocColor,
-    AllocNamedColor,
-    AllocColorCells,
-    AllocColorPlanes,
-    QueryColors,
-    LookupColor,
-    QueryBestSize,
-    QueryExtension,
-    ListExtensions,
-    GetKeyboardMapping,
-    GetKeyboardControl,
-    GetPointerControl,
-    GetScreenSaver,
-    ListHosts,
-    SetPointerMapping,
-    GetPointerMapping,
-    SetModifierMapping,
-    GetModifierMapping,
+    GetWindowAttributes = opcodes::GET_WINDOW_ATTRIBUTES,
+    GetGeometry = opcodes::GET_GEOMETRY,
+    QueryTree = opcodes::QUERY_TREE,
+    InternAtom = opcodes::INTERN_ATOM,
+    GetAtomName = opcodes::GET_ATOM_NAME,
+    GetProperty = opcodes::GET_PROPERTY,
+    ListProperties = opcodes::LIST_PROPERTIES,
+    GetSelectionOwner = opcodes::GET_SELECTION_OWNER,
+    GrabPointer = opcodes::GRAB_POINTER,
+    GrabKeyboard = opcodes::GRAB_KEYBOARD,
+    QueryPointer = opcodes::QUERY_POINTER,
+    GetMotionEvents = opcodes::GET_MOTION_EVENTS,
+    TranslateCoordinates = opcodes::TRANSLATE_COORDINATES,
+    GetInputFocus = opcodes::GET_INPUT_FOCUS,
+    QueryKeymap = opcodes::QUERY_KEYMAP,
+    QueryFont = opcodes::QUERY_FONT,
+    QueryTextExtents = opcodes::QUERY_TEXT_EXTENTS,
+    ListFonts = opcodes::LIST_FONTS,
+    ListFontsWithInfo = opcodes::LIST_FONTS_WITH_INFO,
+    GetFontPath = opcodes::GET_FONT_PATH,
+    GetImage = opcodes::GET_IMAGE,
+    ListInstalledColormaps = opcodes::LIST_INSTALLED_COLORMAPS,
+    AllocColor = opcodes::ALLOC_COLOR,
+    AllocNamedColor = opcodes::ALLOC_NAMED_COLOR,
+    AllocColorCells = opcodes::ALLOC_COLOR_CELLS,
+    AllocColorPlanes = opcodes::ALLOC_COLOR_PLANES,
+    QueryColors = opcodes::QUERY_COLORS,
+    LookupColor = opcodes::LOOKUP_COLOR,
+    QueryBestSize = opcodes::QUERY_BEST_SIZE,
+    QueryExtension = opcodes::QUERY_EXTENSION,
+    ListExtensions = opcodes::LIST_EXTENSIONS,
+    GetKeyboardMapping = opcodes::GET_KEYBOARD_MAPPING,
+    GetKeyboardControl = opcodes::GET_KEYBOARD_CONTROL,
+    GetPointerControl = opcodes::GET_POINTER_CONTROL,
+    GetScreenSaver = opcodes::GET_SCREEN_SAVER,
+    ListHosts = opcodes::LIST_HOSTS,
+    SetPointerMapping = opcodes::SET_POINTER_MAPPING,
+    GetPointerMapping = opcodes::GET_POINTER_MAPPING,
+    SetModifierMapping = opcodes::SET_MODIFIER_MAPPING,
+    GetModifierMapping = opcodes::GET_MODIFIER_MAPPING,
 }

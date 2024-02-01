@@ -15,6 +15,7 @@ pub enum Error {
     UnknownErrorCode(u8),
     CouldNotOpenUnixSocket(String, io::Error),
     CouldNotConnectTo(String),
+    UnexpectedReply,
 }
 
 impl From<io::Error> for Error {
@@ -57,6 +58,9 @@ impl Display for Error {
             }
             Error::CouldNotConnectTo(display) => {
                 write!(f, "Could not connect to display '{}'", display)
+            }
+            Error::UnexpectedReply => {
+                write!(f, "Server sent reply in different format than expected")
             }
         }
     }

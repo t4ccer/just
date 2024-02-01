@@ -81,7 +81,7 @@ impl TryFrom<UnixStream> for XConnection {
     }
 }
 
-pub enum ConnectionKind {
+pub(crate) enum ConnectionKind {
     UnixStream,
 }
 
@@ -96,7 +96,7 @@ impl XConnection {
         }
     }
 
-    pub fn kind(&self) -> ConnectionKind {
+    pub(crate) fn kind(&self) -> ConnectionKind {
         match self.read_end {
             XConnectionReader::UnixStream(_) => ConnectionKind::UnixStream,
             #[cfg(test)]

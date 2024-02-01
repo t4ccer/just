@@ -1,7 +1,9 @@
 use crate::x11::{
-    events::EventType, replies::ReplyType, utils::pad, Atom, Colormap, Cursor, Drawable, Font,
-    GContext, LeBytes, ListOfStr, Pixmap, Point, Rectangle, VisualId, Window, WindowClass,
-    WindowVisual,
+    events::EventType,
+    replies::{self, ReplyType},
+    utils::pad,
+    Atom, Colormap, Cursor, Drawable, Font, GContext, LeBytes, ListOfStr, Pixmap, Point, Rectangle,
+    VisualId, Window, WindowClass, WindowVisual,
 };
 use std::{
     fmt,
@@ -9,7 +11,7 @@ use std::{
     mem,
 };
 
-mod opcodes;
+pub(crate) mod opcodes;
 
 // TODO: proper type
 type Timestamp = u32;
@@ -60,10 +62,26 @@ macro_rules! impl_raw_fields {
     };
 }
 
+pub struct NoReply;
+
 pub trait XRequest: LeBytes {
+    type Reply;
+
     fn reply_type() -> Option<ReplyType> {
         None
     }
+}
+
+macro_rules! impl_xrequest_with_response {
+    ($r:tt) => {
+        impl XRequest for $r {
+            type Reply = replies::$r;
+
+            fn reply_type() -> Option<ReplyType> {
+                Some(ReplyType::$r)
+            }
+        }
+    };
 }
 
 macro_rules! write_le_bytes {
@@ -140,7 +158,9 @@ impl LeBytes for InitializeConnection {
     }
 }
 
-impl XRequest for InitializeConnection {}
+impl XRequest for InitializeConnection {
+    type Reply = NoReply;
+}
 
 // Source: https://www.x.org/releases/X11R7.7/doc/xproto/x11protocol.html#Encoding::Requests
 
@@ -292,7 +312,9 @@ impl LeBytes for CreateWindow {
     }
 }
 
-impl XRequest for CreateWindow {}
+impl XRequest for CreateWindow {
+    type Reply = NoReply;
+}
 
 /*
 ChangeWindowAttributes
@@ -327,7 +349,9 @@ impl LeBytes for ChangeWindowAttributes {
     }
 }
 
-impl XRequest for ChangeWindowAttributes {}
+impl XRequest for ChangeWindowAttributes {
+    type Reply = NoReply;
+}
 
 /*
 GetWindowAttributes
@@ -354,6 +378,8 @@ impl LeBytes for GetWindowAttributes {
 }
 
 impl XRequest for GetWindowAttributes {
+    type Reply = replies::GetWindowAttributes;
+
     fn reply_type() -> Option<ReplyType> {
         Some(ReplyType::GetWindowAttributes)
     }
@@ -383,7 +409,9 @@ impl LeBytes for DestroyWindow {
     }
 }
 
-impl XRequest for DestroyWindow {}
+impl XRequest for DestroyWindow {
+    type Reply = NoReply;
+}
 
 /*
 DestroySubwindows
@@ -409,7 +437,9 @@ impl LeBytes for DestroySubwindows {
     }
 }
 
-impl XRequest for DestroySubwindows {}
+impl XRequest for DestroySubwindows {
+    type Reply = NoReply;
+}
 
 /*
 ChangeSaveSet
@@ -445,7 +475,9 @@ impl LeBytes for ChangeSaveSet {
     }
 }
 
-impl XRequest for ChangeSaveSet {}
+impl XRequest for ChangeSaveSet {
+    type Reply = NoReply;
+}
 
 /*
 ReparentWindow
@@ -480,7 +512,9 @@ impl LeBytes for ReparentWindow {
     }
 }
 
-impl XRequest for ReparentWindow {}
+impl XRequest for ReparentWindow {
+    type Reply = NoReply;
+}
 
 /*
 MapWindow
@@ -506,7 +540,9 @@ impl LeBytes for MapWindow {
     }
 }
 
-impl XRequest for MapWindow {}
+impl XRequest for MapWindow {
+    type Reply = NoReply;
+}
 
 /*
 MapSubwindows
@@ -532,7 +568,9 @@ impl LeBytes for MapSubwindows {
     }
 }
 
-impl XRequest for MapSubwindows {}
+impl XRequest for MapSubwindows {
+    type Reply = NoReply;
+}
 
 /*
 UnmapWindow
@@ -558,7 +596,9 @@ impl LeBytes for UnmapWindow {
     }
 }
 
-impl XRequest for UnmapWindow {}
+impl XRequest for UnmapWindow {
+    type Reply = NoReply;
+}
 
 /*
 UnmapSubwindows
@@ -584,7 +624,9 @@ impl LeBytes for UnmapSubwindows {
     }
 }
 
-impl XRequest for UnmapSubwindows {}
+impl XRequest for UnmapSubwindows {
+    type Reply = NoReply;
+}
 
 /*
 ConfigureWindow
@@ -631,7 +673,9 @@ impl LeBytes for ConfigureWindow {
     }
 }
 
-impl XRequest for ConfigureWindow {}
+impl XRequest for ConfigureWindow {
+    type Reply = NoReply;
+}
 
 /*
 CirculateWindow
@@ -667,7 +711,9 @@ impl LeBytes for CirculateWindow {
     }
 }
 
-impl XRequest for CirculateWindow {}
+impl XRequest for CirculateWindow {
+    type Reply = NoReply;
+}
 
 /*
 GetGeometry
@@ -692,11 +738,7 @@ impl LeBytes for GetGeometry {
     }
 }
 
-impl XRequest for GetGeometry {
-    fn reply_type() -> Option<ReplyType> {
-        Some(ReplyType::GetGeometry)
-    }
-}
+impl_xrequest_with_response!(GetGeometry);
 
 /*
 QueryTree
@@ -722,7 +764,12 @@ impl LeBytes for QueryTree {
     }
 }
 
+// FIXME
+// impl_xrequest_with_response!(QueryTree);
+
 impl XRequest for QueryTree {
+    type Reply = NoReply;
+
     fn reply_type() -> Option<ReplyType> {
         Some(ReplyType::QueryTree)
     }
@@ -764,6 +811,8 @@ impl LeBytes for InternAtom {
 }
 
 impl XRequest for InternAtom {
+    type Reply = NoReply;
+
     fn reply_type() -> Option<ReplyType> {
         Some(ReplyType::InternAtom)
     }
@@ -794,6 +843,8 @@ impl LeBytes for GetAtomName {
 }
 
 impl XRequest for GetAtomName {
+    type Reply = NoReply;
+
     fn reply_type() -> Option<ReplyType> {
         Some(ReplyType::GetAtomName)
     }
@@ -854,7 +905,9 @@ impl LeBytes for ChangeProperty {
     }
 }
 
-impl XRequest for ChangeProperty {}
+impl XRequest for ChangeProperty {
+    type Reply = NoReply;
+}
 
 /*
 DeleteProperty
@@ -883,7 +936,9 @@ impl LeBytes for DeleteProperty {
     }
 }
 
-impl XRequest for DeleteProperty {}
+impl XRequest for DeleteProperty {
+    type Reply = NoReply;
+}
 
 /*
 GetProperty
@@ -924,6 +979,8 @@ impl LeBytes for GetProperty {
 }
 
 impl XRequest for GetProperty {
+    type Reply = NoReply;
+
     fn reply_type() -> Option<ReplyType> {
         Some(ReplyType::GetProperty)
     }
@@ -954,6 +1011,8 @@ impl LeBytes for ListProperties {
 }
 
 impl XRequest for ListProperties {
+    type Reply = NoReply;
+
     fn reply_type() -> Option<ReplyType> {
         Some(ReplyType::ListProperties)
     }
@@ -991,7 +1050,9 @@ impl LeBytes for SetSelectionOwner {
     }
 }
 
-impl XRequest for SetSelectionOwner {}
+impl XRequest for SetSelectionOwner {
+    type Reply = NoReply;
+}
 
 /*
 GetSelectionOwner
@@ -1018,6 +1079,8 @@ impl LeBytes for GetSelectionOwner {
 }
 
 impl XRequest for GetSelectionOwner {
+    type Reply = NoReply;
+
     fn reply_type() -> Option<ReplyType> {
         Some(ReplyType::GetSelectionOwner)
     }
@@ -1061,7 +1124,9 @@ impl LeBytes for ConvertSelection {
     }
 }
 
-impl XRequest for ConvertSelection {}
+impl XRequest for ConvertSelection {
+    type Reply = NoReply;
+}
 
 /*
 SendEvent
@@ -1097,7 +1162,9 @@ impl LeBytes for SendEvent {
     }
 }
 
-impl XRequest for SendEvent {}
+impl XRequest for SendEvent {
+    type Reply = NoReply;
+}
 
 /*
 GrabPointer
@@ -1150,6 +1217,8 @@ impl LeBytes for GrabPointer {
 }
 
 impl XRequest for GrabPointer {
+    type Reply = NoReply;
+
     fn reply_type() -> Option<ReplyType> {
         Some(ReplyType::GrabPointer)
     }
@@ -1180,7 +1249,9 @@ impl LeBytes for UngrabPointer {
     }
 }
 
-impl XRequest for UngrabPointer {}
+impl XRequest for UngrabPointer {
+    type Reply = NoReply;
+}
 
 /*
 GrabButton
@@ -1238,7 +1309,9 @@ impl LeBytes for GrabButton {
     }
 }
 
-impl XRequest for GrabButton {}
+impl XRequest for GrabButton {
+    type Reply = NoReply;
+}
 
 /*
 UngrabButton
@@ -1272,7 +1345,9 @@ impl LeBytes for UngrabButton {
     }
 }
 
-impl XRequest for UngrabButton {}
+impl XRequest for UngrabButton {
+    type Reply = NoReply;
+}
 
 /*
 ChangeActivePointerGrab
@@ -1308,7 +1383,9 @@ impl LeBytes for ChangeActivePointerGrab {
     }
 }
 
-impl XRequest for ChangeActivePointerGrab {}
+impl XRequest for ChangeActivePointerGrab {
+    type Reply = NoReply;
+}
 
 /*
 GrabKeyboard
@@ -1352,6 +1429,8 @@ impl LeBytes for GrabKeyboard {
 }
 
 impl XRequest for GrabKeyboard {
+    type Reply = NoReply;
+
     fn reply_type() -> Option<ReplyType> {
         Some(ReplyType::GrabKeyboard)
     }
@@ -1382,7 +1461,9 @@ impl LeBytes for UngrabKeyboard {
     }
 }
 
-impl XRequest for UngrabKeyboard {}
+impl XRequest for UngrabKeyboard {
+    type Reply = NoReply;
+}
 
 /*
 GrabKey
@@ -1429,7 +1510,9 @@ impl LeBytes for GrabKey {
     }
 }
 
-impl XRequest for GrabKey {}
+impl XRequest for GrabKey {
+    type Reply = NoReply;
+}
 
 /*
 UngrabKey
@@ -1463,7 +1546,9 @@ impl LeBytes for UngrabKey {
     }
 }
 
-impl XRequest for UngrabKey {}
+impl XRequest for UngrabKey {
+    type Reply = NoReply;
+}
 
 /*
 AllowEvents
@@ -1499,7 +1584,9 @@ impl LeBytes for AllowEvents {
     }
 }
 
-impl XRequest for AllowEvents {}
+impl XRequest for AllowEvents {
+    type Reply = NoReply;
+}
 
 /*
 GrabServer
@@ -1521,7 +1608,9 @@ impl LeBytes for GrabServer {
     }
 }
 
-impl XRequest for GrabServer {}
+impl XRequest for GrabServer {
+    type Reply = NoReply;
+}
 
 /*
 UngrabServer
@@ -1543,7 +1632,9 @@ impl LeBytes for UngrabServer {
     }
 }
 
-impl XRequest for UngrabServer {}
+impl XRequest for UngrabServer {
+    type Reply = NoReply;
+}
 
 /*
 QueryPointer
@@ -1570,6 +1661,8 @@ impl LeBytes for QueryPointer {
 }
 
 impl XRequest for QueryPointer {
+    type Reply = NoReply;
+
     fn reply_type() -> Option<ReplyType> {
         Some(ReplyType::QueryPointer)
     }
@@ -1608,6 +1701,8 @@ impl LeBytes for GetMotionEvents {
 }
 
 impl XRequest for GetMotionEvents {
+    type Reply = NoReply;
+
     fn reply_type() -> Option<ReplyType> {
         Some(ReplyType::GetMotionEvents)
     }
@@ -1647,6 +1742,8 @@ impl LeBytes for TranslateCoordinates {
 }
 
 impl XRequest for TranslateCoordinates {
+    type Reply = NoReply;
+
     fn reply_type() -> Option<ReplyType> {
         Some(ReplyType::TranslateCoordinates)
     }
@@ -1699,7 +1796,9 @@ impl LeBytes for WarpPointer {
     }
 }
 
-impl XRequest for WarpPointer {}
+impl XRequest for WarpPointer {
+    type Reply = NoReply;
+}
 
 /*
 SetInputFocus
@@ -1735,7 +1834,9 @@ impl LeBytes for SetInputFocus {
     }
 }
 
-impl XRequest for SetInputFocus {}
+impl XRequest for SetInputFocus {
+    type Reply = NoReply;
+}
 
 /*
 GetInputFocus
@@ -1758,6 +1859,8 @@ impl LeBytes for GetInputFocus {
 }
 
 impl XRequest for GetInputFocus {
+    type Reply = NoReply;
+
     fn reply_type() -> Option<ReplyType> {
         Some(ReplyType::GetInputFocus)
     }
@@ -1784,6 +1887,8 @@ impl LeBytes for QueryKeymap {
 }
 
 impl XRequest for QueryKeymap {
+    type Reply = NoReply;
+
     fn reply_type() -> Option<ReplyType> {
         Some(ReplyType::QueryKeymap)
     }
@@ -1826,7 +1931,9 @@ impl LeBytes for OpenFont {
     }
 }
 
-impl XRequest for OpenFont {}
+impl XRequest for OpenFont {
+    type Reply = NoReply;
+}
 
 /*
 CloseFont
@@ -1852,7 +1959,9 @@ impl LeBytes for CloseFont {
     }
 }
 
-impl XRequest for CloseFont {}
+impl XRequest for CloseFont {
+    type Reply = NoReply;
+}
 
 /*
 QueryFont
@@ -1879,6 +1988,8 @@ impl LeBytes for QueryFont {
 }
 
 impl XRequest for QueryFont {
+    type Reply = NoReply;
+
     fn reply_type() -> Option<ReplyType> {
         Some(ReplyType::QueryFont)
     }
@@ -1925,6 +2036,8 @@ impl LeBytes for QueryTextExtents {
 }
 
 impl XRequest for QueryTextExtents {
+    type Reply = NoReply;
+
     fn reply_type() -> Option<ReplyType> {
         Some(ReplyType::QueryTextExtents)
     }
@@ -1966,6 +2079,8 @@ impl LeBytes for ListFonts {
 }
 
 impl XRequest for ListFonts {
+    type Reply = NoReply;
+
     fn reply_type() -> Option<ReplyType> {
         Some(ReplyType::ListFonts)
     }
@@ -2007,6 +2122,8 @@ impl LeBytes for ListFontsWithInfo {
 }
 
 impl XRequest for ListFontsWithInfo {
+    type Reply = NoReply;
+
     fn reply_type() -> Option<ReplyType> {
         Some(ReplyType::ListFontsWithInfo)
     }
@@ -2046,7 +2163,9 @@ impl LeBytes for SetFontPath {
     }
 }
 
-impl XRequest for SetFontPath {}
+impl XRequest for SetFontPath {
+    type Reply = NoReply;
+}
 
 /*
 GetFontPath
@@ -2069,6 +2188,8 @@ impl LeBytes for GetFontPath {
 }
 
 impl XRequest for GetFontPath {
+    type Reply = NoReply;
+
     fn reply_type() -> Option<ReplyType> {
         Some(ReplyType::GetFontPath)
     }
@@ -2108,7 +2229,9 @@ impl LeBytes for CreatePixmap {
     }
 }
 
-impl XRequest for CreatePixmap {}
+impl XRequest for CreatePixmap {
+    type Reply = NoReply;
+}
 
 /*
 FreePixmap
@@ -2134,7 +2257,9 @@ impl LeBytes for FreePixmap {
     }
 }
 
-impl XRequest for FreePixmap {}
+impl XRequest for FreePixmap {
+    type Reply = NoReply;
+}
 
 /*
 CreateGC
@@ -2301,7 +2426,9 @@ impl LeBytes for CreateGC {
     }
 }
 
-impl XRequest for CreateGC {}
+impl XRequest for CreateGC {
+    type Reply = NoReply;
+}
 
 /*
 ChangeGC
@@ -2336,7 +2463,9 @@ impl LeBytes for ChangeGC {
     }
 }
 
-impl XRequest for ChangeGC {}
+impl XRequest for ChangeGC {
+    type Reply = NoReply;
+}
 
 /*
 CopyGC
@@ -2369,7 +2498,9 @@ impl LeBytes for CopyGC {
     }
 }
 
-impl XRequest for CopyGC {}
+impl XRequest for CopyGC {
+    type Reply = NoReply;
+}
 
 /*
 SetDashes
@@ -2410,7 +2541,9 @@ impl LeBytes for SetDashes {
     }
 }
 
-impl XRequest for SetDashes {}
+impl XRequest for SetDashes {
+    type Reply = NoReply;
+}
 
 /*
 SetClipRectangles
@@ -2464,7 +2597,9 @@ impl LeBytes for SetClipRectangles {
     }
 }
 
-impl XRequest for SetClipRectangles {}
+impl XRequest for SetClipRectangles {
+    type Reply = NoReply;
+}
 
 /*
 FreeGC
@@ -2490,7 +2625,9 @@ impl LeBytes for FreeGC {
     }
 }
 
-impl XRequest for FreeGC {}
+impl XRequest for FreeGC {
+    type Reply = NoReply;
+}
 
 /*
 ClearArea
@@ -2529,7 +2666,9 @@ impl LeBytes for ClearArea {
     }
 }
 
-impl XRequest for ClearArea {}
+impl XRequest for ClearArea {
+    type Reply = NoReply;
+}
 
 /*
 CopyArea
@@ -2579,7 +2718,9 @@ impl LeBytes for CopyArea {
     }
 }
 
-impl XRequest for CopyArea {}
+impl XRequest for CopyArea {
+    type Reply = NoReply;
+}
 
 /*
 CopyPlane
@@ -2632,7 +2773,9 @@ impl LeBytes for CopyPlane {
     }
 }
 
-impl XRequest for CopyPlane {}
+impl XRequest for CopyPlane {
+    type Reply = NoReply;
+}
 
 /*
 PolyPoint
@@ -2680,7 +2823,9 @@ impl LeBytes for PolyPoint {
     }
 }
 
-impl XRequest for PolyPoint {}
+impl XRequest for PolyPoint {
+    type Reply = NoReply;
+}
 
 /*
 PolyLine
@@ -2721,7 +2866,9 @@ impl LeBytes for PolyLine {
     }
 }
 
-impl XRequest for PolyLine {}
+impl XRequest for PolyLine {
+    type Reply = NoReply;
+}
 
 /*
 PolySegment
@@ -2786,7 +2933,9 @@ impl LeBytes for PolySegment {
     }
 }
 
-impl XRequest for PolySegment {}
+impl XRequest for PolySegment {
+    type Reply = NoReply;
+}
 
 /*
 PolyRectangle
@@ -2824,7 +2973,9 @@ impl LeBytes for PolyRectangle {
     }
 }
 
-impl XRequest for PolyRectangle {}
+impl XRequest for PolyRectangle {
+    type Reply = NoReply;
+}
 
 /*
 PolyArc
@@ -2879,7 +3030,9 @@ impl LeBytes for PolyArc {
     }
 }
 
-impl XRequest for PolyArc {}
+impl XRequest for PolyArc {
+    type Reply = NoReply;
+}
 
 /*
 FillPoly
@@ -2938,7 +3091,9 @@ impl LeBytes for FillPoly {
     }
 }
 
-impl XRequest for FillPoly {}
+impl XRequest for FillPoly {
+    type Reply = NoReply;
+}
 
 /*
 PolyFillRectangle
@@ -2975,7 +3130,9 @@ impl LeBytes for PolyFillRectangle {
     }
 }
 
-impl XRequest for PolyFillRectangle {}
+impl XRequest for PolyFillRectangle {
+    type Reply = NoReply;
+}
 
 /*
 PolyFillArc
@@ -3013,7 +3170,9 @@ impl LeBytes for PolyFillArc {
     }
 }
 
-impl XRequest for PolyFillArc {}
+impl XRequest for PolyFillArc {
+    type Reply = NoReply;
+}
 
 /*
 PutImage
@@ -3087,7 +3246,9 @@ impl<'data> LeBytes for PutImage<'data> {
     }
 }
 
-impl<'data> XRequest for PutImage<'data> {}
+impl<'data> XRequest for PutImage<'data> {
+    type Reply = NoReply;
+}
 
 /*
 GetImage
@@ -3139,6 +3300,8 @@ impl LeBytes for GetImage {
 }
 
 impl XRequest for GetImage {
+    type Reply = NoReply;
+
     fn reply_type() -> Option<ReplyType> {
         Some(ReplyType::GetImage)
     }
@@ -3231,7 +3394,9 @@ impl LeBytes for PolyText8 {
     }
 }
 
-impl XRequest for PolyText8 {}
+impl XRequest for PolyText8 {
+    type Reply = NoReply;
+}
 
 /*
 PolyText16
@@ -3321,7 +3486,9 @@ impl LeBytes for PolyText16 {
     }
 }
 
-impl XRequest for PolyText16 {}
+impl XRequest for PolyText16 {
+    type Reply = NoReply;
+}
 
 /*
 ImageText8
@@ -3365,7 +3532,9 @@ impl LeBytes for ImageText8 {
     }
 }
 
-impl XRequest for ImageText8 {}
+impl XRequest for ImageText8 {
+    type Reply = NoReply;
+}
 
 /*
 ImageText16
@@ -3413,7 +3582,9 @@ impl LeBytes for ImageText16 {
     }
 }
 
-impl XRequest for ImageText16 {}
+impl XRequest for ImageText16 {
+    type Reply = NoReply;
+}
 
 /*
 CreateColormap
@@ -3455,7 +3626,9 @@ impl LeBytes for CreateColormap {
     }
 }
 
-impl XRequest for CreateColormap {}
+impl XRequest for CreateColormap {
+    type Reply = NoReply;
+}
 
 /*
 FreeColormap
@@ -3481,7 +3654,9 @@ impl LeBytes for FreeColormap {
     }
 }
 
-impl XRequest for FreeColormap {}
+impl XRequest for FreeColormap {
+    type Reply = NoReply;
+}
 
 /*
 CopyColormapAndFree
@@ -3510,7 +3685,9 @@ impl LeBytes for CopyColormapAndFree {
     }
 }
 
-impl XRequest for CopyColormapAndFree {}
+impl XRequest for CopyColormapAndFree {
+    type Reply = NoReply;
+}
 
 /*
 InstallColormap
@@ -3536,7 +3713,9 @@ impl LeBytes for InstallColormap {
     }
 }
 
-impl XRequest for InstallColormap {}
+impl XRequest for InstallColormap {
+    type Reply = NoReply;
+}
 
 /*
 UninstallColormap
@@ -3562,7 +3741,9 @@ impl LeBytes for UninstallColormap {
     }
 }
 
-impl XRequest for UninstallColormap {}
+impl XRequest for UninstallColormap {
+    type Reply = NoReply;
+}
 
 /*
 ListInstalledColormaps
@@ -3589,6 +3770,8 @@ impl LeBytes for ListInstalledColormaps {
 }
 
 impl XRequest for ListInstalledColormaps {
+    type Reply = NoReply;
+
     fn reply_type() -> Option<ReplyType> {
         Some(ReplyType::ListInstalledColormaps)
     }
@@ -3630,6 +3813,8 @@ impl LeBytes for AllocColor {
 }
 
 impl XRequest for AllocColor {
+    type Reply = NoReply;
+
     fn reply_type() -> Option<ReplyType> {
         Some(ReplyType::AllocColor)
     }
@@ -3673,6 +3858,8 @@ impl LeBytes for AllocNamedColor {
 }
 
 impl XRequest for AllocNamedColor {
+    type Reply = NoReply;
+
     fn reply_type() -> Option<ReplyType> {
         Some(ReplyType::AllocNamedColor)
     }
@@ -3710,6 +3897,8 @@ impl LeBytes for AllocColorCells {
 }
 
 impl XRequest for AllocColorCells {
+    type Reply = NoReply;
+
     fn reply_type() -> Option<ReplyType> {
         Some(ReplyType::AllocColorCells)
     }
@@ -3753,6 +3942,8 @@ impl LeBytes for AllocColorPlanes {
 }
 
 impl XRequest for AllocColorPlanes {
+    type Reply = NoReply;
+
     fn reply_type() -> Option<ReplyType> {
         Some(ReplyType::AllocColorPlanes)
     }
@@ -3793,7 +3984,9 @@ impl LeBytes for FreeColors {
     }
 }
 
-impl XRequest for FreeColors {}
+impl XRequest for FreeColors {
+    type Reply = NoReply;
+}
 
 /*
 StoreColors
@@ -3868,7 +4061,9 @@ impl LeBytes for StoreColors {
     }
 }
 
-impl XRequest for StoreColors {}
+impl XRequest for StoreColors {
+    type Reply = NoReply;
+}
 
 /*
 StoreNamedColor
@@ -3921,7 +4116,9 @@ impl LeBytes for StoreNamedColor {
     }
 }
 
-impl XRequest for StoreNamedColor {}
+impl XRequest for StoreNamedColor {
+    type Reply = NoReply;
+}
 
 /*
 QueryColors
@@ -3957,6 +4154,8 @@ impl LeBytes for QueryColors {
 }
 
 impl XRequest for QueryColors {
+    type Reply = NoReply;
+
     fn reply_type() -> Option<ReplyType> {
         Some(ReplyType::QueryColors)
     }
@@ -4000,6 +4199,8 @@ impl LeBytes for LookupColor {
 }
 
 impl XRequest for LookupColor {
+    type Reply = NoReply;
+
     fn reply_type() -> Option<ReplyType> {
         Some(ReplyType::LookupColor)
     }
@@ -4061,7 +4262,9 @@ impl LeBytes for CreateCursor {
     }
 }
 
-impl XRequest for CreateCursor {}
+impl XRequest for CreateCursor {
+    type Reply = NoReply;
+}
 
 /*
 CreateGlyphCursor
@@ -4119,7 +4322,9 @@ impl LeBytes for CreateGlyphCursor {
     }
 }
 
-impl XRequest for CreateGlyphCursor {}
+impl XRequest for CreateGlyphCursor {
+    type Reply = NoReply;
+}
 
 /*
 FreeCursor
@@ -4145,7 +4350,9 @@ impl LeBytes for FreeCursor {
     }
 }
 
-impl XRequest for FreeCursor {}
+impl XRequest for FreeCursor {
+    type Reply = NoReply;
+}
 
 /*
 RecolorCursor
@@ -4189,7 +4396,9 @@ impl LeBytes for RecolorCursor {
     }
 }
 
-impl XRequest for RecolorCursor {}
+impl XRequest for RecolorCursor {
+    type Reply = NoReply;
+}
 
 /*
 QueryBestSize
@@ -4226,6 +4435,8 @@ impl LeBytes for QueryBestSize {
 }
 
 impl XRequest for QueryBestSize {
+    type Reply = NoReply;
+
     fn reply_type() -> Option<ReplyType> {
         Some(ReplyType::QueryBestSize)
     }
@@ -4266,6 +4477,8 @@ impl LeBytes for QueryExtension {
 }
 
 impl XRequest for QueryExtension {
+    type Reply = NoReply;
+
     fn reply_type() -> Option<ReplyType> {
         Some(ReplyType::QueryExtension)
     }
@@ -4292,6 +4505,8 @@ impl LeBytes for ListExtensions {
 }
 
 impl XRequest for ListExtensions {
+    type Reply = NoReply;
+
     fn reply_type() -> Option<ReplyType> {
         Some(ReplyType::ListExtensions)
     }
@@ -4335,7 +4550,9 @@ impl LeBytes for ChangeKeyboardMapping {
     }
 }
 
-impl XRequest for ChangeKeyboardMapping {}
+impl XRequest for ChangeKeyboardMapping {
+    type Reply = NoReply;
+}
 
 /*
 GetKeyboardMapping
@@ -4367,6 +4584,8 @@ impl LeBytes for GetKeyboardMapping {
 }
 
 impl XRequest for GetKeyboardMapping {
+    type Reply = NoReply;
+
     fn reply_type() -> Option<ReplyType> {
         Some(ReplyType::GetKeyboardMapping)
     }
@@ -4454,7 +4673,9 @@ impl LeBytes for ChangeKeyboardControl {
     }
 }
 
-impl XRequest for ChangeKeyboardControl {}
+impl XRequest for ChangeKeyboardControl {
+    type Reply = NoReply;
+}
 
 /*
 GetKeyboardControl
@@ -4477,6 +4698,8 @@ impl LeBytes for GetKeyboardControl {
 }
 
 impl XRequest for GetKeyboardControl {
+    type Reply = NoReply;
+
     fn reply_type() -> Option<ReplyType> {
         Some(ReplyType::GetKeyboardControl)
     }
@@ -4504,7 +4727,9 @@ impl LeBytes for Bell {
     }
 }
 
-impl XRequest for Bell {}
+impl XRequest for Bell {
+    type Reply = NoReply;
+}
 
 /*
 ChangePointerControl
@@ -4542,7 +4767,9 @@ impl LeBytes for ChangePointerControl {
     }
 }
 
-impl XRequest for ChangePointerControl {}
+impl XRequest for ChangePointerControl {
+    type Reply = NoReply;
+}
 
 /*
 GetPointerControl
@@ -4565,6 +4792,8 @@ impl LeBytes for GetPointerControl {
 }
 
 impl XRequest for GetPointerControl {
+    type Reply = NoReply;
+
     fn reply_type() -> Option<ReplyType> {
         Some(ReplyType::GetPointerControl)
     }
@@ -4611,7 +4840,9 @@ impl LeBytes for SetScreenSaver {
     }
 }
 
-impl XRequest for SetScreenSaver {}
+impl XRequest for SetScreenSaver {
+    type Reply = NoReply;
+}
 
 /*
 GetScreenSaver
@@ -4634,6 +4865,8 @@ impl LeBytes for GetScreenSaver {
 }
 
 impl XRequest for GetScreenSaver {
+    type Reply = NoReply;
+
     fn reply_type() -> Option<ReplyType> {
         Some(ReplyType::GetScreenSaver)
     }
@@ -4682,7 +4915,9 @@ impl LeBytes for ChangeHosts {
     }
 }
 
-impl XRequest for ChangeHosts {}
+impl XRequest for ChangeHosts {
+    type Reply = NoReply;
+}
 
 /*
 ListHosts
@@ -4705,6 +4940,8 @@ impl LeBytes for ListHosts {
 }
 
 impl XRequest for ListHosts {
+    type Reply = NoReply;
+
     fn reply_type() -> Option<ReplyType> {
         Some(ReplyType::ListHosts)
     }
@@ -4734,7 +4971,9 @@ impl LeBytes for SetAccessControl {
     }
 }
 
-impl XRequest for SetAccessControl {}
+impl XRequest for SetAccessControl {
+    type Reply = NoReply;
+}
 
 /*
 SetCloseDownMode
@@ -4761,7 +5000,9 @@ impl LeBytes for SetCloseDownMode {
     }
 }
 
-impl XRequest for SetCloseDownMode {}
+impl XRequest for SetCloseDownMode {
+    type Reply = NoReply;
+}
 
 /*
 KillClient
@@ -4788,7 +5029,9 @@ impl LeBytes for KillClient {
     }
 }
 
-impl XRequest for KillClient {}
+impl XRequest for KillClient {
+    type Reply = NoReply;
+}
 
 /*
 RotateProperties
@@ -4828,7 +5071,9 @@ impl LeBytes for RotateProperties {
     }
 }
 
-impl XRequest for RotateProperties {}
+impl XRequest for RotateProperties {
+    type Reply = NoReply;
+}
 
 /*
 ForceScreenSaver
@@ -4854,7 +5099,9 @@ impl LeBytes for ForceScreenSaver {
     }
 }
 
-impl XRequest for ForceScreenSaver {}
+impl XRequest for ForceScreenSaver {
+    type Reply = NoReply;
+}
 
 /*
 SetPointerMapping
@@ -4887,6 +5134,8 @@ impl LeBytes for SetPointerMapping {
 }
 
 impl XRequest for SetPointerMapping {
+    type Reply = NoReply;
+
     fn reply_type() -> Option<ReplyType> {
         Some(ReplyType::SetPointerMapping)
     }
@@ -4913,6 +5162,8 @@ impl LeBytes for GetPointerMapping {
 }
 
 impl XRequest for GetPointerMapping {
+    type Reply = NoReply;
+
     fn reply_type() -> Option<ReplyType> {
         Some(ReplyType::GetPointerMapping)
     }
@@ -4946,6 +5197,8 @@ impl LeBytes for SetModifierMapping {
 }
 
 impl XRequest for SetModifierMapping {
+    type Reply = NoReply;
+
     fn reply_type() -> Option<ReplyType> {
         Some(ReplyType::SetModifierMapping)
     }
@@ -4972,6 +5225,8 @@ impl LeBytes for GetModifierMapping {
 }
 
 impl XRequest for GetModifierMapping {
+    type Reply = NoReply;
+
     fn reply_type() -> Option<ReplyType> {
         Some(ReplyType::GetModifierMapping)
     }
@@ -5006,4 +5261,6 @@ impl LeBytes for NoOperation {
     }
 }
 
-impl XRequest for NoOperation {}
+impl XRequest for NoOperation {
+    type Reply = NoReply;
+}

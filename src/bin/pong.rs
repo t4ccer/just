@@ -1,8 +1,8 @@
 use justshow::x11::{
     error::Error,
-    events::Event,
     events::EventType,
-    requests::{GContextSettings, PutImage, PutImageFormat, WindowCreationAttributes},
+    events::SomeEvent,
+    requests::{GContextSettings, GetGeometry, PutImage, PutImageFormat, WindowCreationAttributes},
     Drawable, GContext, Window, XDisplay,
 };
 use std::time::{Duration, SystemTime};
@@ -37,7 +37,16 @@ pub fn go() -> Result<(), Error> {
         player: Player::Right,
     };
 
-    let window_geometry = window.get_geometry(&mut display)?;
+    display.send_request(&GetGeometry {
+        drawable: Drawable::Window(window),
+    })?;
+
+    let window_geometry_pending = display.send_request(&GetGeometry {
+        drawable: Drawable::Window(window),
+    })?;
+    display.flush()?;
+    let window_geometry = display.await_pending_reply(window_geometry_pending)?;
+
     let mut window_size = V2 {
         x: window_geometry.width,
         y: window_geometry.height,
@@ -67,7 +76,7 @@ pub fn go() -> Result<(), Error> {
         ball.display(&mut canvas);
 
         canvas.display(gc, window_geometry.depth, window, &mut display)?;
-        display.connection.flush()?;
+        display.flush()?;
 
         for error in display.errors() {
             dbg!(error);
@@ -75,7 +84,7 @@ pub fn go() -> Result<(), Error> {
 
         for event in display.events()? {
             match event {
-                Event::KeyPress(event) => match event.detail {
+                SomeEvent::KeyPress(event) => match event.detail {
                     24 => break 'main_loop,
                     44 => right_pad.direction = PadDirection::Down,
                     45 => right_pad.direction = PadDirection::Up,
@@ -84,14 +93,14 @@ pub fn go() -> Result<(), Error> {
                     27 => ball.reset(window_size),
                     _ => {}
                 },
-                Event::KeyRelease(event) => match event.detail {
+                SomeEvent::KeyRelease(event) => match event.detail {
                     44 => right_pad.direction = PadDirection::None,
                     45 => right_pad.direction = PadDirection::None,
                     40 => left_pad.direction = PadDirection::None,
                     41 => left_pad.direction = PadDirection::None,
                     _ => {}
                 },
-                Event::ConfigureNotify(event) => {
+                SomeEvent::ConfigureNotify(event) => {
                     if event.event == window {
                         window_size.x = event.width;
                         window_size.y = event.height;

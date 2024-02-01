@@ -2,7 +2,7 @@ use crate::x11::{connection::XConnection, error::Error};
 use std::{fmt, mem};
 
 #[derive(Debug, Clone, Copy)]
-pub enum XError {
+pub enum SomeError {
     IdChoice(XIdChoiceError),
     Request(XRequestError),
     Value(XValueError),
@@ -23,7 +23,7 @@ pub enum XError {
     Implementation(XImplementationError),
 }
 
-impl XError {
+impl SomeError {
     /// Bytes must start after error code, i.e. from third byte counting from one
     pub fn from_le_bytes(conn: &mut XConnection, error_code: u8) -> Result<Self, Error> {
         let mut raw = [0u8; 32];

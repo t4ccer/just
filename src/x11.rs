@@ -3,20 +3,21 @@
 use crate::x11::{
     connection::{ConnectionKind, XConnection},
     error::Error,
-    events::Event,
-    replies::{AwaitingReply, Geometry, Reply, ReplyType, WindowAttributes},
+    events::SomeEvent,
+    replies::{AwaitingReply, ReplyType, SomeReply, XReply},
     requests::{
-        ChangeGC, CreateGC, CreateWindow, GContextSettings, GetGeometry, GetWindowAttributes,
-        InitializeConnection, MapWindow, PolyFillRectangle, WindowCreationAttributes, XRequest,
+        ChangeGC, CreateGC, CreateWindow, GContextSettings, InitializeConnection, MapWindow,
+        PolyFillRectangle, WindowCreationAttributes, XRequest,
     },
     utils::*,
     xauth::XAuth,
-    xerror::XError,
+    xerror::SomeError,
 };
 use std::{
     collections::{vec_deque::Drain, HashMap, VecDeque},
     fmt::Display,
     io::{self, Write},
+    marker::PhantomData,
     mem,
 };
 
@@ -223,37 +224,6 @@ impl Window {
         };
         display.send_request(&request)?;
         Ok(())
-    }
-
-    pub fn get_attributes(self, display: &mut XDisplay) -> Result<WindowAttributes, Error> {
-        let request = GetWindowAttributes { window: self };
-        let sequence_number = display.send_request(&request)?;
-        display.connection.flush()?;
-
-        let reply = display.await_reply(sequence_number)?;
-
-        if let Reply::GetWindowAttributes(reply) = reply {
-            Ok(reply)
-        } else {
-            panic!("Unexpected reply type");
-        }
-    }
-
-    pub fn get_geometry(self, display: &mut XDisplay) -> Result<Geometry, Error> {
-        let request = GetGeometry {
-            drawable: Drawable::Window(self),
-        };
-
-        let sequence_number = display.send_request(&request)?;
-        display.connection.flush()?;
-
-        let reply = display.await_reply(sequence_number)?;
-
-        if let Reply::GetGeometry(reply) = reply {
-            Ok(reply)
-        } else {
-            panic!("Unexpected reply type");
-        }
     }
 }
 
@@ -601,11 +571,11 @@ impl GContext {
 pub struct XDisplay {
     pub id_allocator: IdAllocator,
     pub screens: Vec<Screen>,
-    pub connection: XConnection,
+    connection: XConnection,
     awaiting_replies: HashMap<SequenceNumber, AwaitingReply>,
     next_sequence_number: SequenceNumber,
-    event_queue: VecDeque<Event>,
-    error_queue: VecDeque<XError>,
+    event_queue: VecDeque<SomeEvent>,
+    error_queue: VecDeque<SomeError>,
     pub maximum_request_length: u16,
 }
 
@@ -643,7 +613,7 @@ impl XDisplay {
             screens: response.screens,
             connection,
             awaiting_replies: HashMap::new(),
-            next_sequence_number: SequenceNumber { inner: 1 },
+            next_sequence_number: SequenceNumber { value: 1 },
             event_queue: VecDeque::new(),
             error_queue: VecDeque::new(),
             maximum_request_length: response.maximum_request_length,
@@ -678,60 +648,107 @@ impl XDisplay {
         Ok(new_window_id)
     }
 
-    pub fn send_request<R: XRequest>(&mut self, request: &R) -> Result<SequenceNumber, Error> {
-        let this_sequence_number = self.next_sequence_number.inner;
-        self.next_sequence_number = SequenceNumber {
-            inner: self.next_sequence_number.inner.wrapping_add(1),
-        };
-
+    fn send_request_impl<Request: XRequest>(
+        &mut self,
+        request: &Request,
+    ) -> Result<SequenceNumber, Error> {
         self.connection.send_request(request)?;
 
-        if let Some(reply_type) = R::reply_type() {
-            let sequence_number_exists = self
-                .awaiting_replies
-                .insert(
-                    SequenceNumber {
-                        inner: this_sequence_number,
-                    },
-                    AwaitingReply::NotReceived(reply_type),
-                )
-                .is_none();
-            assert!(sequence_number_exists);
-        }
+        let this_sequence_number = self.next_sequence_number.value;
+        self.next_sequence_number = SequenceNumber {
+            value: self.next_sequence_number.value.wrapping_add(1),
+        };
 
         Ok(SequenceNumber {
-            inner: this_sequence_number,
+            value: this_sequence_number,
         })
     }
 
-    pub fn await_reply(&mut self, awaited: SequenceNumber) -> Result<Reply, Error> {
+    pub fn send_request<Request: XRequest>(
+        &mut self,
+        request: &Request,
+    ) -> Result<PendingReply<Request::Reply>, Error> {
+        let sequence_number = self.send_request_impl(request)?;
+
+        if let Some(reply_type) = Request::reply_type() {
+            let sequence_number_is_fresh = self
+                .awaiting_replies
+                .insert(sequence_number, AwaitingReply::NotReceived(reply_type))
+                .is_none();
+            debug_assert!(sequence_number_is_fresh);
+        }
+
+        Ok(PendingReply {
+            sequence_number,
+            reply_type: PhantomData,
+        })
+    }
+
+    pub fn flush(&mut self) -> Result<(), Error> {
+        self.connection.flush()?;
+        Ok(())
+    }
+
+    /// Get reply to previously sent request. Block until reply arrives
+    pub fn await_pending_reply<Reply>(
+        &mut self,
+        mut pending: PendingReply<Reply>,
+    ) -> Result<Reply, Error>
+    where
+        Reply: XReply,
+    {
         loop {
-            if let Some((awaited, entry)) = self.awaiting_replies.remove_entry(&awaited) {
-                match entry {
-                    AwaitingReply::Received(reply) => {
-                        return Ok(reply);
-                    }
-                    reply => {
-                        self.awaiting_replies.insert(awaited, reply);
-                    }
+            match self.try_get_pending_reply(pending)? {
+                Ok(reply) => return Ok(reply),
+                Err(returned_pending) => {
+                    pending = returned_pending;
+                    self.decode_response_blocking()?;
                 }
             }
-            self.decode_response_blocking()?;
         }
     }
 
-    pub fn discard_reply(&mut self, to_discard: SequenceNumber) -> Result<(), Error> {
+    /// Try to get reply to previously sent request. If reply didn't arrive yet return pending
+    /// reply ID and don't block.
+    pub fn try_get_pending_reply<Reply>(
+        &mut self,
+        pending: PendingReply<Reply>,
+    ) -> Result<Result<Reply, PendingReply<Reply>>, Error>
+    where
+        Reply: XReply,
+    {
+        let (awaited, entry) = self
+            .awaiting_replies
+            .remove_entry(&pending.sequence_number)
+            .expect("Reponse be tracked in map");
+
+        match entry {
+            reply @ AwaitingReply::NotReceived(_) => {
+                self.awaiting_replies.insert(awaited, reply);
+                Ok(Err(pending))
+            }
+            AwaitingReply::Discarded(_) => unreachable!("Tried to get discarded reply"),
+            AwaitingReply::Received(reply) => Reply::from_reply(reply)
+                .ok_or(Error::UnexpectedReply)
+                .map(Ok),
+        }
+    }
+
+    pub fn discard_reply<Reply>(&mut self, to_discard: PendingReply<Reply>) -> Result<(), Error>
+    where
+        Reply: XReply,
+    {
         let entry = self
             .awaiting_replies
-            .get(&to_discard)
+            .get(&to_discard.sequence_number)
             .expect("Sequence number must be known");
 
         match entry {
             &AwaitingReply::NotReceived(ty) => self
                 .awaiting_replies
-                .insert(to_discard, AwaitingReply::Discarded(ty)),
+                .insert(to_discard.sequence_number, AwaitingReply::Discarded(ty)),
             AwaitingReply::Discarded(_) => unreachable!("Discarded sequence number twice"),
-            AwaitingReply::Received(_) => self.awaiting_replies.remove(&to_discard),
+            AwaitingReply::Received(_) => self.awaiting_replies.remove(&to_discard.sequence_number),
         };
 
         Ok(())
@@ -742,13 +759,13 @@ impl XDisplay {
         match code {
             0 => {
                 let error_code: u8 = self.connection.read_u8()?;
-                let error = XError::from_le_bytes(&mut self.connection, error_code)?;
+                let error = SomeError::from_le_bytes(&mut self.connection, error_code)?;
                 self.error_queue.push_back(error);
             }
             1 => {
                 // TODO: Try to avoid using peek
                 let sequence_number: SequenceNumber = SequenceNumber {
-                    inner: ((self.connection.peek(2)? as u16) << 8)
+                    value: ((self.connection.peek(2)? as u16) << 8)
                         + self.connection.peek(1)? as u16,
                 };
 
@@ -779,29 +796,29 @@ impl XDisplay {
         Ok(())
     }
 
-    fn decode_reply_blocking(&mut self, reply_type: ReplyType) -> Result<Reply, Error> {
+    fn decode_reply_blocking(&mut self, reply_type: ReplyType) -> Result<SomeReply, Error> {
         match reply_type {
             ReplyType::GetWindowAttributes => {
-                let reply = replies::WindowAttributes::from_le_bytes(&mut self.connection)?;
-                Ok(Reply::GetWindowAttributes(reply))
+                let reply = replies::GetWindowAttributes::from_le_bytes(&mut self.connection)?;
+                Ok(SomeReply::GetWindowAttributes(reply))
             }
             ReplyType::GetGeometry => {
-                let reply = replies::Geometry::from_le_bytes(&mut self.connection)?;
-                Ok(Reply::GetGeometry(reply))
+                let reply = replies::GetGeometry::from_le_bytes(&mut self.connection)?;
+                Ok(SomeReply::GetGeometry(reply))
             }
             ReplyType::GetFontPath => {
                 let reply = replies::GetFontPath::from_le_bytes(&mut self.connection)?;
-                Ok(Reply::GetFontPath(reply))
+                Ok(SomeReply::GetFontPath(reply))
             }
             _ => todo!(),
         }
     }
 
-    fn decode_event_blocking(&mut self, event_code: u8) -> Result<Event, Error> {
+    fn decode_event_blocking(&mut self, event_code: u8) -> Result<SomeEvent, Error> {
         let mut raw = [0u8; 32];
         raw[0] = event_code;
         self.connection.read_exact(&mut raw[1..])?;
-        Event::from_le_bytes(raw).ok_or(Error::InvalidResponse)
+        SomeEvent::from_le_bytes(raw).ok_or(Error::InvalidResponse)
     }
 
     fn has_pending_events(&mut self) -> Result<bool, Error> {
@@ -809,7 +826,7 @@ impl XDisplay {
     }
 
     /// Drain all events
-    pub fn events(&mut self) -> Result<Drain<'_, Event>, Error> {
+    pub fn events(&mut self) -> Result<Drain<'_, SomeEvent>, Error> {
         while self.has_pending_events()? {
             self.decode_response_blocking()?;
         }
@@ -818,18 +835,34 @@ impl XDisplay {
     }
 
     /// Drain all errors from queue
-    pub fn errors(&mut self) -> Drain<'_, XError> {
+    pub fn errors(&mut self) -> Drain<'_, SomeError> {
         self.error_queue.drain(..)
     }
 }
 
-// NOTE: Should we use `#[must_use]` here?
-// NOTE: Don't derive Clone and Copy, it's not implemented on purpose to emulate linearity.
 // i.e. you cannot disacrd reply twice, etc.
-#[derive(Debug, Hash, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(Debug, Clone, Copy, Hash, PartialEq, Eq, PartialOrd, Ord)]
 #[repr(transparent)]
-pub struct SequenceNumber {
-    inner: u16,
+pub(crate) struct SequenceNumber {
+    value: u16,
+}
+
+// NOTE: Don't derive Clone and Copy, it's not implemented on purpose to emulate linearity.
+#[derive(Hash, PartialEq, Eq, PartialOrd, Ord)]
+#[repr(transparent)]
+pub struct PendingReply<Reply> {
+    sequence_number: SequenceNumber,
+    reply_type: PhantomData<Reply>,
+}
+
+// Rust's constraints solver isn't really smart and enforced Debug on R for no reason
+impl<Reply> std::fmt::Debug for PendingReply<Reply> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("PendingReply")
+            .field("sequence_number", &self.sequence_number)
+            .field("reply_type", &self.reply_type)
+            .finish()
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
