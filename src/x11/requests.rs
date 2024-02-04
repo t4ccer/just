@@ -2,8 +2,8 @@ use crate::x11::{
     events::EventType,
     replies::{self, ReplyType},
     utils::pad,
-    Atom, Colormap, Cursor, Drawable, Font, GContext, LeBytes, ListOfStr, Pixmap, Point, Rectangle,
-    VisualId, Window, WindowClass, WindowVisual,
+    AtomId, ColormapId, CursorId, Drawable, FontId, GContextId, LeBytes, ListOfStr, PixmapId,
+    Point, Rectangle, VisualId, WindowClass, WindowId, WindowVisual,
 };
 use std::{
     fmt,
@@ -13,10 +13,53 @@ use std::{
 
 pub(crate) mod opcodes;
 
-// TODO: proper type
-type Timestamp = u32;
-type KeyCode = u8;
-type KeySym = u32;
+#[derive(Debug, Clone, Copy)]
+#[repr(transparent)]
+pub struct Timestamp(pub(crate) u32);
+
+impl Timestamp {
+    fn to_le_bytes(self) -> [u8; 4] {
+        self.0.to_le_bytes()
+    }
+}
+
+#[derive(Debug, Clone, Copy)]
+#[repr(transparent)]
+pub struct KeyCode(u8);
+
+impl KeyCode {
+    fn to_le_bytes(self) -> [u8; 1] {
+        self.0.to_le_bytes()
+    }
+}
+
+impl From<u8> for KeyCode {
+    fn from(value: u8) -> Self {
+        Self(value)
+    }
+}
+
+impl From<u32> for KeyCode {
+    fn from(value: u32) -> Self {
+        Self(value as u8)
+    }
+}
+
+impl From<KeyCode> for u32 {
+    fn from(value: KeyCode) -> Self {
+        value.0 as u32
+    }
+}
+
+#[derive(Debug, Clone, Copy)]
+#[repr(transparent)]
+pub struct KeySym(u32);
+
+impl KeySym {
+    fn to_le_bytes(self) -> [u8; 4] {
+        self.0.to_le_bytes()
+    }
+}
 
 macro_rules! impl_raw_field {
     ($ty:path, $setter:ident, $idx:expr) => {
@@ -84,6 +127,18 @@ macro_rules! impl_xrequest_with_response {
     };
 }
 
+macro_rules! impl_xrequest_without_response {
+    ($r:tt) => {
+        impl XRequest for $r {
+            type Reply = NoReply;
+
+            fn reply_type() -> Option<ReplyType> {
+                None
+            }
+        }
+    };
+}
+
 macro_rules! write_le_bytes {
     ($w:expr, $content:expr) => {
         $w.write_all(&(($content).to_le_bytes()))?;
@@ -128,12 +183,34 @@ impl<const N: usize> ListOfValues<N> {
     }
 }
 
+#[derive(Debug, Clone, Copy)]
+pub(crate) enum XProtocolVersion {
+    V11_0,
+}
+
 #[derive(Debug, Clone)]
 pub struct InitializeConnection {
     pub major_version: u16,
     pub minor_version: u16,
     pub authorization_protocol_name: Vec<u8>,
     pub authorization_protocol_data: Vec<u8>,
+}
+
+impl InitializeConnection {
+    pub(crate) fn new(
+        protocol_version: XProtocolVersion,
+        authorization_protocol_name: Vec<u8>,
+        authorization_protocol_data: Vec<u8>,
+    ) -> Self {
+        match protocol_version {
+            XProtocolVersion::V11_0 => Self {
+                major_version: 11,
+                minor_version: 0,
+                authorization_protocol_name,
+                authorization_protocol_data,
+            },
+        }
+    }
 }
 
 impl LeBytes for InitializeConnection {
@@ -158,9 +235,7 @@ impl LeBytes for InitializeConnection {
     }
 }
 
-impl XRequest for InitializeConnection {
-    type Reply = NoReply;
-}
+impl_xrequest_without_response!(InitializeConnection);
 
 // Source: https://www.x.org/releases/X11R7.7/doc/xproto/x11protocol.html#Encoding::Requests
 
@@ -277,8 +352,8 @@ impl_raw_fields! {
 #[derive(Debug, Clone)]
 pub struct CreateWindow {
     pub depth: u8,
-    pub wid: Window,
-    pub parent: Window,
+    pub wid: WindowId,
+    pub parent: WindowId,
     pub x: i16,
     pub y: i16,
     pub width: u16,
@@ -312,9 +387,7 @@ impl LeBytes for CreateWindow {
     }
 }
 
-impl XRequest for CreateWindow {
-    type Reply = NoReply;
-}
+impl_xrequest_without_response!(CreateWindow);
 
 /*
 ChangeWindowAttributes
@@ -330,7 +403,7 @@ ChangeWindowAttributes
 
 #[derive(Debug, Clone)]
 pub struct ChangeWindowAttributes {
-    pub window: Window,
+    pub window: WindowId,
     pub attributes: WindowCreationAttributes,
 }
 
@@ -349,9 +422,7 @@ impl LeBytes for ChangeWindowAttributes {
     }
 }
 
-impl XRequest for ChangeWindowAttributes {
-    type Reply = NoReply;
-}
+impl_xrequest_without_response!(ChangeWindowAttributes);
 
 /*
 GetWindowAttributes
@@ -363,7 +434,7 @@ GetWindowAttributes
 
 #[derive(Debug, Clone, Copy)]
 pub struct GetWindowAttributes {
-    pub window: Window,
+    pub window: WindowId,
 }
 
 impl LeBytes for GetWindowAttributes {
@@ -377,13 +448,7 @@ impl LeBytes for GetWindowAttributes {
     }
 }
 
-impl XRequest for GetWindowAttributes {
-    type Reply = replies::GetWindowAttributes;
-
-    fn reply_type() -> Option<ReplyType> {
-        Some(ReplyType::GetWindowAttributes)
-    }
-}
+impl_xrequest_with_response!(GetWindowAttributes);
 
 /*
 DestroyWindow
@@ -395,7 +460,7 @@ DestroyWindow
 
 #[derive(Debug, Clone, Copy)]
 pub struct DestroyWindow {
-    pub window: Window,
+    pub window: WindowId,
 }
 
 impl LeBytes for DestroyWindow {
@@ -409,9 +474,7 @@ impl LeBytes for DestroyWindow {
     }
 }
 
-impl XRequest for DestroyWindow {
-    type Reply = NoReply;
-}
+impl_xrequest_without_response!(DestroyWindow);
 
 /*
 DestroySubwindows
@@ -423,7 +486,7 @@ DestroySubwindows
 
 #[derive(Debug, Clone, Copy)]
 pub struct DestroySubwindows {
-    pub window: Window,
+    pub window: WindowId,
 }
 
 impl LeBytes for DestroySubwindows {
@@ -437,9 +500,7 @@ impl LeBytes for DestroySubwindows {
     }
 }
 
-impl XRequest for DestroySubwindows {
-    type Reply = NoReply;
-}
+impl_xrequest_without_response!(DestroySubwindows);
 
 /*
 ChangeSaveSet
@@ -461,7 +522,7 @@ pub enum ChangeSaveSetMode {
 #[derive(Debug, Clone, Copy)]
 pub struct ChangeSaveSet {
     pub mode: ChangeSaveSetMode,
-    pub window: Window,
+    pub window: WindowId,
 }
 
 impl LeBytes for ChangeSaveSet {
@@ -475,9 +536,7 @@ impl LeBytes for ChangeSaveSet {
     }
 }
 
-impl XRequest for ChangeSaveSet {
-    type Reply = NoReply;
-}
+impl_xrequest_without_response!(ChangeSaveSet);
 
 /*
 ReparentWindow
@@ -492,8 +551,8 @@ ReparentWindow
 
 #[derive(Debug, Clone, Copy)]
 pub struct ReparentWindow {
-    pub window: Window,
-    pub parent: Window,
+    pub window: WindowId,
+    pub parent: WindowId,
     pub x: i16,
     pub y: i16,
 }
@@ -512,9 +571,7 @@ impl LeBytes for ReparentWindow {
     }
 }
 
-impl XRequest for ReparentWindow {
-    type Reply = NoReply;
-}
+impl_xrequest_without_response!(ReparentWindow);
 
 /*
 MapWindow
@@ -526,7 +583,7 @@ MapWindow
 
 #[derive(Debug, Clone, Copy)]
 pub struct MapWindow {
-    pub window: Window,
+    pub window: WindowId,
 }
 
 impl LeBytes for MapWindow {
@@ -540,9 +597,7 @@ impl LeBytes for MapWindow {
     }
 }
 
-impl XRequest for MapWindow {
-    type Reply = NoReply;
-}
+impl_xrequest_without_response!(MapWindow);
 
 /*
 MapSubwindows
@@ -554,7 +609,7 @@ MapSubwindows
 
 #[derive(Debug, Clone, Copy)]
 pub struct MapSubwindows {
-    pub window: Window,
+    pub window: WindowId,
 }
 
 impl LeBytes for MapSubwindows {
@@ -568,9 +623,7 @@ impl LeBytes for MapSubwindows {
     }
 }
 
-impl XRequest for MapSubwindows {
-    type Reply = NoReply;
-}
+impl_xrequest_without_response!(MapSubwindows);
 
 /*
 UnmapWindow
@@ -582,7 +635,7 @@ UnmapWindow
 
 #[derive(Debug, Clone, Copy)]
 pub struct UnmapWindow {
-    pub window: Window,
+    pub window: WindowId,
 }
 
 impl LeBytes for UnmapWindow {
@@ -596,9 +649,7 @@ impl LeBytes for UnmapWindow {
     }
 }
 
-impl XRequest for UnmapWindow {
-    type Reply = NoReply;
-}
+impl_xrequest_without_response!(UnmapWindow);
 
 /*
 UnmapSubwindows
@@ -610,7 +661,7 @@ UnmapSubwindows
 
 #[derive(Debug, Clone, Copy)]
 pub struct UnmapSubwindows {
-    pub window: Window,
+    pub window: WindowId,
 }
 
 impl LeBytes for UnmapSubwindows {
@@ -624,9 +675,7 @@ impl LeBytes for UnmapSubwindows {
     }
 }
 
-impl XRequest for UnmapSubwindows {
-    type Reply = NoReply;
-}
+impl_xrequest_without_response!(UnmapSubwindows);
 
 /*
 ConfigureWindow
@@ -653,7 +702,7 @@ pub struct ConfigureWindowAttributes {
 
 #[derive(Debug, Clone)]
 pub struct ConfigureWindow {
-    pub window: Window,
+    pub window: WindowId,
     pub attributes: ConfigureWindowAttributes,
 }
 
@@ -673,9 +722,7 @@ impl LeBytes for ConfigureWindow {
     }
 }
 
-impl XRequest for ConfigureWindow {
-    type Reply = NoReply;
-}
+impl_xrequest_without_response!(ConfigureWindow);
 
 /*
 CirculateWindow
@@ -697,7 +744,7 @@ pub enum CirculateWindowDirection {
 #[derive(Debug, Clone, Copy)]
 pub struct CirculateWindow {
     pub direction: CirculateWindowDirection,
-    pub window: Window,
+    pub window: WindowId,
 }
 
 impl LeBytes for CirculateWindow {
@@ -711,9 +758,7 @@ impl LeBytes for CirculateWindow {
     }
 }
 
-impl XRequest for CirculateWindow {
-    type Reply = NoReply;
-}
+impl_xrequest_without_response!(CirculateWindow);
 
 /*
 GetGeometry
@@ -750,7 +795,7 @@ QueryTree
 
 #[derive(Debug, Clone, Copy)]
 pub struct QueryTree {
-    pub window: Window,
+    pub window: WindowId,
 }
 
 impl LeBytes for QueryTree {
@@ -764,16 +809,7 @@ impl LeBytes for QueryTree {
     }
 }
 
-// FIXME
-// impl_xrequest_with_response!(QueryTree);
-
-impl XRequest for QueryTree {
-    type Reply = NoReply;
-
-    fn reply_type() -> Option<ReplyType> {
-        Some(ReplyType::QueryTree)
-    }
-}
+impl_xrequest_with_response!(QueryTree);
 
 /*
 InternAtom
@@ -810,13 +846,7 @@ impl LeBytes for InternAtom {
     }
 }
 
-impl XRequest for InternAtom {
-    type Reply = NoReply;
-
-    fn reply_type() -> Option<ReplyType> {
-        Some(ReplyType::InternAtom)
-    }
-}
+impl_xrequest_with_response!(InternAtom);
 
 /*
 GetAtomName
@@ -828,7 +858,7 @@ GetAtomName
 
 #[derive(Debug, Clone, Copy)]
 pub struct GetAtomName {
-    pub atom: Atom,
+    pub atom: AtomId,
 }
 
 impl LeBytes for GetAtomName {
@@ -842,13 +872,7 @@ impl LeBytes for GetAtomName {
     }
 }
 
-impl XRequest for GetAtomName {
-    type Reply = NoReply;
-
-    fn reply_type() -> Option<ReplyType> {
-        Some(ReplyType::GetAtomName)
-    }
-}
+impl_xrequest_with_response!(GetAtomName);
 
 /*
 ChangeProperty
@@ -876,9 +900,9 @@ ChangeProperty
 #[derive(Debug, Clone)]
 pub struct ChangeProperty {
     pub mode: u8, // TODO: type
-    pub window: Window,
-    pub property: Atom,
-    pub type_: Atom,
+    pub window: WindowId,
+    pub property: AtomId,
+    pub type_: AtomId,
     pub format: u8, // TODO: type
     pub data: Vec<u8>,
 }
@@ -905,9 +929,7 @@ impl LeBytes for ChangeProperty {
     }
 }
 
-impl XRequest for ChangeProperty {
-    type Reply = NoReply;
-}
+impl_xrequest_without_response!(ChangeProperty);
 
 /*
 DeleteProperty
@@ -920,8 +942,8 @@ DeleteProperty
 
 #[derive(Debug, Clone, Copy)]
 pub struct DeleteProperty {
-    pub window: Window,
-    pub property: Atom,
+    pub window: WindowId,
+    pub property: AtomId,
 }
 
 impl LeBytes for DeleteProperty {
@@ -936,9 +958,7 @@ impl LeBytes for DeleteProperty {
     }
 }
 
-impl XRequest for DeleteProperty {
-    type Reply = NoReply;
-}
+impl_xrequest_without_response!(DeleteProperty);
 
 /*
 GetProperty
@@ -956,9 +976,9 @@ GetProperty
 #[derive(Debug, Clone, Copy)]
 pub struct GetProperty {
     pub delete: bool,
-    pub window: Window,
-    pub property: Atom,
-    pub type_: Atom,
+    pub window: WindowId,
+    pub property: AtomId,
+    pub type_: AtomId,
     pub long_offset: u32,
     pub long_length: u32,
 }
@@ -978,13 +998,7 @@ impl LeBytes for GetProperty {
     }
 }
 
-impl XRequest for GetProperty {
-    type Reply = NoReply;
-
-    fn reply_type() -> Option<ReplyType> {
-        Some(ReplyType::GetProperty)
-    }
-}
+impl_xrequest_with_response!(GetProperty);
 
 /*
 ListProperties
@@ -996,7 +1010,7 @@ ListProperties
 
 #[derive(Debug, Clone, Copy)]
 pub struct ListProperties {
-    pub window: Window,
+    pub window: WindowId,
 }
 
 impl LeBytes for ListProperties {
@@ -1010,13 +1024,7 @@ impl LeBytes for ListProperties {
     }
 }
 
-impl XRequest for ListProperties {
-    type Reply = NoReply;
-
-    fn reply_type() -> Option<ReplyType> {
-        Some(ReplyType::ListProperties)
-    }
-}
+impl_xrequest_with_response!(ListProperties);
 
 /*
 SetSelectionOwner
@@ -1032,8 +1040,8 @@ SetSelectionOwner
 
 #[derive(Debug, Clone, Copy)]
 pub struct SetSelectionOwner {
-    pub owner: Window,
-    pub selection: Atom,
+    pub owner: WindowId,
+    pub selection: AtomId,
     pub time: u32,
 }
 
@@ -1050,9 +1058,7 @@ impl LeBytes for SetSelectionOwner {
     }
 }
 
-impl XRequest for SetSelectionOwner {
-    type Reply = NoReply;
-}
+impl_xrequest_without_response!(SetSelectionOwner);
 
 /*
 GetSelectionOwner
@@ -1064,7 +1070,7 @@ GetSelectionOwner
 
 #[derive(Debug, Clone, Copy)]
 pub struct GetSelectionOwner {
-    pub selection: Atom,
+    pub selection: AtomId,
 }
 
 impl LeBytes for GetSelectionOwner {
@@ -1078,13 +1084,7 @@ impl LeBytes for GetSelectionOwner {
     }
 }
 
-impl XRequest for GetSelectionOwner {
-    type Reply = NoReply;
-
-    fn reply_type() -> Option<ReplyType> {
-        Some(ReplyType::GetSelectionOwner)
-    }
-}
+impl_xrequest_with_response!(GetSelectionOwner);
 
 /*
 ConvertSelection
@@ -1102,10 +1102,10 @@ ConvertSelection
 
 #[derive(Debug, Clone, Copy)]
 pub struct ConvertSelection {
-    pub requestor: Window,
-    pub selection: Atom,
-    pub target: Atom,
-    pub property: Atom,
+    pub requestor: WindowId,
+    pub selection: AtomId,
+    pub target: AtomId,
+    pub property: AtomId,
     pub time: u32,
 }
 
@@ -1124,9 +1124,7 @@ impl LeBytes for ConvertSelection {
     }
 }
 
-impl XRequest for ConvertSelection {
-    type Reply = NoReply;
-}
+impl_xrequest_without_response!(ConvertSelection);
 
 /*
 SendEvent
@@ -1144,7 +1142,7 @@ SendEvent
 #[derive(Debug, Clone, Copy)]
 pub struct SendEvent {
     pub propagate: bool,
-    pub destination: Window,
+    pub destination: WindowId,
     pub event_mask: u32,
     pub event: [u8; 32], // TODO: type
 }
@@ -1162,9 +1160,7 @@ impl LeBytes for SendEvent {
     }
 }
 
-impl XRequest for SendEvent {
-    type Reply = NoReply;
-}
+impl_xrequest_without_response!(SendEvent);
 
 /*
 GrabPointer
@@ -1190,11 +1186,11 @@ GrabPointer
 #[derive(Debug, Clone, Copy)]
 pub struct GrabPointer {
     pub owner_events: bool,
-    pub grab_window: Window,
+    pub grab_window: WindowId,
     pub event_mask: u16,
     pub pointer_mode: u8,
     pub keyboard_mode: u8,
-    pub confine_to: Window,
+    pub confine_to: WindowId,
     pub cursor: u32,
     pub time: u32,
 }
@@ -1216,13 +1212,7 @@ impl LeBytes for GrabPointer {
     }
 }
 
-impl XRequest for GrabPointer {
-    type Reply = NoReply;
-
-    fn reply_type() -> Option<ReplyType> {
-        Some(ReplyType::GrabPointer)
-    }
-}
+impl_xrequest_with_response!(GrabPointer);
 
 /*
 UngrabPointer
@@ -1249,9 +1239,7 @@ impl LeBytes for UngrabPointer {
     }
 }
 
-impl XRequest for UngrabPointer {
-    type Reply = NoReply;
-}
+impl_xrequest_without_response!(UngrabPointer);
 
 /*
 GrabButton
@@ -1280,11 +1268,11 @@ GrabButton
 #[derive(Debug, Clone, Copy)]
 pub struct GrabButton {
     pub owner_events: bool,
-    pub grab_window: Window,
+    pub grab_window: WindowId,
     pub event_mask: u16,
     pub pointer_mode: u8,
     pub keyboard_mode: u8,
-    pub confine_to: Window,
+    pub confine_to: WindowId,
     pub cursor: u32,
     pub button: u8,
     pub modifiers: u16,
@@ -1309,9 +1297,7 @@ impl LeBytes for GrabButton {
     }
 }
 
-impl XRequest for GrabButton {
-    type Reply = NoReply;
-}
+impl_xrequest_without_response!(GrabButton);
 
 /*
 UngrabButton
@@ -1328,7 +1314,7 @@ UngrabButton
 #[derive(Debug, Clone, Copy)]
 pub struct UngrabButton {
     pub button: u8,
-    pub grab_window: Window,
+    pub grab_window: WindowId,
     pub modifiers: u16,
 }
 
@@ -1345,9 +1331,7 @@ impl LeBytes for UngrabButton {
     }
 }
 
-impl XRequest for UngrabButton {
-    type Reply = NoReply;
-}
+impl_xrequest_without_response!(UngrabButton);
 
 /*
 ChangeActivePointerGrab
@@ -1383,9 +1367,7 @@ impl LeBytes for ChangeActivePointerGrab {
     }
 }
 
-impl XRequest for ChangeActivePointerGrab {
-    type Reply = NoReply;
-}
+impl_xrequest_without_response!(ChangeActivePointerGrab);
 
 /*
 GrabKeyboard
@@ -1407,7 +1389,7 @@ GrabKeyboard
 #[derive(Debug, Clone, Copy)]
 pub struct GrabKeyboard {
     pub owner_events: bool,
-    pub grab_window: Window,
+    pub grab_window: WindowId,
     pub time: u32,
     pub pointer_mode: u8,
     pub keyboard_mode: u8,
@@ -1428,13 +1410,7 @@ impl LeBytes for GrabKeyboard {
     }
 }
 
-impl XRequest for GrabKeyboard {
-    type Reply = NoReply;
-
-    fn reply_type() -> Option<ReplyType> {
-        Some(ReplyType::GrabKeyboard)
-    }
-}
+impl_xrequest_with_response!(GrabKeyboard);
 
 /*
 UngrabKeyboard
@@ -1461,9 +1437,7 @@ impl LeBytes for UngrabKeyboard {
     }
 }
 
-impl XRequest for UngrabKeyboard {
-    type Reply = NoReply;
-}
+impl_xrequest_without_response!(UngrabKeyboard);
 
 /*
 GrabKey
@@ -1487,7 +1461,7 @@ GrabKey
 #[derive(Debug, Clone, Copy)]
 pub struct GrabKey {
     pub owner_events: bool,
-    pub grab_window: Window,
+    pub grab_window: WindowId,
     pub modifiers: u16,
     pub key: u8,
     pub pointer_mode: u8,
@@ -1510,9 +1484,7 @@ impl LeBytes for GrabKey {
     }
 }
 
-impl XRequest for GrabKey {
-    type Reply = NoReply;
-}
+impl_xrequest_without_response!(GrabKey);
 
 /*
 UngrabKey
@@ -1529,7 +1501,7 @@ UngrabKey
 #[derive(Debug, Clone, Copy)]
 pub struct UngrabKey {
     pub key: u8,
-    pub grab_window: Window,
+    pub grab_window: WindowId,
     pub modifiers: u16,
 }
 
@@ -1546,9 +1518,7 @@ impl LeBytes for UngrabKey {
     }
 }
 
-impl XRequest for UngrabKey {
-    type Reply = NoReply;
-}
+impl_xrequest_without_response!(UngrabKey);
 
 /*
 AllowEvents
@@ -1584,9 +1554,7 @@ impl LeBytes for AllowEvents {
     }
 }
 
-impl XRequest for AllowEvents {
-    type Reply = NoReply;
-}
+impl_xrequest_without_response!(AllowEvents);
 
 /*
 GrabServer
@@ -1608,9 +1576,7 @@ impl LeBytes for GrabServer {
     }
 }
 
-impl XRequest for GrabServer {
-    type Reply = NoReply;
-}
+impl_xrequest_without_response!(GrabServer);
 
 /*
 UngrabServer
@@ -1632,9 +1598,7 @@ impl LeBytes for UngrabServer {
     }
 }
 
-impl XRequest for UngrabServer {
-    type Reply = NoReply;
-}
+impl_xrequest_without_response!(UngrabServer);
 
 /*
 QueryPointer
@@ -1646,7 +1610,7 @@ QueryPointer
 
 #[derive(Debug, Clone, Copy)]
 pub struct QueryPointer {
-    pub window: Window,
+    pub window: WindowId,
 }
 
 impl LeBytes for QueryPointer {
@@ -1660,13 +1624,7 @@ impl LeBytes for QueryPointer {
     }
 }
 
-impl XRequest for QueryPointer {
-    type Reply = NoReply;
-
-    fn reply_type() -> Option<ReplyType> {
-        Some(ReplyType::QueryPointer)
-    }
-}
+impl_xrequest_with_response!(QueryPointer);
 
 /*
 GetMotionEvents
@@ -1682,7 +1640,7 @@ GetMotionEvents
 
 #[derive(Debug, Clone, Copy)]
 pub struct GetMotionEvents {
-    pub window: Window,
+    pub window: WindowId,
     pub start: Timestamp,
     pub stop: Timestamp,
 }
@@ -1700,13 +1658,7 @@ impl LeBytes for GetMotionEvents {
     }
 }
 
-impl XRequest for GetMotionEvents {
-    type Reply = NoReply;
-
-    fn reply_type() -> Option<ReplyType> {
-        Some(ReplyType::GetMotionEvents)
-    }
-}
+impl_xrequest_with_response!(GetMotionEvents);
 
 /*
 TranslateCoordinates
@@ -1721,8 +1673,8 @@ TranslateCoordinates
 
 #[derive(Debug, Clone, Copy)]
 pub struct TranslateCoordinates {
-    pub src_window: Window,
-    pub dst_window: Window,
+    pub src_window: WindowId,
+    pub dst_window: WindowId,
     pub src_x: i16,
     pub src_y: i16,
 }
@@ -1741,13 +1693,7 @@ impl LeBytes for TranslateCoordinates {
     }
 }
 
-impl XRequest for TranslateCoordinates {
-    type Reply = NoReply;
-
-    fn reply_type() -> Option<ReplyType> {
-        Some(ReplyType::TranslateCoordinates)
-    }
-}
+impl_xrequest_with_response!(TranslateCoordinates);
 
 /*
 WarpPointer
@@ -1768,8 +1714,8 @@ WarpPointer
 
 #[derive(Debug, Clone, Copy)]
 pub struct WarpPointer {
-    pub src_window: Window,
-    pub dst_window: Window,
+    pub src_window: WindowId,
+    pub dst_window: WindowId,
     pub src_x: i16,
     pub src_y: i16,
     pub src_width: u16,
@@ -1796,9 +1742,7 @@ impl LeBytes for WarpPointer {
     }
 }
 
-impl XRequest for WarpPointer {
-    type Reply = NoReply;
-}
+impl_xrequest_without_response!(WarpPointer);
 
 /*
 SetInputFocus
@@ -1818,7 +1762,7 @@ SetInputFocus
 #[derive(Debug, Clone, Copy)]
 pub struct SetInputFocus {
     pub revert_to: u8,
-    pub focus: Window,
+    pub focus: WindowId,
     pub time: Timestamp,
 }
 
@@ -1834,9 +1778,7 @@ impl LeBytes for SetInputFocus {
     }
 }
 
-impl XRequest for SetInputFocus {
-    type Reply = NoReply;
-}
+impl_xrequest_without_response!(SetInputFocus);
 
 /*
 GetInputFocus
@@ -1858,13 +1800,7 @@ impl LeBytes for GetInputFocus {
     }
 }
 
-impl XRequest for GetInputFocus {
-    type Reply = NoReply;
-
-    fn reply_type() -> Option<ReplyType> {
-        Some(ReplyType::GetInputFocus)
-    }
-}
+impl_xrequest_with_response!(GetInputFocus);
 
 /*
 QueryKeymap
@@ -1886,13 +1822,7 @@ impl LeBytes for QueryKeymap {
     }
 }
 
-impl XRequest for QueryKeymap {
-    type Reply = NoReply;
-
-    fn reply_type() -> Option<ReplyType> {
-        Some(ReplyType::QueryKeymap)
-    }
-}
+impl_xrequest_with_response!(QueryKeymap);
 
 /*
 OpenFont
@@ -1908,7 +1838,7 @@ OpenFont
 
 #[derive(Debug, Clone)]
 pub struct OpenFont {
-    pub fid: Font,
+    pub fid: FontId,
     pub name: Vec<u8>,
 }
 
@@ -1931,9 +1861,7 @@ impl LeBytes for OpenFont {
     }
 }
 
-impl XRequest for OpenFont {
-    type Reply = NoReply;
-}
+impl_xrequest_without_response!(OpenFont);
 
 /*
 CloseFont
@@ -1945,7 +1873,7 @@ CloseFont
 
 #[derive(Debug, Clone, Copy)]
 pub struct CloseFont {
-    pub font: Font,
+    pub font: FontId,
 }
 
 impl LeBytes for CloseFont {
@@ -1959,9 +1887,7 @@ impl LeBytes for CloseFont {
     }
 }
 
-impl XRequest for CloseFont {
-    type Reply = NoReply;
-}
+impl_xrequest_without_response!(CloseFont);
 
 /*
 QueryFont
@@ -1973,7 +1899,7 @@ QueryFont
 
 #[derive(Debug, Clone, Copy)]
 pub struct QueryFont {
-    pub font: Font, // TODO: Fontable
+    pub font: FontId, // TODO: Fontable
 }
 
 impl LeBytes for QueryFont {
@@ -1987,13 +1913,7 @@ impl LeBytes for QueryFont {
     }
 }
 
-impl XRequest for QueryFont {
-    type Reply = NoReply;
-
-    fn reply_type() -> Option<ReplyType> {
-        Some(ReplyType::QueryFont)
-    }
-}
+impl_xrequest_with_response!(QueryFont);
 
 /*
 QueryTextExtents
@@ -2007,7 +1927,7 @@ QueryTextExtents
 
 #[derive(Debug, Clone)]
 pub struct QueryTextExtents {
-    pub font: Font, // TODO: Fontable
+    pub font: FontId, // TODO: Fontable
     pub string: Vec<u16>,
 }
 
@@ -2035,13 +1955,7 @@ impl LeBytes for QueryTextExtents {
     }
 }
 
-impl XRequest for QueryTextExtents {
-    type Reply = NoReply;
-
-    fn reply_type() -> Option<ReplyType> {
-        Some(ReplyType::QueryTextExtents)
-    }
-}
+impl_xrequest_with_response!(QueryTextExtents);
 
 /*
 ListFonts
@@ -2078,13 +1992,7 @@ impl LeBytes for ListFonts {
     }
 }
 
-impl XRequest for ListFonts {
-    type Reply = NoReply;
-
-    fn reply_type() -> Option<ReplyType> {
-        Some(ReplyType::ListFonts)
-    }
-}
+impl_xrequest_with_response!(ListFonts);
 
 /*
 ListFontsWithInfo
@@ -2121,13 +2029,7 @@ impl LeBytes for ListFontsWithInfo {
     }
 }
 
-impl XRequest for ListFontsWithInfo {
-    type Reply = NoReply;
-
-    fn reply_type() -> Option<ReplyType> {
-        Some(ReplyType::ListFontsWithInfo)
-    }
-}
+impl_xrequest_with_response!(ListFontsWithInfo);
 
 /*
 SetFontPath
@@ -2163,9 +2065,7 @@ impl LeBytes for SetFontPath {
     }
 }
 
-impl XRequest for SetFontPath {
-    type Reply = NoReply;
-}
+impl_xrequest_without_response!(SetFontPath);
 
 /*
 GetFontPath
@@ -2187,13 +2087,7 @@ impl LeBytes for GetFontPath {
     }
 }
 
-impl XRequest for GetFontPath {
-    type Reply = NoReply;
-
-    fn reply_type() -> Option<ReplyType> {
-        Some(ReplyType::GetFontPath)
-    }
-}
+impl_xrequest_with_response!(GetFontPath);
 
 /*
 CreatePixmap
@@ -2209,7 +2103,7 @@ CreatePixmap
 #[derive(Debug, Clone, Copy)]
 pub struct CreatePixmap {
     pub depth: u8,
-    pub pid: Pixmap,
+    pub pid: PixmapId,
     pub drawable: Drawable,
     pub width: u16,
     pub height: u16,
@@ -2229,9 +2123,7 @@ impl LeBytes for CreatePixmap {
     }
 }
 
-impl XRequest for CreatePixmap {
-    type Reply = NoReply;
-}
+impl_xrequest_without_response!(CreatePixmap);
 
 /*
 FreePixmap
@@ -2243,7 +2135,7 @@ FreePixmap
 
 #[derive(Debug, Clone, Copy)]
 pub struct FreePixmap {
-    pub pixmap: Pixmap,
+    pub pixmap: PixmapId,
 }
 
 impl LeBytes for FreePixmap {
@@ -2257,9 +2149,7 @@ impl LeBytes for FreePixmap {
     }
 }
 
-impl XRequest for FreePixmap {
-    type Reply = NoReply;
-}
+impl_xrequest_without_response!(FreePixmap);
 
 /*
 CreateGC
@@ -2388,16 +2278,16 @@ impl_raw_fields! {
     set_join_style: u32, // TODO: type
     set_fill_style: u32, // TODO: type
     set_fill_rule: u32, // TODO: type
-    set_tile: Pixmap,
-    set_stipple: Pixmap,
+    set_tile: PixmapId,
+    set_stipple: PixmapId,
     set_tile_stipple_x_origin: u16,
     set_tile_stipple_y_origin: u16,
-    set_font: Font,
+    set_font: FontId,
     set_subwindow_mode: u32,
     set_graphics_exposures: bool,
     set_clip_x_origin: u16,
     set_clip_y_origin: u16,
-    set_clip_mask: Pixmap, // TODO: or None
+    set_clip_mask: PixmapId, // TODO: or None
     set_dash_offset: u16,
     set_dashes: u8,
     set_arc_mode: u32,
@@ -2405,7 +2295,7 @@ impl_raw_fields! {
 
 #[derive(Debug, Clone)]
 pub struct CreateGC {
-    pub cid: GContext,
+    pub cid: GContextId,
     pub drawable: Drawable,
     pub values: GContextSettings,
 }
@@ -2426,9 +2316,7 @@ impl LeBytes for CreateGC {
     }
 }
 
-impl XRequest for CreateGC {
-    type Reply = NoReply;
-}
+impl_xrequest_without_response!(CreateGC);
 
 /*
 ChangeGC
@@ -2444,7 +2332,7 @@ ChangeGC
 
 #[derive(Debug, Clone)]
 pub struct ChangeGC {
-    pub gcontext: GContext,
+    pub gcontext: GContextId,
     pub values: GContextSettings,
 }
 
@@ -2463,9 +2351,7 @@ impl LeBytes for ChangeGC {
     }
 }
 
-impl XRequest for ChangeGC {
-    type Reply = NoReply;
-}
+impl_xrequest_without_response!(ChangeGC);
 
 /*
 CopyGC
@@ -2480,8 +2366,8 @@ CopyGC
 
 #[derive(Debug, Clone, Copy)]
 pub struct CopyGC {
-    pub src_gc: GContext,
-    pub dst_gc: GContext,
+    pub src_gc: GContextId,
+    pub dst_gc: GContextId,
     pub value_mask: u32,
 }
 
@@ -2498,9 +2384,7 @@ impl LeBytes for CopyGC {
     }
 }
 
-impl XRequest for CopyGC {
-    type Reply = NoReply;
-}
+impl_xrequest_without_response!(CopyGC);
 
 /*
 SetDashes
@@ -2516,7 +2400,7 @@ SetDashes
 
 #[derive(Debug, Clone)]
 pub struct SetDashes {
-    pub gc: GContext,
+    pub gc: GContextId,
     pub dash_offset: u16,
     pub dashes: Vec<u8>,
 }
@@ -2541,9 +2425,7 @@ impl LeBytes for SetDashes {
     }
 }
 
-impl XRequest for SetDashes {
-    type Reply = NoReply;
-}
+impl_xrequest_without_response!(SetDashes);
 
 /*
 SetClipRectangles
@@ -2572,7 +2454,7 @@ pub enum Ordering {
 #[derive(Debug, Clone)]
 pub struct SetClipRectangles {
     pub ordering: Ordering,
-    pub gc: GContext,
+    pub gc: GContextId,
     pub clip_x_origin: i16,
     pub clip_y_origin: i16,
     pub rectangles: Vec<Rectangle>,
@@ -2597,9 +2479,7 @@ impl LeBytes for SetClipRectangles {
     }
 }
 
-impl XRequest for SetClipRectangles {
-    type Reply = NoReply;
-}
+impl_xrequest_without_response!(SetClipRectangles);
 
 /*
 FreeGC
@@ -2611,7 +2491,7 @@ FreeGC
 
 #[derive(Debug, Clone)]
 pub struct FreeGC {
-    pub gc: GContext,
+    pub gc: GContextId,
 }
 
 impl LeBytes for FreeGC {
@@ -2625,9 +2505,7 @@ impl LeBytes for FreeGC {
     }
 }
 
-impl XRequest for FreeGC {
-    type Reply = NoReply;
-}
+impl_xrequest_without_response!(FreeGC);
 
 /*
 ClearArea
@@ -2644,7 +2522,7 @@ ClearArea
 #[derive(Debug, Clone)]
 pub struct ClearArea {
     pub exposures: bool,
-    pub window: Window,
+    pub window: WindowId,
     pub x: i16,
     pub y: i16,
     pub width: u16,
@@ -2666,9 +2544,7 @@ impl LeBytes for ClearArea {
     }
 }
 
-impl XRequest for ClearArea {
-    type Reply = NoReply;
-}
+impl_xrequest_without_response!(ClearArea);
 
 /*
 CopyArea
@@ -2690,7 +2566,7 @@ CopyArea
 pub struct CopyArea {
     pub src_drawable: Drawable,
     pub dst_drawable: Drawable,
-    pub gc: GContext,
+    pub gc: GContextId,
     pub src_x: i16,
     pub src_y: i16,
     pub dst_x: i16,
@@ -2718,9 +2594,7 @@ impl LeBytes for CopyArea {
     }
 }
 
-impl XRequest for CopyArea {
-    type Reply = NoReply;
-}
+impl_xrequest_without_response!(CopyArea);
 
 /*
 CopyPlane
@@ -2743,7 +2617,7 @@ CopyPlane
 pub struct CopyPlane {
     pub src_drawable: Drawable,
     pub dst_drawable: Drawable,
-    pub gc: GContext,
+    pub gc: GContextId,
     pub src_x: i16,
     pub src_y: i16,
     pub dst_x: i16,
@@ -2773,9 +2647,7 @@ impl LeBytes for CopyPlane {
     }
 }
 
-impl XRequest for CopyPlane {
-    type Reply = NoReply;
-}
+impl_xrequest_without_response!(CopyPlane);
 
 /*
 PolyPoint
@@ -2800,7 +2672,7 @@ pub enum CoordinateMode {
 pub struct PolyPoint {
     pub coordinate_mode: CoordinateMode,
     pub drawable: Drawable,
-    pub gc: GContext,
+    pub gc: GContextId,
     pub points: Vec<Point>,
 }
 
@@ -2823,9 +2695,7 @@ impl LeBytes for PolyPoint {
     }
 }
 
-impl XRequest for PolyPoint {
-    type Reply = NoReply;
-}
+impl_xrequest_without_response!(PolyPoint);
 
 /*
 PolyLine
@@ -2843,7 +2713,7 @@ PolyLine
 pub struct PolyLine {
     pub coordinate_mode: CoordinateMode,
     pub drawable: Drawable,
-    pub gc: GContext,
+    pub gc: GContextId,
     pub points: Vec<Point>,
 }
 
@@ -2866,9 +2736,7 @@ impl LeBytes for PolyLine {
     }
 }
 
-impl XRequest for PolyLine {
-    type Reply = NoReply;
-}
+impl_xrequest_without_response!(PolyLine);
 
 /*
 PolySegment
@@ -2907,7 +2775,7 @@ impl LeBytes for Segment {
 #[derive(Debug, Clone)]
 pub struct PolySegment {
     pub drawable: Drawable,
-    pub gc: GContext,
+    pub gc: GContextId,
     pub segments: Vec<Segment>,
 }
 
@@ -2933,9 +2801,7 @@ impl LeBytes for PolySegment {
     }
 }
 
-impl XRequest for PolySegment {
-    type Reply = NoReply;
-}
+impl_xrequest_without_response!(PolySegment);
 
 /*
 PolyRectangle
@@ -2950,7 +2816,7 @@ PolyRectangle
 #[derive(Debug, Clone)]
 pub struct PolyRectangle {
     pub drawable: Drawable,
-    pub gc: GContext,
+    pub gc: GContextId,
     pub rectangles: Vec<Rectangle>,
 }
 
@@ -2973,9 +2839,7 @@ impl LeBytes for PolyRectangle {
     }
 }
 
-impl XRequest for PolyRectangle {
-    type Reply = NoReply;
-}
+impl_xrequest_without_response!(PolyRectangle);
 
 /*
 PolyArc
@@ -3007,7 +2871,7 @@ impl Arc {
 #[derive(Debug, Clone)]
 pub struct PolyArc {
     pub drawable: Drawable,
-    pub gc: GContext,
+    pub gc: GContextId,
     pub arcs: Vec<Arc>,
 }
 
@@ -3030,9 +2894,7 @@ impl LeBytes for PolyArc {
     }
 }
 
-impl XRequest for PolyArc {
-    type Reply = NoReply;
-}
+impl_xrequest_without_response!(PolyArc);
 
 /*
 FillPoly
@@ -3063,7 +2925,7 @@ pub enum FillPolyShape {
 #[derive(Debug, Clone)]
 pub struct FillPoly {
     pub drawable: Drawable,
-    pub gc: GContext,
+    pub gc: GContextId,
     pub shape: FillPolyShape,
     pub coordinate_mode: CoordinateMode,
     pub points: Vec<Point>,
@@ -3091,9 +2953,7 @@ impl LeBytes for FillPoly {
     }
 }
 
-impl XRequest for FillPoly {
-    type Reply = NoReply;
-}
+impl_xrequest_without_response!(FillPoly);
 
 /*
 PolyFillRectangle
@@ -3108,7 +2968,7 @@ PolyFillRectangle
 #[derive(Debug, Clone)]
 pub struct PolyFillRectangle {
     pub drawable: Drawable,
-    pub gc: GContext,
+    pub gc: GContextId,
     pub rectangles: Vec<Rectangle>,
 }
 
@@ -3130,9 +2990,7 @@ impl LeBytes for PolyFillRectangle {
     }
 }
 
-impl XRequest for PolyFillRectangle {
-    type Reply = NoReply;
-}
+impl_xrequest_without_response!(PolyFillRectangle);
 
 /*
 PolyFillArc
@@ -3147,7 +3005,7 @@ PolyFillArc
 #[derive(Debug, Clone)]
 pub struct PolyFillArc {
     pub drawable: Drawable,
-    pub gc: GContext,
+    pub gc: GContextId,
     pub arcs: Vec<Arc>,
 }
 
@@ -3170,9 +3028,7 @@ impl LeBytes for PolyFillArc {
     }
 }
 
-impl XRequest for PolyFillArc {
-    type Reply = NoReply;
-}
+impl_xrequest_without_response!(PolyFillArc);
 
 /*
 PutImage
@@ -3209,7 +3065,7 @@ pub enum PutImageFormat {
 pub struct PutImage<'data> {
     pub format: PutImageFormat,
     pub drawable: Drawable,
-    pub gc: GContext,
+    pub gc: GContextId,
     pub width: u16,
     pub height: u16,
     pub dst_x: i16,
@@ -3299,13 +3155,7 @@ impl LeBytes for GetImage {
     }
 }
 
-impl XRequest for GetImage {
-    type Reply = NoReply;
-
-    fn reply_type() -> Option<ReplyType> {
-        Some(ReplyType::GetImage)
-    }
-}
+impl_xrequest_with_response!(GetImage);
 
 /*
 PolyText8
@@ -3361,7 +3211,7 @@ impl LeBytes for TextItem8 {
 #[derive(Debug, Clone)]
 pub struct PolyText8 {
     pub drawable: Drawable,
-    pub gc: GContext,
+    pub gc: GContextId,
     pub x: i16,
     pub y: i16,
     pub items: Vec<TextItem8>,
@@ -3394,9 +3244,7 @@ impl LeBytes for PolyText8 {
     }
 }
 
-impl XRequest for PolyText8 {
-    type Reply = NoReply;
-}
+impl_xrequest_without_response!(PolyText8);
 
 /*
 PolyText16
@@ -3427,7 +3275,7 @@ PolyText16
 #[derive(Debug, Clone)]
 pub struct PolyText16 {
     pub drawable: Drawable,
-    pub gc: GContext,
+    pub gc: GContextId,
     pub x: i16,
     pub y: i16,
     pub items: Vec<TextItem16>,
@@ -3486,9 +3334,7 @@ impl LeBytes for PolyText16 {
     }
 }
 
-impl XRequest for PolyText16 {
-    type Reply = NoReply;
-}
+impl_xrequest_without_response!(PolyText16);
 
 /*
 ImageText8
@@ -3506,7 +3352,7 @@ ImageText8
 #[derive(Debug, Clone)]
 pub struct ImageText8 {
     pub drawable: Drawable,
-    pub gc: GContext,
+    pub gc: GContextId,
     pub x: i16,
     pub y: i16,
     pub string: Vec<u8>,
@@ -3532,9 +3378,7 @@ impl LeBytes for ImageText8 {
     }
 }
 
-impl XRequest for ImageText8 {
-    type Reply = NoReply;
-}
+impl_xrequest_without_response!(ImageText8);
 
 /*
 ImageText16
@@ -3552,7 +3396,7 @@ ImageText16
 #[derive(Debug, Clone)]
 pub struct ImageText16 {
     pub drawable: Drawable,
-    pub gc: GContext,
+    pub gc: GContextId,
     pub x: i16,
     pub y: i16,
     pub string: Vec<u16>,
@@ -3582,9 +3426,7 @@ impl LeBytes for ImageText16 {
     }
 }
 
-impl XRequest for ImageText16 {
-    type Reply = NoReply;
-}
+impl_xrequest_without_response!(ImageText16);
 
 /*
 CreateColormap
@@ -3608,8 +3450,8 @@ pub enum CreateColormapAlloc {
 #[derive(Debug, Clone)]
 pub struct CreateColormap {
     pub alloc: CreateColormapAlloc,
-    pub mid: Colormap,
-    pub window: Window,
+    pub mid: ColormapId,
+    pub window: WindowId,
     pub visual: VisualId,
 }
 
@@ -3626,9 +3468,7 @@ impl LeBytes for CreateColormap {
     }
 }
 
-impl XRequest for CreateColormap {
-    type Reply = NoReply;
-}
+impl_xrequest_without_response!(CreateColormap);
 
 /*
 FreeColormap
@@ -3640,7 +3480,7 @@ FreeColormap
 
 #[derive(Debug, Clone)]
 pub struct FreeColormap {
-    pub cmap: Colormap,
+    pub cmap: ColormapId,
 }
 
 impl LeBytes for FreeColormap {
@@ -3654,9 +3494,7 @@ impl LeBytes for FreeColormap {
     }
 }
 
-impl XRequest for FreeColormap {
-    type Reply = NoReply;
-}
+impl_xrequest_without_response!(FreeColormap);
 
 /*
 CopyColormapAndFree
@@ -3669,8 +3507,8 @@ CopyColormapAndFree
 
 #[derive(Debug, Clone)]
 pub struct CopyColormapAndFree {
-    pub mid: Colormap,
-    pub src_cmap: Colormap,
+    pub mid: ColormapId,
+    pub src_cmap: ColormapId,
 }
 
 impl LeBytes for CopyColormapAndFree {
@@ -3685,9 +3523,7 @@ impl LeBytes for CopyColormapAndFree {
     }
 }
 
-impl XRequest for CopyColormapAndFree {
-    type Reply = NoReply;
-}
+impl_xrequest_without_response!(CopyColormapAndFree);
 
 /*
 InstallColormap
@@ -3699,7 +3535,7 @@ InstallColormap
 
 #[derive(Debug, Clone)]
 pub struct InstallColormap {
-    pub cmap: Colormap,
+    pub cmap: ColormapId,
 }
 
 impl LeBytes for InstallColormap {
@@ -3713,9 +3549,7 @@ impl LeBytes for InstallColormap {
     }
 }
 
-impl XRequest for InstallColormap {
-    type Reply = NoReply;
-}
+impl_xrequest_without_response!(InstallColormap);
 
 /*
 UninstallColormap
@@ -3727,7 +3561,7 @@ UninstallColormap
 
 #[derive(Debug, Clone)]
 pub struct UninstallColormap {
-    pub cmap: Colormap,
+    pub cmap: ColormapId,
 }
 
 impl LeBytes for UninstallColormap {
@@ -3741,9 +3575,7 @@ impl LeBytes for UninstallColormap {
     }
 }
 
-impl XRequest for UninstallColormap {
-    type Reply = NoReply;
-}
+impl_xrequest_without_response!(UninstallColormap);
 
 /*
 ListInstalledColormaps
@@ -3755,7 +3587,7 @@ ListInstalledColormaps
 
 #[derive(Debug, Clone)]
 pub struct ListInstalledColormaps {
-    pub window: Window,
+    pub window: WindowId,
 }
 
 impl LeBytes for ListInstalledColormaps {
@@ -3769,13 +3601,7 @@ impl LeBytes for ListInstalledColormaps {
     }
 }
 
-impl XRequest for ListInstalledColormaps {
-    type Reply = NoReply;
-
-    fn reply_type() -> Option<ReplyType> {
-        Some(ReplyType::ListInstalledColormaps)
-    }
-}
+impl_xrequest_with_response!(ListInstalledColormaps);
 
 /*
 AllocColor
@@ -3791,7 +3617,7 @@ AllocColor
 
 #[derive(Debug, Clone)]
 pub struct AllocColor {
-    pub cmap: Colormap,
+    pub cmap: ColormapId,
     pub red: u16,
     pub green: u16,
     pub blue: u16,
@@ -3812,13 +3638,7 @@ impl LeBytes for AllocColor {
     }
 }
 
-impl XRequest for AllocColor {
-    type Reply = NoReply;
-
-    fn reply_type() -> Option<ReplyType> {
-        Some(ReplyType::AllocColor)
-    }
-}
+impl_xrequest_with_response!(AllocColor);
 
 /*
 AllocNamedColor
@@ -3834,7 +3654,7 @@ AllocNamedColor
 
 #[derive(Debug, Clone)]
 pub struct AllocNamedColor {
-    pub cmap: Colormap,
+    pub cmap: ColormapId,
     pub name: Vec<u8>,
 }
 
@@ -3857,13 +3677,7 @@ impl LeBytes for AllocNamedColor {
     }
 }
 
-impl XRequest for AllocNamedColor {
-    type Reply = NoReply;
-
-    fn reply_type() -> Option<ReplyType> {
-        Some(ReplyType::AllocNamedColor)
-    }
-}
+impl_xrequest_with_response!(AllocNamedColor);
 
 /*
 AllocColorCells
@@ -3878,7 +3692,7 @@ AllocColorCells
 #[derive(Debug, Clone)]
 pub struct AllocColorCells {
     pub contiguous: bool,
-    pub cmap: Colormap,
+    pub cmap: ColormapId,
     pub colors: u16,
     pub planes: u16,
 }
@@ -3896,13 +3710,7 @@ impl LeBytes for AllocColorCells {
     }
 }
 
-impl XRequest for AllocColorCells {
-    type Reply = NoReply;
-
-    fn reply_type() -> Option<ReplyType> {
-        Some(ReplyType::AllocColorCells)
-    }
-}
+impl_xrequest_with_response!(AllocColorCells);
 
 /*
 AllocColorPlanes
@@ -3919,7 +3727,7 @@ AllocColorPlanes
 #[derive(Debug, Clone)]
 pub struct AllocColorPlanes {
     pub contiguous: bool,
-    pub cmap: Colormap,
+    pub cmap: ColormapId,
     pub colors: u16,
     pub reds: u16,
     pub greens: u16,
@@ -3941,13 +3749,7 @@ impl LeBytes for AllocColorPlanes {
     }
 }
 
-impl XRequest for AllocColorPlanes {
-    type Reply = NoReply;
-
-    fn reply_type() -> Option<ReplyType> {
-        Some(ReplyType::AllocColorPlanes)
-    }
-}
+impl_xrequest_with_response!(AllocColorPlanes);
 
 /*
 FreeColors
@@ -3961,7 +3763,7 @@ FreeColors
 
 #[derive(Debug, Clone)]
 pub struct FreeColors {
-    pub cmap: Colormap,
+    pub cmap: ColormapId,
     pub plane_mask: u32,
     pub pixels: Vec<u32>,
 }
@@ -3984,9 +3786,7 @@ impl LeBytes for FreeColors {
     }
 }
 
-impl XRequest for FreeColors {
-    type Reply = NoReply;
-}
+impl_xrequest_without_response!(FreeColors);
 
 /*
 StoreColors
@@ -4039,7 +3839,7 @@ impl LeBytes for ColorItem {
 
 #[derive(Debug, Clone)]
 pub struct StoreColors {
-    pub cmap: Colormap,
+    pub cmap: ColormapId,
     pub items: Vec<ColorItem>,
 }
 
@@ -4061,9 +3861,7 @@ impl LeBytes for StoreColors {
     }
 }
 
-impl XRequest for StoreColors {
-    type Reply = NoReply;
-}
+impl_xrequest_without_response!(StoreColors);
 
 /*
 StoreNamedColor
@@ -4084,7 +3882,7 @@ StoreNamedColor
 
 #[derive(Debug, Clone)]
 pub struct StoreNamedColor {
-    pub cmap: Colormap,
+    pub cmap: ColormapId,
     pub do_red: bool,
     pub do_green: bool,
     pub do_blue: bool,
@@ -4116,9 +3914,7 @@ impl LeBytes for StoreNamedColor {
     }
 }
 
-impl XRequest for StoreNamedColor {
-    type Reply = NoReply;
-}
+impl_xrequest_without_response!(StoreNamedColor);
 
 /*
 QueryColors
@@ -4131,7 +3927,7 @@ QueryColors
 
 #[derive(Debug, Clone)]
 pub struct QueryColors {
-    pub cmap: Colormap,
+    pub cmap: ColormapId,
     pub pixels: Vec<u32>,
 }
 
@@ -4153,13 +3949,7 @@ impl LeBytes for QueryColors {
     }
 }
 
-impl XRequest for QueryColors {
-    type Reply = NoReply;
-
-    fn reply_type() -> Option<ReplyType> {
-        Some(ReplyType::QueryColors)
-    }
-}
+impl_xrequest_with_response!(QueryColors);
 
 /*
 LookupColor
@@ -4175,7 +3965,7 @@ LookupColor
 
 #[derive(Debug, Clone)]
 pub struct LookupColor {
-    pub cmap: Colormap,
+    pub cmap: ColormapId,
     pub name: Vec<u8>,
 }
 
@@ -4198,13 +3988,7 @@ impl LeBytes for LookupColor {
     }
 }
 
-impl XRequest for LookupColor {
-    type Reply = NoReply;
-
-    fn reply_type() -> Option<ReplyType> {
-        Some(ReplyType::LookupColor)
-    }
-}
+impl_xrequest_with_response!(LookupColor);
 
 /*
 CreateCursor
@@ -4227,9 +4011,9 @@ CreateCursor
 
 #[derive(Debug, Clone)]
 pub struct CreateCursor {
-    pub cid: Cursor,
-    pub source: Pixmap,
-    pub mask: Pixmap,
+    pub cid: CursorId,
+    pub source: PixmapId,
+    pub mask: PixmapId,
     pub fore_red: u16,
     pub fore_green: u16,
     pub fore_blue: u16,
@@ -4262,9 +4046,7 @@ impl LeBytes for CreateCursor {
     }
 }
 
-impl XRequest for CreateCursor {
-    type Reply = NoReply;
-}
+impl_xrequest_without_response!(CreateCursor);
 
 /*
 CreateGlyphCursor
@@ -4287,9 +4069,9 @@ CreateGlyphCursor
 
 #[derive(Debug, Clone)]
 pub struct CreateGlyphCursor {
-    pub cid: Cursor,
-    pub source_font: Font,
-    pub mask_font: Font,
+    pub cid: CursorId,
+    pub source_font: FontId,
+    pub mask_font: FontId,
     pub source_char: u16,
     pub mask_char: u16,
     pub fore_red: u16,
@@ -4322,9 +4104,7 @@ impl LeBytes for CreateGlyphCursor {
     }
 }
 
-impl XRequest for CreateGlyphCursor {
-    type Reply = NoReply;
-}
+impl_xrequest_without_response!(CreateGlyphCursor);
 
 /*
 FreeCursor
@@ -4336,7 +4116,7 @@ FreeCursor
 
 #[derive(Debug, Clone)]
 pub struct FreeCursor {
-    pub cursor: Cursor,
+    pub cursor: CursorId,
 }
 
 impl LeBytes for FreeCursor {
@@ -4350,9 +4130,7 @@ impl LeBytes for FreeCursor {
     }
 }
 
-impl XRequest for FreeCursor {
-    type Reply = NoReply;
-}
+impl_xrequest_without_response!(FreeCursor);
 
 /*
 RecolorCursor
@@ -4370,7 +4148,7 @@ RecolorCursor
 
 #[derive(Debug, Clone)]
 pub struct RecolorCursor {
-    pub cursor: Cursor,
+    pub cursor: CursorId,
     pub fore_red: u16,
     pub fore_green: u16,
     pub fore_blue: u16,
@@ -4396,9 +4174,7 @@ impl LeBytes for RecolorCursor {
     }
 }
 
-impl XRequest for RecolorCursor {
-    type Reply = NoReply;
-}
+impl_xrequest_without_response!(RecolorCursor);
 
 /*
 QueryBestSize
@@ -4434,13 +4210,7 @@ impl LeBytes for QueryBestSize {
     }
 }
 
-impl XRequest for QueryBestSize {
-    type Reply = NoReply;
-
-    fn reply_type() -> Option<ReplyType> {
-        Some(ReplyType::QueryBestSize)
-    }
-}
+impl_xrequest_with_response!(QueryBestSize);
 
 /*
 QueryExtension
@@ -4476,13 +4246,7 @@ impl LeBytes for QueryExtension {
     }
 }
 
-impl XRequest for QueryExtension {
-    type Reply = NoReply;
-
-    fn reply_type() -> Option<ReplyType> {
-        Some(ReplyType::QueryExtension)
-    }
-}
+impl_xrequest_with_response!(QueryExtension);
 
 /*
 ListExtensions
@@ -4504,13 +4268,7 @@ impl LeBytes for ListExtensions {
     }
 }
 
-impl XRequest for ListExtensions {
-    type Reply = NoReply;
-
-    fn reply_type() -> Option<ReplyType> {
-        Some(ReplyType::ListExtensions)
-    }
-}
+impl_xrequest_with_response!(ListExtensions);
 
 /*
 ChangeKeyboardMapping
@@ -4550,9 +4308,7 @@ impl LeBytes for ChangeKeyboardMapping {
     }
 }
 
-impl XRequest for ChangeKeyboardMapping {
-    type Reply = NoReply;
-}
+impl_xrequest_without_response!(ChangeKeyboardMapping);
 
 /*
 GetKeyboardMapping
@@ -4583,13 +4339,7 @@ impl LeBytes for GetKeyboardMapping {
     }
 }
 
-impl XRequest for GetKeyboardMapping {
-    type Reply = NoReply;
-
-    fn reply_type() -> Option<ReplyType> {
-        Some(ReplyType::GetKeyboardMapping)
-    }
-}
+impl_xrequest_with_response!(GetKeyboardMapping);
 
 /*
 ChangeKeyboardControl
@@ -4673,9 +4423,7 @@ impl LeBytes for ChangeKeyboardControl {
     }
 }
 
-impl XRequest for ChangeKeyboardControl {
-    type Reply = NoReply;
-}
+impl_xrequest_without_response!(ChangeKeyboardControl);
 
 /*
 GetKeyboardControl
@@ -4697,13 +4445,7 @@ impl LeBytes for GetKeyboardControl {
     }
 }
 
-impl XRequest for GetKeyboardControl {
-    type Reply = NoReply;
-
-    fn reply_type() -> Option<ReplyType> {
-        Some(ReplyType::GetKeyboardControl)
-    }
-}
+impl_xrequest_with_response!(GetKeyboardControl);
 
 /*
 Bell
@@ -4727,9 +4469,7 @@ impl LeBytes for Bell {
     }
 }
 
-impl XRequest for Bell {
-    type Reply = NoReply;
-}
+impl_xrequest_without_response!(Bell);
 
 /*
 ChangePointerControl
@@ -4767,9 +4507,7 @@ impl LeBytes for ChangePointerControl {
     }
 }
 
-impl XRequest for ChangePointerControl {
-    type Reply = NoReply;
-}
+impl_xrequest_without_response!(ChangePointerControl);
 
 /*
 GetPointerControl
@@ -4791,13 +4529,7 @@ impl LeBytes for GetPointerControl {
     }
 }
 
-impl XRequest for GetPointerControl {
-    type Reply = NoReply;
-
-    fn reply_type() -> Option<ReplyType> {
-        Some(ReplyType::GetPointerControl)
-    }
-}
+impl_xrequest_with_response!(GetPointerControl);
 
 /*
 SetScreenSaver
@@ -4840,9 +4572,7 @@ impl LeBytes for SetScreenSaver {
     }
 }
 
-impl XRequest for SetScreenSaver {
-    type Reply = NoReply;
-}
+impl_xrequest_without_response!(SetScreenSaver);
 
 /*
 GetScreenSaver
@@ -4864,13 +4594,7 @@ impl LeBytes for GetScreenSaver {
     }
 }
 
-impl XRequest for GetScreenSaver {
-    type Reply = NoReply;
-
-    fn reply_type() -> Option<ReplyType> {
-        Some(ReplyType::GetScreenSaver)
-    }
-}
+impl_xrequest_with_response!(GetScreenSaver);
 
 /*
 ChangeHosts
@@ -4915,9 +4639,7 @@ impl LeBytes for ChangeHosts {
     }
 }
 
-impl XRequest for ChangeHosts {
-    type Reply = NoReply;
-}
+impl_xrequest_without_response!(ChangeHosts);
 
 /*
 ListHosts
@@ -4939,13 +4661,7 @@ impl LeBytes for ListHosts {
     }
 }
 
-impl XRequest for ListHosts {
-    type Reply = NoReply;
-
-    fn reply_type() -> Option<ReplyType> {
-        Some(ReplyType::ListHosts)
-    }
-}
+impl_xrequest_with_response!(ListHosts);
 
 /*
 SetAccessControl
@@ -4971,9 +4687,7 @@ impl LeBytes for SetAccessControl {
     }
 }
 
-impl XRequest for SetAccessControl {
-    type Reply = NoReply;
-}
+impl_xrequest_without_response!(SetAccessControl);
 
 /*
 SetCloseDownMode
@@ -5000,9 +4714,7 @@ impl LeBytes for SetCloseDownMode {
     }
 }
 
-impl XRequest for SetCloseDownMode {
-    type Reply = NoReply;
-}
+impl_xrequest_without_response!(SetCloseDownMode);
 
 /*
 KillClient
@@ -5029,9 +4741,7 @@ impl LeBytes for KillClient {
     }
 }
 
-impl XRequest for KillClient {
-    type Reply = NoReply;
-}
+impl_xrequest_without_response!(KillClient);
 
 /*
 RotateProperties
@@ -5046,10 +4756,10 @@ RotateProperties
 
 #[derive(Debug, Clone)]
 pub struct RotateProperties {
-    pub window: Window,
+    pub window: WindowId,
     pub number_of_properties: u16,
     pub delta: i16,
-    pub properties: Vec<Atom>,
+    pub properties: Vec<AtomId>,
 }
 
 impl LeBytes for RotateProperties {
@@ -5071,9 +4781,7 @@ impl LeBytes for RotateProperties {
     }
 }
 
-impl XRequest for RotateProperties {
-    type Reply = NoReply;
-}
+impl_xrequest_without_response!(RotateProperties);
 
 /*
 ForceScreenSaver
@@ -5099,9 +4807,7 @@ impl LeBytes for ForceScreenSaver {
     }
 }
 
-impl XRequest for ForceScreenSaver {
-    type Reply = NoReply;
-}
+impl_xrequest_without_response!(ForceScreenSaver);
 
 /*
 SetPointerMapping
@@ -5133,13 +4839,7 @@ impl LeBytes for SetPointerMapping {
     }
 }
 
-impl XRequest for SetPointerMapping {
-    type Reply = NoReply;
-
-    fn reply_type() -> Option<ReplyType> {
-        Some(ReplyType::SetPointerMapping)
-    }
-}
+impl_xrequest_with_response!(SetPointerMapping);
 
 /*
 GetPointerMapping
@@ -5161,13 +4861,7 @@ impl LeBytes for GetPointerMapping {
     }
 }
 
-impl XRequest for GetPointerMapping {
-    type Reply = NoReply;
-
-    fn reply_type() -> Option<ReplyType> {
-        Some(ReplyType::GetPointerMapping)
-    }
-}
+impl_xrequest_with_response!(GetPointerMapping);
 
 /*
 SetModifierMapping
@@ -5190,19 +4884,19 @@ impl LeBytes for SetModifierMapping {
         write_le_bytes!(w, opcodes::SET_MODIFIER_MAPPING);
         write_le_bytes!(w, n as u8);
         write_le_bytes!(w, request_length as u16);
-        w.write_all(&self.keycodes)?;
+        w.write_all(
+            &self
+                .keycodes
+                .iter()
+                .map(|key_code| key_code.0)
+                .collect::<Vec<u8>>(),
+        )?;
 
         Ok(())
     }
 }
 
-impl XRequest for SetModifierMapping {
-    type Reply = NoReply;
-
-    fn reply_type() -> Option<ReplyType> {
-        Some(ReplyType::SetModifierMapping)
-    }
-}
+impl_xrequest_with_response!(SetModifierMapping);
 
 /*
 GetModifierMapping
@@ -5224,13 +4918,7 @@ impl LeBytes for GetModifierMapping {
     }
 }
 
-impl XRequest for GetModifierMapping {
-    type Reply = NoReply;
-
-    fn reply_type() -> Option<ReplyType> {
-        Some(ReplyType::GetModifierMapping)
-    }
-}
+impl_xrequest_with_response!(GetModifierMapping);
 
 /*
 NoOperation
@@ -5261,6 +4949,4 @@ impl LeBytes for NoOperation {
     }
 }
 
-impl XRequest for NoOperation {
-    type Reply = NoReply;
-}
+impl_xrequest_without_response!(NoOperation);

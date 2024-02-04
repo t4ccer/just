@@ -7,7 +7,7 @@ use crate::x11::{
     replies::{AwaitingReply, ReplyType, SomeReply, XReply},
     requests::{
         ChangeGC, CreateGC, CreateWindow, GContextSettings, InitializeConnection, MapWindow,
-        PolyFillRectangle, WindowCreationAttributes, XRequest,
+        PolyFillRectangle, WindowCreationAttributes, XProtocolVersion, XRequest,
     },
     utils::*,
     xauth::XAuth,
@@ -72,15 +72,34 @@ macro_rules! impl_resource_id {
                 value.0.value()
             }
         }
+
+        impl From<u32> for $name {
+            fn from(value: u32) -> Self {
+                Self(ResourceId { value })
+            }
+        }
     };
 }
 
-impl_resource_id!(Pixmap);
+impl_resource_id!(PixmapId);
 impl_resource_id!(VisualId);
-impl_resource_id!(Font);
-impl_resource_id!(Atom);
-impl_resource_id!(Colormap);
-impl_resource_id!(Cursor);
+impl_resource_id!(FontId);
+impl_resource_id!(AtomId);
+impl_resource_id!(ColormapId);
+impl_resource_id!(CursorId);
+impl_resource_id!(WindowId);
+impl_resource_id!(GContextId);
+
+impl GContextId {
+    pub fn change(self, display: &mut XDisplay, settings: GContextSettings) -> Result<(), Error> {
+        let request = ChangeGC {
+            gcontext: self,
+            values: settings,
+        };
+        display.send_request(&request)?;
+        Ok(())
+    }
+}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 #[repr(transparent)]
@@ -120,10 +139,15 @@ impl IdAllocator {
     }
 
     pub fn allocate_id(&mut self) -> ResourceId {
+        // id_mask has at least 18 continuous ones so we shift next_id to align with these
         let new_part = self.id_mask & (self.next_id << self.id_mask.trailing_zeros());
         self.next_id += 1;
 
-        assert_ne!(new_part, 0, "Invalid ID allocated");
+        // Unlikey as they are  at least 2^18 ids to allocate
+        assert_ne!(
+            new_part, 0,
+            "Invalid resource ID allocated, probably run out of resource IDs"
+        );
 
         ResourceId {
             value: self.id_base | new_part,
@@ -147,7 +171,7 @@ impl XResponse for InitializeConnectionResponse {
             1 => Ok(Self::Success(
                 InitializeConnectionResponseSuccess::from_le_bytes(conn)?,
             )),
-            2 => todo!("Authenticate"),
+            2 => todo!("InitializeConnectionResponseAuthenticate"),
             _ => Err(Error::InvalidResponse),
         }
     }
@@ -176,9 +200,7 @@ impl XResponse for InitializeConnectionResponseRefused {
     }
 }
 
-impl_resource_id!(Window);
-
-impl Window {
+impl WindowId {
     pub fn map(self, display: &mut XDisplay) -> Result<(), Error> {
         let request = MapWindow { window: self };
         display.send_request(&request)?;
@@ -189,8 +211,8 @@ impl Window {
         self,
         display: &mut XDisplay,
         values: GContextSettings,
-    ) -> Result<GContext, Error> {
-        let cid = GContext(display.id_allocator.allocate_id());
+    ) -> Result<GContextId, Error> {
+        let cid = GContextId(display.id_allocator.allocate_id());
 
         let request = CreateGC {
             cid,
@@ -205,7 +227,7 @@ impl Window {
     pub fn draw_rectangle(
         self,
         display: &mut XDisplay,
-        gc: GContext,
+        gc: GContextId,
         rectangle: Rectangle,
     ) -> Result<(), Error> {
         self.draw_rectangles(display, gc, vec![rectangle])
@@ -214,7 +236,7 @@ impl Window {
     pub fn draw_rectangles(
         self,
         display: &mut XDisplay,
-        gc: GContext,
+        gc: GContextId,
         rectangles: Vec<Rectangle>,
     ) -> Result<(), Error> {
         let request = PolyFillRectangle {
@@ -321,7 +343,7 @@ impl TryFrom<u8> for BackingStore {
 
 #[derive(Debug)]
 pub struct Screen {
-    pub root: Window,
+    pub root: WindowId,
     pub default_colormat: u32,
     pub white_pixel: u32,
     pub black_pixel: u32,
@@ -341,7 +363,7 @@ pub struct Screen {
 
 impl Screen {
     fn from_le_bytes(conn: &mut XConnection) -> Result<Self, Error> {
-        let root = Window(ResourceId {
+        let root = WindowId(ResourceId {
             value: conn.read_le_u32()?,
         });
         let default_colormat = conn.read_le_u32()?;
@@ -507,8 +529,8 @@ impl WindowVisual {
 
 #[derive(Debug, Clone, Copy)]
 pub enum Drawable {
-    Window(Window),
-    Pixmap(Pixmap),
+    Window(WindowId),
+    Pixmap(PixmapId),
 }
 
 impl Drawable {
@@ -555,33 +577,24 @@ impl Rectangle {
     }
 }
 
-impl_resource_id!(GContext);
-
-impl GContext {
-    pub fn change(self, display: &mut XDisplay, settings: GContextSettings) -> Result<(), Error> {
-        let request = ChangeGC {
-            gcontext: self,
-            values: settings,
-        };
-        display.send_request(&request)?;
-        Ok(())
-    }
-}
-
 pub struct XDisplay {
-    pub id_allocator: IdAllocator,
-    pub screens: Vec<Screen>,
+    id_allocator: IdAllocator,
+    screens: Vec<Screen>,
     connection: XConnection,
     awaiting_replies: HashMap<SequenceNumber, AwaitingReply>,
     next_sequence_number: SequenceNumber,
     event_queue: VecDeque<SomeEvent>,
     error_queue: VecDeque<SomeError>,
-    pub maximum_request_length: u16,
+    maximum_request_length: u16,
 }
 
 impl XDisplay {
     pub fn open() -> Result<Self, Error> {
-        let mut connection = XConnection::from_env()?;
+        let connection = XConnection::open()?;
+        Self::with_connection(connection)
+    }
+
+    pub fn with_connection(mut connection: XConnection) -> Result<Self, Error> {
         let (authorization_protocol_name, authorization_protocol_data) = match connection.kind() {
             ConnectionKind::UnixStream => {
                 let auth = XAuth::from_env()?;
@@ -589,12 +602,11 @@ impl XDisplay {
             }
         };
 
-        let init = InitializeConnection {
-            major_version: 11,
-            minor_version: 0,
+        let init = InitializeConnection::new(
+            XProtocolVersion::V11_0,
             authorization_protocol_name,
             authorization_protocol_data,
-        };
+        );
         connection.send_request(&init)?;
         connection.flush()?;
 
@@ -613,11 +625,19 @@ impl XDisplay {
             screens: response.screens,
             connection,
             awaiting_replies: HashMap::new(),
-            next_sequence_number: SequenceNumber { value: 1 },
+            next_sequence_number: SequenceNumber { value: 1 }, // InitializeConnection request was 0
             event_queue: VecDeque::new(),
             error_queue: VecDeque::new(),
             maximum_request_length: response.maximum_request_length,
         })
+    }
+
+    pub fn maximum_request_length(&self) -> u16 {
+        self.maximum_request_length
+    }
+
+    pub fn screens(&self) -> &[Screen] {
+        &self.screens
     }
 
     pub fn create_simple_window(
@@ -628,8 +648,8 @@ impl XDisplay {
         height: u16,
         border_width: u16,
         attributes: WindowCreationAttributes,
-    ) -> Result<Window, Error> {
-        let new_window_id = Window(self.id_allocator.allocate_id());
+    ) -> Result<WindowId, Error> {
+        let new_window_id = WindowId(self.id_allocator.allocate_id());
         let create_window = CreateWindow {
             depth: self.screens[0].allowed_depths[0].depth,
             wid: new_window_id,
@@ -797,20 +817,60 @@ impl XDisplay {
     }
 
     fn decode_reply_blocking(&mut self, reply_type: ReplyType) -> Result<SomeReply, Error> {
+        macro_rules! handle_reply {
+            ($t:tt) => {{
+                let reply = replies::$t::from_le_bytes(&mut self.connection)?;
+                Ok(SomeReply::$t(reply))
+            }};
+        }
+
         match reply_type {
-            ReplyType::GetWindowAttributes => {
-                let reply = replies::GetWindowAttributes::from_le_bytes(&mut self.connection)?;
-                Ok(SomeReply::GetWindowAttributes(reply))
+            ReplyType::GetWindowAttributes => handle_reply!(GetWindowAttributes),
+            ReplyType::GetGeometry => handle_reply!(GetGeometry),
+            ReplyType::QueryTree => handle_reply!(QueryTree),
+            ReplyType::InternAtom => handle_reply!(InternAtom),
+            ReplyType::GetAtomName => handle_reply!(GetAtomName),
+            ReplyType::GetProperty => handle_reply!(GetProperty),
+            ReplyType::ListProperties => handle_reply!(ListProperties),
+            ReplyType::GetSelectionOwner => handle_reply!(GetSelectionOwner),
+            ReplyType::GrabPointer => handle_reply!(GrabPointer),
+            ReplyType::GrabKeyboard => handle_reply!(GrabKeyboard),
+            ReplyType::QueryPointer => handle_reply!(QueryPointer),
+            ReplyType::GetMotionEvents => handle_reply!(GetMotionEvents),
+            ReplyType::TranslateCoordinates => handle_reply!(TranslateCoordinates),
+            ReplyType::GetInputFocus => handle_reply!(GetInputFocus),
+            ReplyType::QueryKeymap => handle_reply!(QueryKeymap),
+            ReplyType::QueryFont => handle_reply!(QueryFont),
+            ReplyType::QueryTextExtents => handle_reply!(QueryTextExtents),
+            ReplyType::ListFonts => handle_reply!(ListFonts),
+            ReplyType::ListFontsWithInfo => {
+                // ListFontsWithInfo request may result in multiple replies so we need to handle it
+                // specially here
+                let reply = replies::ListFontsWithInfo::from_le_bytes(&mut self.connection)?;
+                dbg!(reply);
+                todo!()
             }
-            ReplyType::GetGeometry => {
-                let reply = replies::GetGeometry::from_le_bytes(&mut self.connection)?;
-                Ok(SomeReply::GetGeometry(reply))
-            }
-            ReplyType::GetFontPath => {
-                let reply = replies::GetFontPath::from_le_bytes(&mut self.connection)?;
-                Ok(SomeReply::GetFontPath(reply))
-            }
-            _ => todo!(),
+            ReplyType::GetFontPath => handle_reply!(GetFontPath),
+            ReplyType::GetImage => handle_reply!(GetImage),
+            ReplyType::ListInstalledColormaps => handle_reply!(ListInstalledColormaps),
+            ReplyType::AllocColor => handle_reply!(AllocColor),
+            ReplyType::AllocNamedColor => handle_reply!(AllocNamedColor),
+            ReplyType::AllocColorCells => handle_reply!(AllocColorCells),
+            ReplyType::AllocColorPlanes => handle_reply!(AllocColorPlanes),
+            ReplyType::QueryColors => handle_reply!(QueryColors),
+            ReplyType::LookupColor => handle_reply!(LookupColor),
+            ReplyType::QueryBestSize => handle_reply!(QueryBestSize),
+            ReplyType::QueryExtension => handle_reply!(QueryExtension),
+            ReplyType::ListExtensions => handle_reply!(ListExtensions),
+            ReplyType::GetKeyboardMapping => handle_reply!(GetKeyboardMapping),
+            ReplyType::GetKeyboardControl => handle_reply!(GetKeyboardControl),
+            ReplyType::GetPointerControl => handle_reply!(GetPointerControl),
+            ReplyType::GetScreenSaver => handle_reply!(GetScreenSaver),
+            ReplyType::ListHosts => handle_reply!(ListHosts),
+            ReplyType::SetPointerMapping => handle_reply!(SetPointerMapping),
+            ReplyType::GetPointerMapping => handle_reply!(GetPointerMapping),
+            ReplyType::SetModifierMapping => handle_reply!(SetModifierMapping),
+            ReplyType::GetModifierMapping => handle_reply!(GetModifierMapping),
         }
     }
 

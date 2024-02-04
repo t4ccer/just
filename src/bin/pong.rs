@@ -3,7 +3,7 @@ use justshow::x11::{
     events::EventType,
     events::SomeEvent,
     requests::{GContextSettings, GetGeometry, PutImage, PutImageFormat, WindowCreationAttributes},
-    Drawable, GContext, Window, XDisplay,
+    Drawable, GContextId, WindowId, XDisplay,
 };
 use std::time::{Duration, SystemTime};
 
@@ -321,13 +321,13 @@ impl Canvas {
 
     fn display(
         &self,
-        gc: GContext,
+        gc: GContextId,
         depth: u8,
-        window: Window,
+        window: WindowId,
         display: &mut XDisplay,
     ) -> Result<(), Error> {
         let chunk_size: u16 =
-            ((display.maximum_request_length as usize - 24) / self.width as usize) as u16;
+            ((display.maximum_request_length() as usize - 24) / self.width as usize) as u16;
         for line in (0..self.height).step_by(chunk_size as usize) {
             let chunk_size = if line + chunk_size > self.height {
                 self.height - line

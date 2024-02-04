@@ -56,6 +56,7 @@ where
     }
 }
 
+/// Connection to the X server
 pub struct XConnection {
     read_end: XConnectionReader,
     pub(crate) read_buf: VecDeque<u8>,
@@ -156,6 +157,11 @@ impl XConnection {
         Ok(u32::from_le_bytes([b1, b2, b3, b4]))
     }
 
+    pub(crate) fn read_le_i32(&mut self) -> Result<i32, Error> {
+        let raw = self.read_le_u32()?;
+        Ok(i32::from_le_bytes(raw.to_le_bytes()))
+    }
+
     pub(crate) fn read_many<T, E>(
         &mut self,
         len: usize,
@@ -184,24 +190,32 @@ impl XConnection {
         Ok(())
     }
 
-    pub fn flush(&mut self) -> Result<(), Error> {
-        self.write_end.flush()?;
-        Ok(())
+    /// Open a connection with details from `$DISPLAY` environment variable
+    pub fn open() -> Result<Self, Error> {
+        let display = DisplayVar::from_env()?;
+        Self::with_display(display)
     }
 
-    pub fn from_env() -> Result<Self, Error> {
-        let display = DisplayVar::from_env()?;
-
+    pub fn with_display(display: DisplayVar) -> Result<Self, Error> {
         if !display.hostname.is_empty() {
             return Err(Error::CouldNotConnectTo(display.to_string()));
         }
 
         // TODO: Use display.screen for something
+        assert_eq!(
+            display.screen, None,
+            "Display screen is not implemented yet"
+        );
 
         let socket_path = format!("/tmp/.X11-unix/X{}", display.display_sequence);
         let stream = UnixStream::connect(&socket_path)
             .map_err(|err| Error::CouldNotOpenUnixSocket(socket_path, err))?;
         Self::try_from(stream)
+    }
+
+    pub(crate) fn flush(&mut self) -> Result<(), Error> {
+        self.write_end.flush()?;
+        Ok(())
     }
 
     /// `true` if read any new data
@@ -219,10 +233,10 @@ impl XConnection {
 
 #[allow(dead_code)]
 #[derive(Debug)]
-struct DisplayVar {
-    hostname: String,
-    display_sequence: u32,
-    screen: Option<u32>,
+pub struct DisplayVar {
+    pub hostname: String,
+    pub display_sequence: u32,
+    pub screen: Option<u32>,
 }
 
 impl FromStr for DisplayVar {
@@ -267,6 +281,7 @@ impl Display for DisplayVar {
 }
 
 impl DisplayVar {
+    /// Read and parse `$DISPLAY` environment variable
     pub fn from_env() -> Result<Self, Error> {
         let var = "DISPLAY";
         let value = std::env::var(var).map_err(|_| Error::NoEnv(var))?;
