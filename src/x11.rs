@@ -941,7 +941,7 @@ impl XDisplay {
     }
 
     fn has_pending_events(&mut self) -> Result<bool, Error> {
-        Ok(!self.connection.read_buf.is_empty() || self.connection.fill_buf_nonblocking()?)
+        Ok(self.connection.has_unconsumed_data() || self.connection.fill_buf_nonblocking()?)
     }
 
     /// Drain all events

@@ -23,6 +23,7 @@ impl Read for XConnectionReader {
     }
 }
 
+// We need non-blocking socket for reading so we have this wrapper to block on writes
 struct BlockingWriter<W> {
     inner: W,
 }
@@ -59,10 +60,17 @@ where
 /// Connection to the X server
 pub struct XConnection {
     read_end: XConnectionReader,
-    pub(crate) read_buf: VecDeque<u8>,
-    fill_buf: Vec<u8>,
+    read_buf: VecDeque<u8>,
+
+    /// Shared temporary buffer used to read data from `read_end` connection before pushing them
+    /// to `read_buf`
+    fill_buf: Box<[u8]>,
+
     write_end: BlockingWriter<BufWriter<Box<dyn Write>>>,
 }
+
+// Arbitrarly chosen
+const FILL_BUFF_SIZE: usize = 0x1000;
 
 impl TryFrom<UnixStream> for XConnection {
     type Error = Error;
@@ -77,7 +85,7 @@ impl TryFrom<UnixStream> for XConnection {
             read_end: XConnectionReader::UnixStream(read_end),
             write_end: BlockingWriter::new(BufWriter::new(Box::new(write_end))),
             read_buf: VecDeque::new(),
-            fill_buf: vec![0u8; 0x1000],
+            fill_buf: vec![0u8; FILL_BUFF_SIZE].into_boxed_slice(),
         })
     }
 }
@@ -88,13 +96,18 @@ pub(crate) enum ConnectionKind {
 
 impl XConnection {
     #[cfg(test)]
+    /// Create dummy connection with some pre-filled data, not connected to anything
     pub fn dummy(data: VecDeque<u8>) -> Self {
         Self {
             read_end: XConnectionReader::Empty,
             read_buf: data,
-            fill_buf: Vec::new(),
+            fill_buf: vec![].into_boxed_slice(),
             write_end: BlockingWriter::new(BufWriter::new(Box::new(std::io::empty()))),
         }
+    }
+
+    pub(crate) fn has_unconsumed_data(&self) -> bool {
+        !self.read_buf.is_empty()
     }
 
     pub(crate) fn kind(&self) -> ConnectionKind {
