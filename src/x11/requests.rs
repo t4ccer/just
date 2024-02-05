@@ -13,6 +13,46 @@ use std::{
 
 pub(crate) mod opcodes;
 
+macro_rules! impl_enum_u8_fields {
+    ($name:ident, $($key:ident = $value:literal,)*) => {
+        #[repr(u8)]
+        #[derive(Debug, Clone, Copy)]
+        pub enum $name {
+            $($key = $value, )*
+        }
+    }
+}
+
+macro_rules! impl_enum_u8_from {
+    ($name:ident, $($key:ident = $value:literal,)*) => {
+        #[automatically_derived]
+        impl TryFrom<u8> for $name {
+            type Error = u8;
+
+            fn try_from(value: u8) -> Result<Self, Self::Error> {
+                match value {
+                    $($value => Ok(Self::$key), )*
+                    _ => Err(value),
+                }
+            }
+        }
+
+        impl $name {
+            fn to_le_bytes(self) -> [u8; 1] {
+                (self as u8).to_le_bytes()
+            }
+        }
+    };
+}
+
+// TODO: Support comments on enum constructors
+macro_rules! impl_enum_u8 {
+    (enum $name:ident { $($rest:tt)* }) => {
+        impl_enum_u8_fields!($name, $($rest)*);
+        impl_enum_u8_from!($name, $($rest)*);
+    };
+}
+
 #[derive(Debug, Clone, Copy)]
 #[repr(transparent)]
 pub struct Timestamp(pub(crate) u32);
@@ -512,11 +552,11 @@ ChangeSaveSet
      4     WINDOW                          window
 */
 
-#[derive(Debug, Clone, Copy)]
-#[repr(u8)]
-pub enum ChangeSaveSetMode {
-    Insert = 0,
-    Delete = 1,
+impl_enum_u8! {
+    enum ChangeSaveSetMode {
+        Insert = 0,
+        Delete = 1,
+    }
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -734,11 +774,11 @@ CirculateWindow
      4     WINDOW                          window
 */
 
-#[derive(Debug, Clone, Copy)]
-#[repr(u8)]
-pub enum CirculateWindowDirection {
-    RaiseLowest = 0,
-    LowerHighest = 1,
+impl_enum_u8! {
+    enum CirculateWindowDirection {
+        RaiseLowest = 0,
+        LowerHighest = 1,
+    }
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -874,6 +914,14 @@ impl LeBytes for GetAtomName {
 
 impl_xrequest_with_response!(GetAtomName);
 
+impl_enum_u8! {
+    enum ChangePropertyMode {
+        Replace = 0,
+        Prepend = 1,
+        Append = 2,
+    }
+}
+
 /*
 ChangeProperty
      1     18                              opcode
@@ -897,13 +945,21 @@ ChangeProperty
      p                                     unused, p=pad(n)
 */
 
+impl_enum_u8! {
+    enum ChangePropertyFormat {
+        Format8 = 8,
+        Format16 = 16,
+        Format32 = 32,
+    }
+}
+
 #[derive(Debug, Clone)]
 pub struct ChangeProperty {
-    pub mode: u8, // TODO: type
+    pub mode: ChangePropertyMode,
     pub window: WindowId,
     pub property: AtomId,
     pub type_: AtomId,
-    pub format: u8, // TODO: type
+    pub format: ChangePropertyFormat,
     pub data: Vec<u8>,
 }
 
@@ -1520,6 +1576,19 @@ impl LeBytes for UngrabKey {
 
 impl_xrequest_without_response!(UngrabKey);
 
+impl_enum_u8! {
+    enum AllowEventsMode {
+        AsyncPointer = 0,
+        SyncPointer = 1,
+        ReplayPointer = 2,
+        AsyncKeyboard = 3,
+        SyncKeyboard = 4,
+        ReplayKeyboard = 5,
+        AsyncBoth = 6,
+        SyncBoth = 7,
+    }
+}
+
 /*
 AllowEvents
      1     35                              opcode
@@ -1539,7 +1608,7 @@ AllowEvents
 
 #[derive(Debug, Clone, Copy)]
 pub struct AllowEvents {
-    pub mode: u8, // TODO: type
+    pub mode: AllowEventsMode,
     pub time: u32,
 }
 
@@ -2442,13 +2511,13 @@ SetClipRectangles
      8n     LISTofRECTANGLE                rectangles
 */
 
-#[derive(Debug, Clone, Copy)]
-#[repr(u8)]
-pub enum Ordering {
-    UnSorted = 0,
-    YSorted = 1,
-    YXSorted = 2,
-    YXBanded = 3,
+impl_enum_u8! {
+    enum Ordering {
+        UnSorted = 0,
+        YSorted = 1,
+        YXSorted = 2,
+        YXBanded = 3,
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -2661,11 +2730,11 @@ PolyPoint
      4n     LISTofPOINT                    points
 */
 
-#[derive(Debug, Clone, Copy)]
-#[repr(u8)]
-pub enum CoordinateMode {
-    Origin = 0,
-    Previous = 1,
+impl_enum_u8! {
+    enum CoordinateMode {
+        Origin = 0,
+        Previous = 1,
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -2914,12 +2983,12 @@ FillPoly
      4n     LISTofPOINT                    points
 */
 
-#[derive(Debug, Clone, Copy)]
-#[repr(u8)]
-pub enum FillPolyShape {
-    Complex = 0,
-    Nonconvex = 1,
-    Convex = 2,
+impl_enum_u8! {
+    enum FillPolyShape {
+        Complex = 0,
+        Nonconvex = 1,
+        Convex = 2,
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -3051,14 +3120,12 @@ PutImage
      p                                     unused, p=pad(n)
 */
 
-#[derive(Debug, Clone, Copy)]
-#[repr(u8)]
-pub enum PutImageFormat {
-    Bitmap = 0,
-    XYPixmap = 1,
-
-    /// Probably the one you want. Pixels stores as scanlines
-    ZPixmap = 2,
+impl_enum_u8! {
+    enum PutImageFormat {
+        Bitmap = 0,
+        XYPixmap = 1,
+        ZPixmap = 2,
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -3121,11 +3188,11 @@ GetImage
      4     CARD32                          plane-mask
 */
 
-#[derive(Debug, Clone, Copy)]
-#[repr(u8)]
-pub enum GetImageImageFormat {
-    XYPixmap = 1,
-    ZPixmap = 2,
+impl_enum_u8! {
+    enum GetImageImageFormat {
+        XYPixmap = 1,
+        ZPixmap = 2,
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -3440,11 +3507,11 @@ CreateColormap
      4     VISUALID                        visual
 */
 
-#[derive(Debug, Clone, Copy)]
-#[repr(u8)]
-pub enum CreateColormapAlloc {
-    None = 0,
-    All = 1,
+impl_enum_u8! {
+    enum CreateColormapAlloc {
+        None = 0,
+        All = 1,
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -4176,6 +4243,14 @@ impl LeBytes for RecolorCursor {
 
 impl_xrequest_without_response!(RecolorCursor);
 
+impl_enum_u8! {
+    enum QueryBestSizeClass {
+        Cursor = 0,
+        Tile = 1,
+        Stipple = 2,
+    }
+}
+
 /*
 QueryBestSize
      1     97                              opcode
@@ -4191,7 +4266,7 @@ QueryBestSize
 
 #[derive(Debug, Clone)]
 pub struct QueryBestSize {
-    pub class: u8, // TODO: type
+    pub class: QueryBestSizeClass,
     pub drawable: Drawable,
     pub width: u16,
     pub height: u16,
