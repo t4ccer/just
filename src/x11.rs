@@ -4,7 +4,7 @@ use crate::x11::{
     connection::{ConnectionKind, XConnection},
     error::Error,
     events::SomeEvent,
-    replies::{AwaitingReply, ReplyType, SomeReply, XReply},
+    replies::{AwaitingReply, ReceivedReply, ReplyType, SomeReply, XReply},
     requests::{
         ChangeGC, CreateGC, CreateWindow, GContextSettings, InitializeConnection, MapWindow,
         PolyFillRectangle, WindowCreationAttributes, XProtocolVersion, XRequest,
@@ -748,9 +748,15 @@ impl XDisplay {
                 Ok(Err(pending))
             }
             AwaitingReply::Discarded(_) => unreachable!("Tried to get discarded reply"),
-            AwaitingReply::Received(reply) => Reply::from_reply(reply)
-                .ok_or(Error::UnexpectedReply)
-                .map(Ok),
+            AwaitingReply::Received(reply) if reply.done_receiving => {
+                Reply::from_reply(reply.reply)
+                    .ok_or(Error::UnexpectedReply)
+                    .map(Ok)
+            }
+            reply @ AwaitingReply::Received(_) => {
+                self.awaiting_replies.insert(awaited, reply);
+                Ok(Err(pending))
+            }
         }
     }
 
@@ -764,11 +770,21 @@ impl XDisplay {
             .expect("Sequence number must be known");
 
         match entry {
-            &AwaitingReply::NotReceived(ty) => self
-                .awaiting_replies
-                .insert(to_discard.sequence_number, AwaitingReply::Discarded(ty)),
+            &AwaitingReply::NotReceived(ty) => {
+                self.awaiting_replies
+                    .insert(to_discard.sequence_number, AwaitingReply::Discarded(ty));
+            }
             AwaitingReply::Discarded(_) => unreachable!("Discarded sequence number twice"),
-            AwaitingReply::Received(_) => self.awaiting_replies.remove(&to_discard.sequence_number),
+            AwaitingReply::Received(received) => {
+                if received.done_receiving {
+                    self.awaiting_replies.remove(&to_discard.sequence_number);
+                } else {
+                    self.awaiting_replies.insert(
+                        to_discard.sequence_number,
+                        AwaitingReply::Discarded(received.reply_type),
+                    );
+                }
+            }
         };
 
         Ok(())
@@ -783,35 +799,78 @@ impl XDisplay {
                 self.error_queue.push_back(error);
             }
             1 => {
-                // TODO: Try to avoid using peek
-                let sequence_number: SequenceNumber = SequenceNumber {
-                    value: ((self.connection.peek(2)? as u16) << 8)
-                        + self.connection.peek(1)? as u16,
-                };
-
-                match self
-                    .awaiting_replies
-                    .get(&sequence_number)
-                    .expect("Sequence number must be known")
-                {
-                    &AwaitingReply::NotReceived(reply_type) => {
-                        let reply = self.decode_reply_blocking(reply_type)?;
-                        self.awaiting_replies
-                            .insert(sequence_number, AwaitingReply::Received(reply));
-                    }
-                    &AwaitingReply::Discarded(reply_type) => {
-                        let _discarded_reply = self.decode_reply_blocking(reply_type)?;
-                    }
-                    AwaitingReply::Received(_) => {
-                        unreachable!("Received response twice for the same sequence number")
-                    }
-                };
+                self.handle_reply_blocking()?;
             }
             event_code => {
                 let event = self.decode_event_blocking(event_code)?;
                 self.event_queue.push_back(event);
             }
         }
+
+        Ok(())
+    }
+
+    fn handle_reply_blocking(&mut self) -> Result<(), Error> {
+        // TODO: Try to avoid using peek
+        let sequence_number: SequenceNumber = SequenceNumber {
+            value: ((self.connection.peek(2)? as u16) << 8) + self.connection.peek(1)? as u16,
+        };
+
+        let (_, awaiting_reply) = self
+            .awaiting_replies
+            .remove_entry(&sequence_number)
+            .expect("Sequence number must be known");
+
+        let reply_type = awaiting_reply.reply_type();
+        let reply = self.decode_reply_blocking(reply_type)?;
+
+        match awaiting_reply {
+            AwaitingReply::NotReceived(_) => {
+                let received = match reply {
+                    reply @ SomeReply::ListFontsWithInfoInner(_) => {
+                        let mut received = ReceivedReply {
+                            reply: SomeReply::ListFontsWithInfo(replies::ListFontsWithInfo {
+                                replies: vec![],
+                            }),
+                            reply_type,
+                            done_receiving: false,
+                        };
+                        debug_assert!(
+                            received.append_reply(reply),
+                            "Could not merge with empty reply"
+                        );
+                        received
+                    }
+                    reply => ReceivedReply {
+                        reply,
+                        reply_type,
+                        done_receiving: true,
+                    },
+                };
+
+                self.awaiting_replies
+                    .insert(sequence_number, AwaitingReply::Received(received));
+            }
+            discarded @ AwaitingReply::Discarded(_) => match reply {
+                SomeReply::ListFontsWithInfoInner(
+                    replies::ListFontsWithInfoPartial::ListFontsWithInfoPiece(_),
+                ) => {
+                    // We cannot remove it from tracking map yet as this is a partial response
+                    // and more will come with the same sequence number, so it must be saved
+                    // to lookup the response type.
+                    self.awaiting_replies.insert(sequence_number, discarded);
+                }
+                _ => {} // discard - do nothing
+            },
+            AwaitingReply::Received(mut old_reply) => {
+                if old_reply.append_reply(reply) {
+                    self.awaiting_replies
+                        .insert(sequence_number, AwaitingReply::Received(old_reply));
+                } else {
+                    todo!("Unmatched response types with pending data not handled yet")
+                }
+            }
+        };
 
         Ok(())
     }
@@ -846,9 +905,8 @@ impl XDisplay {
             ReplyType::ListFontsWithInfo => {
                 // ListFontsWithInfo request may result in multiple replies so we need to handle it
                 // specially here
-                let reply = replies::ListFontsWithInfo::from_le_bytes(&mut self.connection)?;
-                dbg!(reply);
-                todo!()
+                let reply = replies::ListFontsWithInfoPartial::from_le_bytes(&mut self.connection)?;
+                Ok(SomeReply::ListFontsWithInfoInner(reply))
             }
             ReplyType::GetFontPath => handle_reply!(GetFontPath),
             ReplyType::GetImage => handle_reply!(GetImage),

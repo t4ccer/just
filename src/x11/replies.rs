@@ -923,12 +923,10 @@ impl QueryFont {
         let _unused = conn.read_u8()?;
         let _sequence_number = conn.read_le_u16()?;
         let _reply_length = conn.read_le_u32()? as usize;
-
         let min_bounds = CharInfo::from_le_bytes(conn)?;
         let _unused = drop(conn.drain(4)?);
         let max_bounds = CharInfo::from_le_bytes(conn)?;
         let _unused = drop(conn.drain(4)?);
-
         let min_char_or_byte2 = conn.read_le_u16()?;
         let max_char_or_byte2 = conn.read_le_u16()?;
         let default_char = conn.read_le_u16()?;
@@ -1119,14 +1117,90 @@ ListFontsWithInfo
 
 */
 
-// TODO
 #[derive(Debug, Clone)]
-pub struct ListFontsWithInfo {}
+pub struct ListFontsWithInfoPiece {
+    pub min_bounds: CharInfo,
+    pub max_bounds: CharInfo,
+    pub min_char_or_byte2: u16,
+    pub max_char_or_byte2: u16,
+    pub default_char: u16,
+    pub properties: Vec<FontProp>,
+    pub draw_direction: DrawDirection,
+    pub min_byte1: u8,
+    pub max_byte1: u8,
+    pub all_chars_exist: bool,
+    pub font_ascent: i16,
+    pub font_descent: i16,
+    pub name: Vec<u8>,
+}
 
-impl ListFontsWithInfo {
-    pub(crate) fn from_le_bytes(_conn: &mut XConnection) -> Result<Self, Error> {
-        todo!()
+#[derive(Debug, Clone)]
+pub enum ListFontsWithInfoPartial {
+    ListFontsWithInfoPiece(ListFontsWithInfoPiece),
+    ListFontsWithInfoEnd,
+}
+
+impl ListFontsWithInfoPartial {
+    pub(crate) fn from_le_bytes(conn: &mut XConnection) -> Result<Self, Error> {
+        let name_length = conn.read_u8()?;
+        let _sequence_number = conn.read_le_u16()?;
+        let _reply_length = conn.read_le_u32()?;
+
+        if name_length == 0 {
+            let _unused = drop(conn.drain(52)?);
+            Ok(Self::ListFontsWithInfoEnd)
+        } else {
+            let min_bounds = CharInfo::from_le_bytes(conn)?;
+            let _unused = drop(conn.drain(4)?);
+            let max_bounds = CharInfo::from_le_bytes(conn)?;
+            let _unused = drop(conn.drain(4)?);
+            let min_char_or_byte2 = conn.read_le_u16()?;
+            let max_char_or_byte2 = conn.read_le_u16()?;
+            let default_char = conn.read_le_u16()?;
+            let properties_count = conn.read_le_u16()?;
+            let draw_direction_code = conn.read_u8()?;
+            let draw_direction = match draw_direction_code {
+                0 => DrawDirection::LeftToRight,
+                1 => DrawDirection::RightToLeft,
+                _ => return Err(Error::InvalidResponse),
+            };
+            let min_byte1 = conn.read_u8()?;
+            let max_byte1 = conn.read_u8()?;
+            let all_chars_exist = conn.read_bool()?;
+            let font_ascent = conn.read_le_i16()?;
+            let font_descent = conn.read_le_i16()?;
+            let _replies_hint = drop(conn.drain(4)?);
+
+            let mut properties = Vec::with_capacity(properties_count as usize);
+            for _ in 0..properties_count {
+                properties.push(FontProp::from_le_bytes(conn)?);
+            }
+
+            let name = conn.read_n_bytes(name_length as usize)?;
+            let _pad = drop(conn.drain(pad(name_length as usize))?);
+
+            Ok(Self::ListFontsWithInfoPiece(ListFontsWithInfoPiece {
+                min_bounds,
+                max_bounds,
+                min_char_or_byte2,
+                max_char_or_byte2,
+                default_char,
+                properties,
+                draw_direction,
+                min_byte1,
+                max_byte1,
+                all_chars_exist,
+                font_ascent,
+                font_descent,
+                name,
+            }))
+        }
     }
+}
+
+#[derive(Debug, Clone)]
+pub struct ListFontsWithInfo {
+    pub replies: Vec<ListFontsWithInfoPiece>,
 }
 
 impl_xreply!(ListFontsWithInfo);
@@ -1154,7 +1228,7 @@ impl GetFontPath {
         let _unused = conn.read_u8()?;
         let _sequence_code = conn.read_le_u16()?;
         let _reply_length = conn.read_le_u32()?;
-        let no_of_strs_in_path = dbg!(conn.read_le_u16())?;
+        let no_of_strs_in_path = conn.read_le_u16()?;
         drop(conn.drain(22)?); // unused
         let paths = ListOfStr::from_le_bytes(no_of_strs_in_path as usize, conn)?;
 
@@ -2094,6 +2168,7 @@ pub enum SomeReply {
     QueryTextExtents(QueryTextExtents),
     ListFonts(ListFonts),
     ListFontsWithInfo(ListFontsWithInfo),
+    ListFontsWithInfoInner(ListFontsWithInfoPartial), // NOTE: Think about it
     GetFontPath(GetFontPath),
     GetImage(GetImage),
     ListInstalledColormaps(ListInstalledColormaps),
@@ -2163,6 +2238,40 @@ pub enum ReplyType {
 }
 
 #[derive(Debug, Clone)]
+pub(crate) struct ReceivedReply {
+    pub(crate) reply_type: ReplyType,
+    pub(crate) reply: SomeReply,
+    pub(crate) done_receiving: bool,
+}
+
+impl ReceivedReply {
+    pub(crate) fn append_reply(&mut self, reply: SomeReply) -> bool {
+        if self.done_receiving {
+            return false;
+        }
+
+        match &mut self.reply {
+            SomeReply::ListFontsWithInfo(list_fonts) => match reply {
+                SomeReply::ListFontsWithInfoInner(
+                    ListFontsWithInfoPartial::ListFontsWithInfoEnd,
+                ) => {
+                    self.done_receiving = true;
+                }
+                SomeReply::ListFontsWithInfoInner(
+                    ListFontsWithInfoPartial::ListFontsWithInfoPiece(piece),
+                ) => {
+                    list_fonts.replies.push(piece);
+                }
+                _ => return false,
+            },
+            _ => return false,
+        }
+
+        true
+    }
+}
+
+#[derive(Debug, Clone)]
 pub(crate) enum AwaitingReply {
     /// Response not received yet, but when received will be inserted to the map of responses
     NotReceived(ReplyType),
@@ -2170,6 +2279,17 @@ pub(crate) enum AwaitingReply {
     /// Response not received yet, but when received will be discared
     Discarded(ReplyType),
 
-    /// Response already received and waiting to be used or discarded
-    Received(SomeReply),
+    /// Response already received and waiting to be used or discarded or for more information to finalize
+    Received(ReceivedReply),
+}
+
+impl AwaitingReply {
+    pub(crate) fn reply_type(&self) -> ReplyType {
+        match self {
+            &AwaitingReply::NotReceived(reply_type) | &AwaitingReply::Discarded(reply_type) => {
+                reply_type
+            }
+            AwaitingReply::Received(received) => received.reply_type,
+        }
+    }
 }

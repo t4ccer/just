@@ -88,6 +88,7 @@
             pkgs.hyperfine
             pkgs.linuxKernel.packages.linux_5_15.perf
             rustToolchain
+            pkgs.xlsfonts
           ];
         };
         formatter = pkgs.alejandra;

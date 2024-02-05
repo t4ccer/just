@@ -10,3 +10,6 @@ description = ""
 
 [[bin]]
 name = "pong"
+
+[[bin]]
+name = "xlsfonts"
