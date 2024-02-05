@@ -541,7 +541,7 @@ impl Drawable {
         }
     }
 
-    pub(crate) fn to_le_bytes(&self) -> [u8; 4] {
+    pub(crate) fn to_le_bytes(self) -> [u8; 4] {
         match self {
             Drawable::Window(window) => window.to_le_bytes(),
             Drawable::Pixmap(pixmap) => pixmap.to_le_bytes(),
@@ -851,17 +851,19 @@ impl XDisplay {
                 self.awaiting_replies
                     .insert(sequence_number, AwaitingReply::Received(received));
             }
-            discarded @ AwaitingReply::Discarded(_) => match reply {
-                SomeReply::ListFontsWithInfoPartial(
+            discarded @ AwaitingReply::Discarded(_) => {
+                if let SomeReply::ListFontsWithInfoPartial(
                     replies::ListFontsWithInfoPartial::ListFontsWithInfoPiece(_),
-                ) => {
-                    // We cannot remove it from tracking map yet as this is a partial response
-                    // and more will come with the same sequence number, so it must be saved
-                    // to lookup the response type.
-                    self.awaiting_replies.insert(sequence_number, discarded);
+                ) = reply
+                {
+                    {
+                        // We cannot remove it from tracking map yet as this is a partial response
+                        // and more will come with the same sequence number, so it must be saved
+                        // to lookup the response type.
+                        self.awaiting_replies.insert(sequence_number, discarded);
+                    }
                 }
-                _ => {} // discard - do nothing
-            },
+            }
             AwaitingReply::Received(mut old_reply) => {
                 if old_reply.append_reply(reply) {
                     self.awaiting_replies

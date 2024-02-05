@@ -3048,7 +3048,7 @@ impl LeBytes for PolyFillRectangle {
 
         write_le_bytes!(w, opcodes::POLY_FILL_RECTANGLE);
         write_le_bytes!(w, 0u8); // unused
-        write_le_bytes!(w, request_length as u16);
+        write_le_bytes!(w, request_length);
         write_le_bytes!(w, self.drawable.value());
         write_le_bytes!(w, self.gc);
         for rectangle in &self.rectangles {
@@ -3264,7 +3264,7 @@ impl LeBytes for TextItem8 {
 
                 write_le_bytes!(w, len as u8);
                 write_le_bytes!(w, *delta);
-                w.write_all(&string)?;
+                w.write_all(string)?;
             }
             TextItem8::FontShift { font_bytes } => {
                 write_le_bytes!(w, 255u8);
@@ -4453,6 +4453,12 @@ pub struct ChangeKeyboardControlValues {
     values: ListOfValues<8>,
 }
 
+impl Default for ChangeKeyboardControlValues {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl ChangeKeyboardControlValues {
     pub fn new() -> Self {
         Self {
@@ -4490,7 +4496,7 @@ impl LeBytes for ChangeKeyboardControl {
 
         write_le_bytes!(w, opcodes::CHANGE_KEYBOARD_CONTROL);
         write_le_bytes!(w, 0u8); // unused
-        write_le_bytes!(w, request_length as u16);
+        write_le_bytes!(w, request_length);
         write_le_bytes!(w, bitmask);
         self.values.values.to_le_bytes_if_set(w)?;
 

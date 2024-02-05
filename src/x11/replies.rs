@@ -77,7 +77,7 @@ impl Host {
         let _unused = conn.read_u8()?;
         let address_length = conn.read_le_u16()?;
         let address = conn.read_n_bytes(address_length as usize)?;
-        let _pad = drop(conn.drain(pad(address_length as usize))?);
+        drop(conn.drain(pad(address_length as usize))?);
         Ok(Self { family, address })
     }
 }
@@ -266,7 +266,7 @@ impl QueryTree {
             value: conn.read_le_u32()?,
         }));
         let children_count = conn.read_le_u16()?;
-        let _unused = drop(conn.drain(14)?);
+        drop(conn.drain(14)?);
         let mut children = Vec::with_capacity(children_count as usize);
         for _ in 0..children_count {
             let child = WindowId(ResourceId {
@@ -308,7 +308,7 @@ impl InternAtom {
         let _sequence_code = conn.read_le_u16()?;
         let _reply_length = conn.read_le_u32()?;
         let atom = AtomId::from(conn.read_le_u32()?);
-        let _unused = drop(conn.drain(20)?);
+        drop(conn.drain(20)?);
 
         Ok(Self { atom })
     }
@@ -340,9 +340,9 @@ impl GetAtomName {
         let _sequence_code = conn.read_le_u16()?;
         let _reply_length = conn.read_le_u32()?;
         let name_length = conn.read_le_u16()? as usize;
-        let _unused = drop(conn.drain(22)?);
+        drop(conn.drain(22)?);
         let name = conn.read_n_bytes(name_length)?;
-        let _ = drop(conn.drain(pad(name_length))?);
+        drop(conn.drain(pad(name_length))?);
 
         Ok(Self { name })
     }
@@ -390,10 +390,10 @@ impl GetProperty {
         let type_ = AtomId::from(conn.read_le_u32()?);
         let bytes_after = conn.read_le_u32()?;
         let length_of_value = conn.read_le_u32()?;
-        let _unused = drop(conn.drain(12)?);
+        drop(conn.drain(12)?);
         let value_length = length_of_value as usize;
         let value = conn.read_n_bytes(value_length)?;
-        let _ = drop(conn.drain(pad(value_length))?);
+        drop(conn.drain(pad(value_length))?);
 
         Ok(Self {
             format,
@@ -430,7 +430,7 @@ impl ListProperties {
         let _sequence_code = conn.read_le_u16()?;
         let _reply_length = conn.read_le_u32()?;
         let atom_count = conn.read_le_u16()?;
-        let _unused = drop(conn.drain(22)?);
+        drop(conn.drain(22)?);
         let mut atoms = Vec::with_capacity(atom_count as usize);
         for _ in 0..atom_count {
             let atom = AtomId::from(conn.read_le_u32()?);
@@ -468,7 +468,7 @@ impl GetSelectionOwner {
         let owner = WindowId(ResourceId {
             value: conn.read_le_u32()?,
         });
-        let _unused = drop(conn.drain(20)?);
+        drop(conn.drain(20)?);
 
         Ok(Self { owner })
     }
@@ -517,7 +517,7 @@ impl GrabPointer {
             _ => return Err(Error::InvalidResponse),
         };
         let _sequence_number = conn.read_le_u16()?;
-        let _unused = drop(conn.drain(4 + 24)?);
+        drop(conn.drain(4 + 24)?);
 
         Ok(Self { status })
     }
@@ -566,7 +566,7 @@ impl GrabKeyboard {
             _ => return Err(Error::InvalidResponse),
         };
         let _sequence_number = conn.read_le_u16()?;
-        let _unused = drop(conn.drain(4 + 24)?);
+        drop(conn.drain(4 + 24)?);
 
         Ok(Self { status })
     }
@@ -620,7 +620,7 @@ impl QueryPointer {
         let win_x = conn.read_le_i16()?;
         let win_y = conn.read_le_i16()?;
         let mask = conn.read_le_u16()?;
-        let _unused = drop(conn.drain(6)?);
+        drop(conn.drain(6)?);
 
         Ok(Self {
             same_screen,
@@ -672,7 +672,7 @@ impl GetMotionEvents {
         let _sequence_number = conn.read_le_u16()?;
         let _reply_length = conn.read_le_u32()? as usize;
         let event_count = conn.read_le_u32()? as usize;
-        let _unused = drop(conn.drain(20)?);
+        drop(conn.drain(20)?);
 
         let mut events = Vec::with_capacity(event_count);
         for _ in 0..event_count {
@@ -720,7 +720,7 @@ impl TranslateCoordinates {
         });
         let dst_x = conn.read_le_i16()?;
         let dst_y = conn.read_le_i16()?;
-        let _unused = drop(conn.drain(16)?);
+        drop(conn.drain(16)?);
 
         Ok(Self {
             same_screen,
@@ -786,7 +786,7 @@ impl GetInputFocus {
             1 => Focus::PointerRoot,
             wid => Focus::Window(WindowId::from(wid)),
         };
-        let _unused = drop(conn.drain(20)?);
+        drop(conn.drain(20)?);
 
         Ok(Self { revert_to, focus })
     }
@@ -936,9 +936,9 @@ impl QueryFont {
         let _sequence_number = conn.read_le_u16()?;
         let _reply_length = conn.read_le_u32()? as usize;
         let min_bounds = CharInfo::from_le_bytes(conn)?;
-        let _unused = drop(conn.drain(4)?);
+        drop(conn.drain(4)?);
         let max_bounds = CharInfo::from_le_bytes(conn)?;
-        let _unused = drop(conn.drain(4)?);
+        drop(conn.drain(4)?);
         let min_char_or_byte2 = conn.read_le_u16()?;
         let max_char_or_byte2 = conn.read_le_u16()?;
         let default_char = conn.read_le_u16()?;
@@ -1036,7 +1036,7 @@ impl QueryTextExtents {
         let overall_width = conn.read_le_i32()?;
         let overall_left = conn.read_le_i32()?;
         let overall_right = conn.read_le_i32()?;
-        let _unused = drop(conn.drain(4)?);
+        drop(conn.drain(4)?);
 
         Ok(Self {
             draw_direction,
@@ -1077,10 +1077,10 @@ impl ListFonts {
         let _sequence_number = conn.read_le_u16()?;
         let _reply_length = conn.read_le_u32()?;
         let names_count = conn.read_le_u16()?;
-        let _unused = drop(conn.drain(22)?);
+        drop(conn.drain(22)?);
         let names = ListOfStr::from_le_bytes(names_count as usize, conn)?;
         let n = names.encoded_len();
-        let _pad = drop(conn.drain(pad(n))?);
+        drop(conn.drain(pad(n))?);
 
         Ok(Self { names })
     }
@@ -1161,13 +1161,13 @@ impl ListFontsWithInfoPartial {
         let _reply_length = conn.read_le_u32()?;
 
         if name_length == 0 {
-            let _unused = drop(conn.drain(52)?);
+            drop(conn.drain(52)?);
             Ok(Self::ListFontsWithInfoEnd)
         } else {
             let min_bounds = CharInfo::from_le_bytes(conn)?;
-            let _unused = drop(conn.drain(4)?);
+            drop(conn.drain(4)?);
             let max_bounds = CharInfo::from_le_bytes(conn)?;
-            let _unused = drop(conn.drain(4)?);
+            drop(conn.drain(4)?);
             let min_char_or_byte2 = conn.read_le_u16()?;
             let max_char_or_byte2 = conn.read_le_u16()?;
             let default_char = conn.read_le_u16()?;
@@ -1183,7 +1183,7 @@ impl ListFontsWithInfoPartial {
             let all_chars_exist = conn.read_bool()?;
             let font_ascent = conn.read_le_i16()?;
             let font_descent = conn.read_le_i16()?;
-            let _replies_hint = drop(conn.drain(4)?);
+            drop(conn.drain(4)?);
 
             let mut properties = Vec::with_capacity(properties_count as usize);
             for _ in 0..properties_count {
@@ -1191,7 +1191,7 @@ impl ListFontsWithInfoPartial {
             }
 
             let name = conn.read_n_bytes(name_length as usize)?;
-            let _pad = drop(conn.drain(pad(name_length as usize))?);
+            drop(conn.drain(pad(name_length as usize))?);
 
             Ok(Self::ListFontsWithInfoPiece(ListFontsWithInfoPiece {
                 min_bounds,
@@ -1279,7 +1279,7 @@ impl GetImage {
         let _sequence_number = conn.read_le_u16()?;
         let reply_length = conn.read_le_u32()?;
         let visual = OrNone::new(VisualId::from(conn.read_le_u32()?));
-        let _unused = drop(conn.drain(20)?);
+        drop(conn.drain(20)?);
         let data_length = reply_length * 4; // NOTE: Check this math
         let data = conn.read_n_bytes(data_length as usize)?;
         let _ = conn.drain(pad(data_length as usize))?;
@@ -1317,7 +1317,7 @@ impl ListInstalledColormaps {
         let _sequence_number = conn.read_le_u16()?;
         let _reply_length = conn.read_le_u32()?;
         let cmaps_count = conn.read_le_u16()?;
-        let _unused = drop(conn.drain(22)?);
+        drop(conn.drain(22)?);
 
         let mut cmaps = Vec::with_capacity(cmaps_count as usize);
         for _ in 0..cmaps_count {
@@ -1362,9 +1362,9 @@ impl AllocColor {
         let red = conn.read_le_u16()?;
         let green = conn.read_le_u16()?;
         let blue = conn.read_le_u16()?;
-        let _unused = drop(conn.drain(2)?);
+        drop(conn.drain(2)?);
         let pixel = conn.read_le_u32()?;
-        let _unused = drop(conn.drain(12)?);
+        drop(conn.drain(12)?);
 
         Ok(Self {
             red,
@@ -1417,7 +1417,7 @@ impl AllocNamedColor {
         let visual_red = conn.read_le_u16()?;
         let visual_green = conn.read_le_u16()?;
         let visual_blue = conn.read_le_u16()?;
-        let _unused = drop(conn.drain(8)?);
+        drop(conn.drain(8)?);
 
         Ok(Self {
             pixel,
@@ -1460,7 +1460,7 @@ impl AllocColorCells {
         let _reply_length = conn.read_le_u32()?;
         let pixels_count = conn.read_le_u16()?;
         let masks_count = conn.read_le_u16()?;
-        let _unused = drop(conn.drain(20)?);
+        drop(conn.drain(20)?);
 
         let mut pixels = Vec::with_capacity(pixels_count as usize);
         for _ in 0..pixels_count {
@@ -1514,7 +1514,7 @@ impl AllocColorPlanes {
         let red_mask = conn.read_le_u32()?;
         let green_mask = conn.read_le_u32()?;
         let blue_mask = conn.read_le_u32()?;
-        let _unused = drop(conn.drain(8)?);
+        drop(conn.drain(8)?);
 
         // TODO: Optimize it
         let mut pixels = Vec::with_capacity(pixels_count as usize);
@@ -1580,7 +1580,7 @@ impl QueryColors {
         let _sequence_number = conn.read_le_u16()?;
         let _reply_length = conn.read_le_u32()? as usize;
         let colors_count = conn.read_le_u16()? as usize;
-        let _unused = drop(conn.drain(22)?);
+        drop(conn.drain(22)?);
 
         let mut colors = Vec::with_capacity(colors_count);
         for _ in 0..colors_count {
@@ -1630,7 +1630,7 @@ impl LookupColor {
         let visual_red = conn.read_le_u16()?;
         let visual_green = conn.read_le_u16()?;
         let visual_blue = conn.read_le_u16()?;
-        let _unused = drop(conn.drain(12)?);
+        drop(conn.drain(12)?);
 
         Ok(Self {
             exact_red,
@@ -1670,7 +1670,7 @@ impl QueryBestSize {
         let _reply_length = conn.read_le_u32()?;
         let width = conn.read_le_u16()?;
         let height = conn.read_le_u16()?;
-        let _unused = drop(conn.drain(20)?);
+        drop(conn.drain(20)?);
 
         Ok(Self { width, height })
     }
@@ -1709,7 +1709,7 @@ impl QueryExtension {
         let major_opcode = conn.read_u8()?;
         let first_event = conn.read_u8()?;
         let first_error = conn.read_u8()?;
-        let _unused = drop(conn.drain(20)?);
+        drop(conn.drain(20)?);
 
         Ok(Self {
             present,
@@ -1744,7 +1744,7 @@ impl ListExtensions {
         let number_of_names = conn.read_u8()?;
         let _sequence_number = conn.read_le_u16()?;
         let _reply_length = conn.read_le_u32()? as usize;
-        let _unused = drop(conn.drain(24)?);
+        drop(conn.drain(24)?);
         let names = ListOfStr::from_le_bytes(number_of_names as usize, conn)?;
 
         Ok(Self { names })
@@ -1789,7 +1789,7 @@ impl GetKeyboardMapping {
         let keysyms_per_keycode = conn.read_u8()?;
         let _sequence_number = conn.read_le_u16()?;
         let reply_length = conn.read_le_u32()?;
-        let _unused = drop(conn.drain(24)?);
+        drop(conn.drain(24)?);
 
         let m = reply_length as usize / 4;
         let mut keysyms = Vec::with_capacity(m);
@@ -1847,7 +1847,7 @@ impl GetKeyboardControl {
         let bell_percent = conn.read_u8()?;
         let bell_pitch = conn.read_le_u16()?;
         let bell_duration = conn.read_le_u16()?;
-        let _unused = drop(conn.drain(2)?);
+        drop(conn.drain(2)?);
         let auto_repeats = conn.read_n_bytes(32)?;
 
         Ok(Self {
@@ -1892,7 +1892,7 @@ impl GetPointerControl {
         let acceleration_numerator = conn.read_le_u16()?;
         let acceleration_denominator = conn.read_le_u16()?;
         let threshold = conn.read_le_u16()?;
-        let _unused = drop(conn.drain(18)?);
+        drop(conn.drain(18)?);
 
         Ok(Self {
             acceleration_numerator,
@@ -1991,7 +1991,7 @@ impl ListHosts {
         let _sequence_number = conn.read_le_u16()?;
         let _reply_length = conn.read_le_u32()? as usize;
         let num_hosts = conn.read_le_u16()? as usize;
-        let _unused = drop(conn.drain(22)?);
+        drop(conn.drain(22)?);
 
         // Read the hosts
         let mut hosts = Vec::with_capacity(num_hosts);
@@ -2038,7 +2038,7 @@ impl SetPointerMapping {
         };
         let _sequence_number = conn.read_le_u16()?;
         let _reply_length = conn.read_le_u32()?;
-        let _unused = drop(conn.drain(24)?);
+        drop(conn.drain(24)?);
 
         Ok(Self { status })
     }
@@ -2068,9 +2068,9 @@ impl GetPointerMapping {
         let length_of_map = conn.read_u8()?;
         let _sequence_number = conn.read_le_u16()?;
         let _reply_length = conn.read_le_u32()? as usize;
-        let _unused = drop(conn.drain(24)?);
+        drop(conn.drain(24)?);
         let map = conn.read_n_bytes(length_of_map as usize)?;
-        let _ = drop(conn.drain(pad(length_of_map as usize))?);
+        drop(conn.drain(pad(length_of_map as usize))?);
 
         Ok(Self { map })
     }
@@ -2114,7 +2114,7 @@ impl SetModifierMapping {
         };
         let _sequence_number = conn.read_le_u16()?;
         let _reply_length = conn.read_le_u32()?;
-        let _unused = drop(conn.drain(24)?);
+        drop(conn.drain(24)?);
 
         Ok(Self { status })
     }
@@ -2144,7 +2144,7 @@ impl GetModifierMapping {
         let keycodes_per_modifier = conn.read_u8()?;
         let _sequence_number = conn.read_le_u16()?;
         let _reply_length = conn.read_le_u32()? as usize;
-        let _unused = drop(conn.drain(24)?);
+        drop(conn.drain(24)?);
 
         let num_keycodes = keycodes_per_modifier as usize;
         let mut keycodes = Vec::with_capacity(num_keycodes);
