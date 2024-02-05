@@ -827,7 +827,7 @@ impl XDisplay {
         match awaiting_reply {
             AwaitingReply::NotReceived(_) => {
                 let received = match reply {
-                    reply @ SomeReply::ListFontsWithInfoInner(_) => {
+                    reply @ SomeReply::ListFontsWithInfoPartial(_) => {
                         let mut received = ReceivedReply {
                             reply: SomeReply::ListFontsWithInfo(replies::ListFontsWithInfo {
                                 replies: vec![],
@@ -852,7 +852,7 @@ impl XDisplay {
                     .insert(sequence_number, AwaitingReply::Received(received));
             }
             discarded @ AwaitingReply::Discarded(_) => match reply {
-                SomeReply::ListFontsWithInfoInner(
+                SomeReply::ListFontsWithInfoPartial(
                     replies::ListFontsWithInfoPartial::ListFontsWithInfoPiece(_),
                 ) => {
                     // We cannot remove it from tracking map yet as this is a partial response
@@ -904,9 +904,10 @@ impl XDisplay {
             ReplyType::ListFonts => handle_reply!(ListFonts),
             ReplyType::ListFontsWithInfo => {
                 // ListFontsWithInfo request may result in multiple replies so we need to handle it
-                // specially here
+                // specially here. We cannot use `handle_reply!` here as reply type is
+                // `ListFontsWithInfo` because it is what client wants to receive at the end.
                 let reply = replies::ListFontsWithInfoPartial::from_le_bytes(&mut self.connection)?;
-                Ok(SomeReply::ListFontsWithInfoInner(reply))
+                Ok(SomeReply::ListFontsWithInfoPartial(reply))
             }
             ReplyType::GetFontPath => handle_reply!(GetFontPath),
             ReplyType::GetImage => handle_reply!(GetImage),

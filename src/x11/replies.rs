@@ -572,6 +572,8 @@ impl GrabKeyboard {
     }
 }
 
+impl_xreply!(GrabKeyboard);
+
 /*
 QueryPointer
 ▶
@@ -633,6 +635,8 @@ impl QueryPointer {
     }
 }
 
+impl_xreply!(QueryPointer);
+
 /*
 GetMotionEvents
 ▶
@@ -682,6 +686,8 @@ impl GetMotionEvents {
     }
 }
 
+impl_xreply!(GetMotionEvents);
+
 /*
 TranslateCoordinates
 ▶
@@ -724,6 +730,8 @@ impl TranslateCoordinates {
         })
     }
 }
+
+impl_xreply!(TranslateCoordinates);
 
 /*
 GetInputFocus
@@ -784,6 +792,8 @@ impl GetInputFocus {
     }
 }
 
+impl_xreply!(GetInputFocus);
+
 /*
 QueryKeymap
 ▶
@@ -810,6 +820,8 @@ impl QueryKeymap {
         Ok(Self { keys })
     }
 }
+
+impl_xreply!(QueryKeymap);
 
 /*
 QueryFont
@@ -1038,6 +1050,8 @@ impl QueryTextExtents {
         })
     }
 }
+
+impl_xreply!(QueryTextExtents);
 
 /*
 ListFonts
@@ -1464,6 +1478,8 @@ impl AllocColorCells {
     }
 }
 
+impl_xreply!(AllocColorCells);
+
 /*
 AllocColorPlanes
 ▶
@@ -1515,6 +1531,8 @@ impl AllocColorPlanes {
         })
     }
 }
+
+impl_xreply!(AllocColorPlanes);
 
 /*
 QueryColors
@@ -2168,7 +2186,8 @@ pub enum SomeReply {
     QueryTextExtents(QueryTextExtents),
     ListFonts(ListFonts),
     ListFontsWithInfo(ListFontsWithInfo),
-    ListFontsWithInfoInner(ListFontsWithInfoPartial), // NOTE: Think about it
+    // NOTE: Fake reply type because `ListFontsWithInfo` comes in multiple replies for each font
+    ListFontsWithInfoPartial(ListFontsWithInfoPartial),
     GetFontPath(GetFontPath),
     GetImage(GetImage),
     ListInstalledColormaps(ListInstalledColormaps),
@@ -2252,12 +2271,12 @@ impl ReceivedReply {
 
         match &mut self.reply {
             SomeReply::ListFontsWithInfo(list_fonts) => match reply {
-                SomeReply::ListFontsWithInfoInner(
+                SomeReply::ListFontsWithInfoPartial(
                     ListFontsWithInfoPartial::ListFontsWithInfoEnd,
                 ) => {
                     self.done_receiving = true;
                 }
-                SomeReply::ListFontsWithInfoInner(
+                SomeReply::ListFontsWithInfoPartial(
                     ListFontsWithInfoPartial::ListFontsWithInfoPiece(piece),
                 ) => {
                     list_fonts.replies.push(piece);
