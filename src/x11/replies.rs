@@ -1746,6 +1746,7 @@ impl ListExtensions {
         let _reply_length = conn.read_le_u32()? as usize;
         drop(conn.drain(24)?);
         let names = ListOfStr::from_le_bytes(number_of_names as usize, conn)?;
+        drop(conn.drain(pad(names.encoded_len()))?);
 
         Ok(Self { names })
     }

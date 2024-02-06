@@ -42,7 +42,7 @@ Controls:
 [Original implementation](https://gitlab.freedesktop.org/xorg/app/xlsfonts)
 
 ```console
-cargo run --release --bin xlsfonts
+cargo run --release --bin xinfo ls fonts
 ```
 
 [Source](./src/bin/xlsfonts.rs)
