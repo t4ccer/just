@@ -3129,6 +3129,45 @@ impl_enum_u8! {
 }
 
 #[derive(Debug, Clone)]
+pub struct PutImageOwned {
+    pub format: PutImageFormat,
+    pub drawable: Drawable,
+    pub gc: GContextId,
+    pub width: u16,
+    pub height: u16,
+    pub dst_x: i16,
+    pub dst_y: i16,
+    pub left_pad: u8,
+    pub depth: u8,
+    pub data: Vec<u8>,
+}
+
+impl PutImageOwned {
+    pub fn to_shared<'data>(&'data self) -> PutImage<'data> {
+        PutImage {
+            format: self.format,
+            drawable: self.drawable,
+            gc: self.gc,
+            width: self.width,
+            height: self.height,
+            dst_x: self.dst_x,
+            dst_y: self.dst_y,
+            left_pad: self.left_pad,
+            depth: self.depth,
+            data: &self.data,
+        }
+    }
+}
+
+impl LeBytes for PutImageOwned {
+    fn to_le_bytes(&self, w: &mut impl Write) -> io::Result<()> {
+        self.to_shared().to_le_bytes(w)
+    }
+}
+
+impl_xrequest_without_response!(PutImageOwned);
+
+#[derive(Debug, Clone)]
 pub struct PutImage<'data> {
     pub format: PutImageFormat,
     pub drawable: Drawable,
