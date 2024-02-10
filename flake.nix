@@ -27,6 +27,19 @@
         then [builtins.currentSystem]
         else inputs.nixpkgs.lib.systems.flakeExposed;
 
+      flake = {
+        nixosConfigurations = {
+          wm = self.inputs.nixpkgs.lib.nixosSystem rec {
+            system = "x86_64-linux";
+            modules = [
+              (import ./nix/wm-vm.nix {
+                inherit (self.packages.${system}) justshow;
+              })
+            ];
+          };
+        };
+      };
+
       perSystem = {
         config,
         self',
@@ -59,6 +72,18 @@
           tools = {
             rustfmt = lib.mkForce rustToolchain;
             clippy = lib.mkForce rustToolchain;
+          };
+        };
+
+        apps = {
+          vm-wm.program = "${self.nixosConfigurations.wm.config.system.build.vm}/bin/run-nixos-vm";
+        };
+
+        packages = {
+          justshow = pkgs.rustPlatform.buildRustPackage {
+            name = "justshow";
+            src = builtins.filterSource (path: type: !(lib.hasSuffix ".nix" path)) ./.;
+            cargoLock.lockFile = ./Cargo.lock;
           };
         };
 

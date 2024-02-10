@@ -13,3 +13,6 @@ name = "pong"
 
 [[bin]]
 name = "xinfo"
+
+[[bin]]
+name = "justwindows"
