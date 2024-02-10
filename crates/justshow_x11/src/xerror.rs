@@ -1,4 +1,4 @@
-use crate::x11::{connection::XConnection, error::Error};
+use crate::{connection::XConnection, error::Error};
 use std::{fmt, mem};
 
 #[derive(Debug, Clone, Copy)]

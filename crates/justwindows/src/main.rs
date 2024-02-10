@@ -1,4 +1,4 @@
-use justshow::x11::{
+use justshow_x11::{
     error::Error,
     events::EventType,
     events::SomeEvent,

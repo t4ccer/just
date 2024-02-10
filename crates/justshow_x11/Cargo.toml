@@ -1,0 +1,13 @@
+[package]
+name = "justshow_x11"
+version = "0.1.0"
+edition = "2021"
+authors = ["Tomasz Maciosowski <t4ccer@gmail.com>"]
+license = "AGPL-3.0"
+readme = "README.md"
+
+[[bin]]
+name = "pong"
+
+[[bin]]
+name = "xinfo"

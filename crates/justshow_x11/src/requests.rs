@@ -1,4 +1,4 @@
-use crate::x11::{
+use crate::{
     events::EventType,
     replies::{self, ReplyType},
     utils::pad,

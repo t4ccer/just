@@ -1,6 +1,6 @@
 #![allow(dead_code)]
 
-use crate::x11::{
+use crate::{
     connection::{ConnectionKind, XConnection},
     error::Error,
     events::SomeEvent,

@@ -1,4 +1,4 @@
-use crate::x11::{error::Error, requests::XRequest};
+use crate::{error::Error, requests::XRequest};
 use std::{
     collections::{vec_deque::Drain, VecDeque},
     fmt::Display,

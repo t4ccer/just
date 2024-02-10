@@ -1,4 +1,4 @@
-use justshow::x11::{error::Error, requests, XDisplay};
+use justshow_x11::{error::Error, replies, requests, XDisplay};
 use std::process::ExitCode;
 
 macro_rules! request_blocking {
@@ -29,8 +29,8 @@ fn lsfonts(display: &mut XDisplay) -> Result<(), Error> {
             print!(
                 "{}",
                 match piece.draw_direction {
-                    justshow::x11::replies::DrawDirection::LeftToRight => "--> ",
-                    justshow::x11::replies::DrawDirection::RightToLeft => "<-- ",
+                    replies::DrawDirection::LeftToRight => "--> ",
+                    replies::DrawDirection::RightToLeft => "<-- ",
                 }
             );
 
