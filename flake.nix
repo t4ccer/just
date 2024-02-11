@@ -33,7 +33,7 @@
             system = "x86_64-linux";
             modules = [
               (import ./nix/wm-vm.nix {
-                inherit (self.packages.${system}) justshow;
+                inherit (self.packages.${system}) justwindows;
               })
             ];
           };
@@ -80,9 +80,12 @@
         };
 
         packages = {
-          justshow = pkgs.rustPlatform.buildRustPackage {
-            name = "justshow";
+          justwindows = pkgs.rustPlatform.buildRustPackage {
+            name = "justwindows";
+
             src = builtins.filterSource (path: type: !(lib.hasSuffix ".nix" path)) ./.;
+            buildAndTestSubdir = "crates/justwindows";
+
             cargoLock.lockFile = ./Cargo.lock;
           };
         };

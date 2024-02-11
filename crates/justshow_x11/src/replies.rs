@@ -60,7 +60,7 @@ impl HostFamily {
             2 => Ok(Self::Chaos),
             5 => Ok(Self::ServerImplemented),
             6 => Ok(Self::InternetV6),
-            _ => Err(Error::InvalidResponse),
+            _ => Err(Error::InvalidResponse(stringify!(HostFamily))),
         }
     }
 }
@@ -117,21 +117,21 @@ GetWindowAttributes
 
 #[derive(Debug, Clone)]
 pub struct GetWindowAttributes {
-    backing_store: u8,
-    visual_id: u32,
-    class: u16,
-    bit_gravity: u8,
-    win_gravity: u8,
-    backing_planes: u32,
-    backing_pixel: u32,
-    save_under: bool,
-    map_is_installed: bool,
-    map_state: u8,
-    override_redirect: bool,
-    colormap: u32,
-    all_even_masks: u32,
-    your_even_masks: u32,
-    do_not_propagate_mask: u16,
+    pub backing_store: u8,
+    pub visual_id: u32,
+    pub class: u16,
+    pub bit_gravity: u8,
+    pub win_gravity: u8,
+    pub backing_planes: u32,
+    pub backing_pixel: u32,
+    pub save_under: bool,
+    pub map_is_installed: bool,
+    pub map_state: u8,
+    pub override_redirect: bool,
+    pub colormap: u32,
+    pub all_even_masks: u32,
+    pub your_even_masks: u32,
+    pub do_not_propagate_mask: u16,
 }
 
 impl GetWindowAttributes {
@@ -514,7 +514,7 @@ impl GrabPointer {
             2 => GrabPointerStatus::InvalidTime,
             3 => GrabPointerStatus::NotViewable,
             4 => GrabPointerStatus::Frozen,
-            _ => return Err(Error::InvalidResponse),
+            _ => return Err(Error::InvalidResponse(stringify!(GrabPointerStatus))),
         };
         let _sequence_number = conn.read_le_u16()?;
         drop(conn.drain(4 + 24)?);
@@ -563,7 +563,7 @@ impl GrabKeyboard {
             2 => GrabKeyboardStatus::InvalidTime,
             3 => GrabKeyboardStatus::NotViewable,
             4 => GrabKeyboardStatus::Frozen,
-            _ => return Err(Error::InvalidResponse),
+            _ => return Err(Error::InvalidResponse(stringify!(GrabKeyboardStatus))),
         };
         let _sequence_number = conn.read_le_u16()?;
         drop(conn.drain(4 + 24)?);
@@ -776,7 +776,7 @@ impl GetInputFocus {
             0 => RevertTo::None,
             1 => RevertTo::PointerRoot,
             2 => RevertTo::Parent,
-            _ => return Err(Error::InvalidResponse),
+            _ => return Err(Error::InvalidResponse(stringify!(RevertTo))),
         };
         let _sequence_number = conn.read_le_u16()?;
         let _reply_length = conn.read_le_u32()?;
@@ -947,7 +947,7 @@ impl QueryFont {
         let draw_direction = match draw_direction_code {
             0 => DrawDirection::LeftToRight,
             1 => DrawDirection::RightToLeft,
-            _ => return Err(Error::InvalidResponse),
+            _ => return Err(Error::InvalidResponse(stringify!(DrawDirection))),
         };
         let min_byte1 = conn.read_u8()?;
         let max_byte1 = conn.read_u8()?;
@@ -1025,7 +1025,7 @@ impl QueryTextExtents {
         let draw_direction = match draw_direction_code {
             0 => DrawDirection::LeftToRight,
             1 => DrawDirection::RightToLeft,
-            _ => return Err(Error::InvalidResponse),
+            _ => return Err(Error::InvalidResponse(stringify!(DrawDirection))),
         };
         let _sequence_number = conn.read_le_u16()?;
         let _reply_length = conn.read_le_u32()?;
@@ -1176,7 +1176,7 @@ impl ListFontsWithInfoPartial {
             let draw_direction = match draw_direction_code {
                 0 => DrawDirection::LeftToRight,
                 1 => DrawDirection::RightToLeft,
-                _ => return Err(Error::InvalidResponse),
+                _ => return Err(Error::InvalidResponse(stringify!(DrawDirection))),
             };
             let min_byte1 = conn.read_u8()?;
             let max_byte1 = conn.read_u8()?;
@@ -1987,7 +1987,7 @@ impl ListHosts {
         let mode = match mode_byte {
             0 => HostMode::Disabled,
             1 => HostMode::Enabled,
-            _ => return Err(Error::InvalidResponse),
+            _ => return Err(Error::InvalidResponse(stringify!(HostMode))),
         };
         let _sequence_number = conn.read_le_u16()?;
         let _reply_length = conn.read_le_u32()? as usize;
@@ -2035,7 +2035,7 @@ impl SetPointerMapping {
         let status = match status_byte {
             0 => SetPointerMappingStatus::Success,
             1 => SetPointerMappingStatus::Busy,
-            _ => return Err(Error::InvalidResponse),
+            _ => return Err(Error::InvalidResponse(stringify!(SetPointerMappingStatus))),
         };
         let _sequence_number = conn.read_le_u16()?;
         let _reply_length = conn.read_le_u32()?;
@@ -2111,7 +2111,7 @@ impl SetModifierMapping {
             0 => SetModifierMappingStatus::Success,
             1 => SetModifierMappingStatus::Busy,
             2 => SetModifierMappingStatus::Failed,
-            _ => return Err(Error::InvalidResponse),
+            _ => return Err(Error::InvalidResponse(stringify!(SetModifierMappingStatus))),
         };
         let _sequence_number = conn.read_le_u16()?;
         let _reply_length = conn.read_le_u32()?;

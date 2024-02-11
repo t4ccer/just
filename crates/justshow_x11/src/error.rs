@@ -6,7 +6,7 @@ pub enum Error {
     InvalidXAuthFile(String),
     CouldNotReadXAuthFile(String, io::Error),
     InvalidDisplayEnv,
-    InvalidResponse,
+    InvalidResponse(&'static str),
     NoEnv(&'static str),
     IOError(io::Error),
     CouldNotOpenDisplay(InitializeConnectionResponseRefused),
@@ -38,7 +38,9 @@ impl Display for Error {
             Error::InvalidDisplayEnv => {
                 write!(f, "Could not decode $DISPLAY environment variable")
             }
-            Error::InvalidResponse => write!(f, "Could not decode response from X server"),
+            Error::InvalidResponse(loc) => {
+                write!(f, "Could not decode response from X server: {}", loc)
+            }
             Error::NoEnv(env_var) => write!(f, "Environment variable '{}' is not set", env_var),
             Error::IOError(inner) => write!(f, "Unexpected IO error: {}", inner),
             Error::CouldNotOpenDisplay(response) => write!(

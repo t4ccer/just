@@ -38,7 +38,7 @@ pub trait XResponse: Sized {
     fn from_le_bytes(conn: &mut XConnection) -> Result<Self, Error>;
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 #[repr(transparent)]
 pub struct ResourceId {
     value: u32,
@@ -52,7 +52,7 @@ impl ResourceId {
 
 macro_rules! impl_resource_id {
     ($name:ident) => {
-        #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+        #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
         #[repr(transparent)]
         pub struct $name(ResourceId);
 
@@ -78,6 +78,8 @@ macro_rules! impl_resource_id {
                 Self(ResourceId { value })
             }
         }
+
+        crate::requests::impl_value!($name into);
     };
 }
 
@@ -119,6 +121,15 @@ where
         } else {
             Some(self.0)
         }
+    }
+}
+
+impl<T> From<OrNone<T>> for u32
+where
+    T: Into<u32>,
+{
+    fn from(value: OrNone<T>) -> Self {
+        value.0.into()
     }
 }
 
@@ -172,7 +183,9 @@ impl XResponse for InitializeConnectionResponse {
                 InitializeConnectionResponseSuccess::from_le_bytes(conn)?,
             )),
             2 => todo!("InitializeConnectionResponseAuthenticate"),
-            _ => Err(Error::InvalidResponse),
+            _ => Err(Error::InvalidResponse(stringify!(
+                InitializeConnectionResponse
+            ))),
         }
     }
 }
@@ -249,7 +262,7 @@ impl WindowId {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone, Copy)]
 #[repr(u8)]
 pub enum VisualClass {
     StaticGray = 0,
@@ -271,7 +284,7 @@ impl TryFrom<u8> for VisualClass {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Visual {
     pub id: VisualId,
     pub class: VisualClass,
@@ -285,7 +298,8 @@ pub struct Visual {
 impl Visual {
     fn from_le_bytes(conn: &mut XConnection) -> Result<Self, Error> {
         let id = conn.read_le_u32()?;
-        let class = VisualClass::try_from(conn.read_u8()?).map_err(|_| Error::InvalidResponse)?;
+        let class = VisualClass::try_from(conn.read_u8()?)
+            .map_err(|_| Error::InvalidResponse(stringify!(VisualClass)))?;
         let bits_per_rgb_value = conn.read_u8()?;
         let colormap_entries = conn.read_le_u16()?;
         let red_mask = conn.read_le_u32()?;
@@ -304,7 +318,7 @@ impl Visual {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Depth {
     pub depth: u8,
     pub visuals: Vec<Visual>,
@@ -321,7 +335,7 @@ impl Depth {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 #[repr(u8)]
 pub enum BackingStore {
     NotUseful = 0,
@@ -341,7 +355,7 @@ impl TryFrom<u8> for BackingStore {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Screen {
     pub root: WindowId,
     pub default_colormat: u32,
@@ -377,8 +391,8 @@ impl Screen {
         let min_installed_maps = conn.read_le_u16()?;
         let max_installed_maps = conn.read_le_u16()?;
         let root_visual = conn.read_le_u32()?;
-        let backing_stores =
-            BackingStore::try_from(conn.read_u8()?).map_err(|_| Error::InvalidResponse)?;
+        let backing_stores = BackingStore::try_from(conn.read_u8()?)
+            .map_err(|_| Error::InvalidResponse("BackingStore"))?;
         let save_unders = conn.read_u8()? == 1;
         let root_depth = conn.read_u8()?;
         let allowed_depths_lenght = conn.read_u8()?;
@@ -684,11 +698,14 @@ impl XDisplay {
         })
     }
 
-    pub fn send_request<Request: XRequest>(
+    pub fn send_request<Request: XRequest + std::fmt::Debug>(
         &mut self,
         request: &Request,
     ) -> Result<PendingReply<Request::Reply>, Error> {
         let sequence_number = self.send_request_impl(request)?;
+
+        // dbg!(sequence_number);
+        // dbg!(request);
 
         if let Some(reply_type) = Request::reply_type() {
             let sequence_number_is_fresh = self
@@ -939,11 +956,19 @@ impl XDisplay {
         let mut raw = [0u8; 32];
         raw[0] = event_code;
         self.connection.read_exact(&mut raw[1..])?;
-        SomeEvent::from_le_bytes(raw).ok_or(Error::InvalidResponse)
+        SomeEvent::from_le_bytes(raw).ok_or(Error::InvalidResponse(stringify!(SomeEvent)))
     }
 
     fn has_pending_events(&mut self) -> Result<bool, Error> {
         Ok(self.connection.has_unconsumed_data() || self.connection.fill_buf_nonblocking()?)
+    }
+
+    pub fn next_event(&mut self) -> Result<Option<SomeEvent>, Error> {
+        while self.has_pending_events()? {
+            self.decode_response_blocking()?;
+        }
+
+        Ok(self.event_queue.pop_front())
     }
 
     /// Drain all events
@@ -964,7 +989,7 @@ impl XDisplay {
 // i.e. you cannot disacrd reply twice, etc.
 #[derive(Debug, Clone, Copy, Hash, PartialEq, Eq, PartialOrd, Ord)]
 #[repr(transparent)]
-pub(crate) struct SequenceNumber {
+pub struct SequenceNumber {
     value: u16,
 }
 
@@ -983,6 +1008,12 @@ impl<Reply> std::fmt::Debug for PendingReply<Reply> {
             .field("sequence_number", &self.sequence_number)
             .field("reply_type", &self.reply_type)
             .finish()
+    }
+}
+
+impl<Reply> PendingReply<Reply> {
+    pub fn sequence_number(&self) -> SequenceNumber {
+        self.sequence_number
     }
 }
 

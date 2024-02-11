@@ -2,3 +2,4 @@
 /target
 /.pre-commit-config.yaml
 result*
+*.qcow2

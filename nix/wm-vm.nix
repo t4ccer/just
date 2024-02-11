@@ -1,4 +1,4 @@
-{justshow}: {
+{justwindows}: {
   config,
   modulesPath,
   lib,
@@ -35,7 +35,7 @@
     windowManager.session = lib.singleton {
       name = "justwindows";
       start = ''
-        ${justshow}/bin/justwindows &
+        ${justwindows}/bin/justwindows &
         waitPID=$!
       '';
     };

@@ -13,7 +13,7 @@ pub struct KeyPressRelease {
     pub time: u32,
     pub root: u32,
     pub event: u32,
-    pub child: u32,
+    pub child: OrNone<WindowId>,
     pub root_x: i16,
     pub root_y: i16,
     pub event_x: i16,
@@ -407,9 +407,9 @@ impl ReparentNotify {
 #[derive(Debug, Clone)]
 #[repr(C)]
 pub struct ConfigureNotify {
-    _event_code: u8,
-    _unused: u8,
-    _sequence_number: u16,
+    pub _event_code: u8,
+    pub _unused: u8,
+    pub _sequence_number: u16,
     pub event: WindowId,
     pub window: WindowId,
     pub above_sibling: OrNone<WindowId>,
@@ -419,7 +419,13 @@ pub struct ConfigureNotify {
     pub height: u16,
     pub border_width: u16,
     pub override_redirect: bool,
-    _pad: [u8; 5],
+    pub _pad: [u8; 5],
+}
+
+impl ConfigureNotify {
+    pub fn to_le_bytes(self) -> [u8; 32] {
+        unsafe { mem::transmute(self) }
+    }
 }
 
 impl ConfigureNotify {
@@ -432,7 +438,7 @@ impl ConfigureNotify {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Copy)]
 #[repr(u8)]
 pub enum ConfigureRequestStackMode {
     Above = 0,
@@ -440,6 +446,12 @@ pub enum ConfigureRequestStackMode {
     TopIf = 2,
     BottomIf = 3,
     Opposite = 4,
+}
+
+impl From<ConfigureRequestStackMode> for u32 {
+    fn from(value: ConfigureRequestStackMode) -> Self {
+        value as u32
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -727,41 +739,60 @@ impl MappingNotify {
 }
 
 #[derive(Debug, Clone)]
+#[repr(C)]
+pub struct UnknownEvent {
+    _event_code: u8,
+    _sequence_number: u16,
+    pub raw: [u8; 32],
+}
+
+impl UnknownEvent {
+    pub(crate) fn from_le_bytes(raw: [u8; 32]) -> Option<Self> {
+        Some(Self {
+            _event_code: raw[0],
+            _sequence_number: u16::from_le_bytes([raw[2], raw[3]]),
+            raw,
+        })
+    }
+}
+
+#[derive(Debug, Clone)]
 #[repr(u8)]
 pub enum SomeEvent {
-    KeyPress(KeyPressRelease) = 2,
-    KeyRelease(KeyPressRelease) = 3,
-    ButtonPress(KeyPressRelease) = 4,
-    ButtonRelease(KeyPressRelease) = 5,
-    MotionNotify(MotionNotify) = 6,
-    EnterNotify(EnterLeaveNotify) = 7,
-    LeaveNotify(EnterLeaveNotify) = 8,
-    FocusIn(FocusInOut) = 9,
-    FocusOut(FocusInOut) = 10,
-    KeymapNotify(KeymapNotify) = 11,
-    Expose(Expose) = 12,
-    GraphicsExposure(GraphicsExposure) = 13,
-    NoExposure(NoExposure) = 14,
-    VisibilityNotify(VisibilityNotify) = 15,
-    CreateNotify(CreateNotify) = 16,
-    DestroyNotify(DestroyNotify) = 17,
-    UnmapNotify(UnmapNotify) = 18,
-    MapNotify(MapNotify) = 19,
-    MapRequest(MapRequest) = 20,
-    ReparentNotify(ReparentNotify) = 21,
-    ConfigureNotify(ConfigureNotify) = 22,
-    ConfigureRequest(ConfigureRequest) = 23,
-    GravityNotify(GravityNotify) = 24,
-    ResizeRequest(ResizeRequest) = 25,
-    CirculateNotify(CirculateNotify) = 26,
-    CirculateRequest(CirculateRequest) = 27,
-    PropertyNotify(PropertyNotify) = 28,
-    SelectionClear(SelectionClear) = 29,
-    SelectionRequest(SelectionRequest) = 30,
-    SelectionNotify(SelectionNotify) = 31,
-    ColormapNotify(ColormapNotify) = 32,
-    ClientMessage(ClientMessage) = 33,
-    MappingNotify(MappingNotify) = 34,
+    KeyPress(KeyPressRelease),
+    KeyRelease(KeyPressRelease),
+    ButtonPress(KeyPressRelease),
+    ButtonRelease(KeyPressRelease),
+    MotionNotify(MotionNotify),
+    EnterNotify(EnterLeaveNotify),
+    LeaveNotify(EnterLeaveNotify),
+    FocusIn(FocusInOut),
+    FocusOut(FocusInOut),
+    KeymapNotify(KeymapNotify),
+    Expose(Expose),
+    GraphicsExposure(GraphicsExposure),
+    NoExposure(NoExposure),
+    VisibilityNotify(VisibilityNotify),
+    CreateNotify(CreateNotify),
+    DestroyNotify(DestroyNotify),
+    UnmapNotify(UnmapNotify),
+    MapNotify(MapNotify),
+    MapRequest(MapRequest),
+    ReparentNotify(ReparentNotify),
+    ConfigureNotify(ConfigureNotify),
+    ConfigureRequest(ConfigureRequest),
+    GravityNotify(GravityNotify),
+    ResizeRequest(ResizeRequest),
+    CirculateNotify(CirculateNotify),
+    CirculateRequest(CirculateRequest),
+    PropertyNotify(PropertyNotify),
+    SelectionClear(SelectionClear),
+    SelectionRequest(SelectionRequest),
+    SelectionNotify(SelectionNotify),
+    ColormapNotify(ColormapNotify),
+    ClientMessage(ClientMessage),
+    MappingNotify(MappingNotify),
+    UnknownEvent(UnknownEvent),
 }
 
 impl SomeEvent {
@@ -825,7 +856,7 @@ impl SomeEvent {
             )?)),
             33 => Some(SomeEvent::ClientMessage(ClientMessage::from_le_bytes(raw)?)),
             34 => Some(SomeEvent::MappingNotify(MappingNotify::from_le_bytes(raw)?)),
-            _ => None,
+            _unknown_event_code => Some(SomeEvent::UnknownEvent(UnknownEvent::from_le_bytes(raw)?)),
         }
     }
 }

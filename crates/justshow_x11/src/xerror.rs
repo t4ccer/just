@@ -1,4 +1,4 @@
-use crate::{connection::XConnection, error::Error};
+use crate::{connection::XConnection, error::Error, SequenceNumber};
 use std::{fmt, mem};
 
 #[derive(Debug, Clone, Copy)]
@@ -122,8 +122,10 @@ macro_rules! impl_x_error {
 
     ($name:ident, $($rest:tt)*) => {
         impl_x_error_base! { $name,
-            pub fn sequence_number(&self) -> u16 {
-                self.generic.sequence_number
+            pub fn sequence_number(&self) -> SequenceNumber {
+                SequenceNumber {
+                    value: self.generic.sequence_number
+                }
             }
 
             pub fn minor_opcode(&self) -> u16 {

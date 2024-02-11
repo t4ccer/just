@@ -1,5 +1,5 @@
 use crate::{
-    events::EventType,
+    events::{self, ConfigureRequestStackMode, EventType},
     replies::{self, ReplyType},
     utils::pad,
     AtomId, ColormapId, CursorId, Drawable, FontId, GContextId, LeBytes, ListOfStr, PixmapId,
@@ -101,10 +101,54 @@ impl KeySym {
     }
 }
 
+macro_rules! impl_value {
+    ($ty:ident as) => {
+        impl crate::requests::Value for $ty {
+            fn to_raw_value(self) -> u32 {
+                self as u32
+            }
+        }
+    };
+
+    ($ty:ident into) => {
+        impl crate::requests::Value for $ty {
+            fn to_raw_value(self) -> u32 {
+                self.into()
+            }
+        }
+    };
+}
+pub(crate) use impl_value;
+
+pub(crate) trait Value: Sized {
+    fn to_raw_value(self) -> u32;
+}
+
+impl_value!(u8 as);
+impl_value!(i8 as);
+impl_value!(u16 as);
+impl_value!(i16 as);
+impl_value!(u32 as);
+impl_value!(i32 as);
+impl_value!(bool as);
+
+impl_value!(EventType into);
+impl_value!(KeyCode into);
+impl_value!(ConfigureRequestStackMode into);
+
+// impl<T> Value for T
+// where
+//     T: Into<u32>,
+// {
+//     fn to_raw_value(self) -> u32 {
+//         self.into()
+//     }
+// }
+
 macro_rules! impl_raw_field {
     ($ty:path, $setter:ident, $idx:expr) => {
         pub fn $setter(mut self, new_value: $ty) -> Self {
-            self.values.values[$idx] = Some(new_value.into());
+            self.values.values[$idx] = Some(new_value.to_raw_value());
             self
         }
     };
@@ -132,6 +176,12 @@ macro_rules! impl_raw_fields_debug {
 macro_rules! impl_raw_fields {
     ($name:ident, $($rest:tt)*) => {
         impl $name {
+            pub fn new() -> Self {
+                Self {
+                    values: ListOfValues::new(),
+                }
+            }
+
             impl_raw_fields_go!(0, $($rest)*);
         }
 
@@ -145,6 +195,7 @@ macro_rules! impl_raw_fields {
     };
 }
 
+#[derive(Debug, Clone, Copy)]
 pub struct NoReply;
 
 pub trait XRequest: LeBytes {
@@ -354,20 +405,6 @@ ChangeWindowAttributes
 #[derive(Clone)]
 pub struct WindowCreationAttributes {
     values: ListOfValues<15>,
-}
-
-impl Default for WindowCreationAttributes {
-    fn default() -> Self {
-        Self::new()
-    }
-}
-
-impl WindowCreationAttributes {
-    pub fn new() -> Self {
-        Self {
-            values: ListOfValues::new(),
-        }
-    }
 }
 
 impl_raw_fields! {
@@ -735,9 +772,37 @@ ConfigureWindow
      4n     LISTofVALUE                    value-list
 */
 
-#[derive(Debug, Clone)]
+#[derive(Clone)]
 pub struct ConfigureWindowAttributes {
     values: ListOfValues<7>,
+}
+
+impl_raw_fields! {
+    ConfigureWindowAttributes,
+    set_x: i16,
+    set_y: i16,
+    set_width: u16,
+    set_height: u16,
+    set_border_width: u16,
+    set_sibling: WindowId,
+    set_stack_mode: ConfigureRequestStackMode,
+}
+
+impl From<&events::ConfigureRequest> for ConfigureWindowAttributes {
+    fn from(event: &events::ConfigureRequest) -> Self {
+        let attributes = ConfigureWindowAttributes::new()
+            .set_x(event.x)
+            .set_y(event.y)
+            .set_width(event.width)
+            .set_height(event.height)
+            .set_border_width(event.border_width)
+            .set_stack_mode(event.stack_mode);
+
+        match event.sibling.value() {
+            None => attributes,
+            Some(sibling) => attributes.set_sibling(sibling),
+        }
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -752,9 +817,9 @@ impl LeBytes for ConfigureWindow {
 
         write_le_bytes!(w, opcodes::CONFIGURE_WINDOW);
         write_le_bytes!(w, 0u8); // unused
-        write_le_bytes!(w, 3 + n); // length
+        write_le_bytes!(w, (3 + n) as u16); // length
         write_le_bytes!(w, self.window);
-        write_le_bytes!(w, bitmask);
+        write_le_bytes!(w, bitmask as u16);
         write_le_bytes!(w, 0u16); // unused
         self.attributes.values.to_le_bytes_if_set(w)?;
 
@@ -808,6 +873,7 @@ GetGeometry
      4     DRAWABLE                        drawable
 */
 
+#[derive(Debug, Clone, Copy)]
 pub struct GetGeometry {
     pub drawable: Drawable,
 }
@@ -1243,7 +1309,7 @@ GrabPointer
 pub struct GrabPointer {
     pub owner_events: bool,
     pub grab_window: WindowId,
-    pub event_mask: u16,
+    pub event_mask: u16, // TODO: Type
     pub pointer_mode: u8,
     pub keyboard_mode: u8,
     pub confine_to: WindowId,
@@ -1281,7 +1347,7 @@ UngrabPointer
 
 #[derive(Debug, Clone, Copy)]
 pub struct UngrabPointer {
-    pub time: u32,
+    pub time: u32, // TODO: type
 }
 
 impl LeBytes for UngrabPointer {
@@ -1325,9 +1391,9 @@ GrabButton
 pub struct GrabButton {
     pub owner_events: bool,
     pub grab_window: WindowId,
-    pub event_mask: u16,
-    pub pointer_mode: u8,
-    pub keyboard_mode: u8,
+    pub event_mask: u16,   // TODO: type
+    pub pointer_mode: u8,  // TODO: type
+    pub keyboard_mode: u8, // TODO: type
     pub confine_to: WindowId,
     pub cursor: u32,
     pub button: u8,
@@ -2319,20 +2385,6 @@ CreateGC
 #[derive(Clone)]
 pub struct GContextSettings {
     values: ListOfValues<23>,
-}
-
-impl Default for GContextSettings {
-    fn default() -> Self {
-        Self::new()
-    }
-}
-
-impl GContextSettings {
-    pub fn new() -> Self {
-        Self {
-            values: ListOfValues::new(),
-        }
-    }
 }
 
 impl_raw_fields! {
@@ -4490,20 +4542,6 @@ ChangeKeyboardControl
 #[derive(Clone)]
 pub struct ChangeKeyboardControlValues {
     values: ListOfValues<8>,
-}
-
-impl Default for ChangeKeyboardControlValues {
-    fn default() -> Self {
-        Self::new()
-    }
-}
-
-impl ChangeKeyboardControlValues {
-    pub fn new() -> Self {
-        Self {
-            values: ListOfValues::new(),
-        }
-    }
 }
 
 impl_raw_fields! {
