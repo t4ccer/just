@@ -71,7 +71,7 @@ fn lsextensions(display: &mut XDisplay) -> Result<(), Error> {
                     }
                 );
                 println!(
-                    "{}c => major opcode: {}, first event: {}, first error: {}",
+                    "{} => major opcode: {}, first event: {}, first error: {}",
                     name,
                     extension_info.major_opcode,
                     extension_info.first_event,
