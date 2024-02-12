@@ -1,4 +1,8 @@
-use crate::{atoms::AtomId, utils::bitmask, ColormapId, OrNone, ResourceId, WindowId};
+use crate::{
+    atoms::AtomId,
+    utils::{bitmask, impl_enum},
+    ColormapId, OrNone, ResourceId, WindowId,
+};
 use std::mem;
 
 fn invalid_bool(value: u8) -> bool {
@@ -33,11 +37,12 @@ impl KeyPressRelease {
     }
 }
 
-#[derive(Debug, Clone)]
-#[repr(u8)]
-pub enum MotionNotifyDetail {
-    Normal = 0,
-    Hint = 1,
+impl_enum! {
+    #[repr(u8)]
+    enum MotionNotifyDetail {
+        Normal = 0,
+        Hint = 1,
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -73,22 +78,24 @@ impl MotionNotify {
     }
 }
 
-#[derive(Debug, Clone)]
-#[repr(u8)]
-pub enum EnterLeaveNotifyMode {
-    Normal = 0,
-    Grab = 1,
-    Ungrab = 2,
+impl_enum! {
+    #[repr(u8)]
+    enum EnterLeaveNotifyMode {
+        Normal = 0,
+        Grab = 1,
+        Ungrab = 2,
+    }
 }
 
-#[derive(Debug, Clone)]
-#[repr(u8)]
-pub enum EnterLeaveNotifyDetail {
-    Ancestor = 0,
-    Virtual = 1,
-    Inferior = 2,
-    Nonlinear = 3,
-    NonlinearVirtual = 4,
+impl_enum! {
+    #[repr(u8)]
+    enum EnterLeaveNotifyDetail {
+        Ancestor = 0,
+        Virtual = 1,
+        Inferior = 2,
+        Nonlinear = 3,
+        NonlinearVirtual = 4,
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -124,26 +131,28 @@ impl EnterLeaveNotify {
     }
 }
 
-#[derive(Debug, Clone)]
-#[repr(u8)]
-pub enum FocusInOutDetail {
-    Ancestor = 0,
-    Virtual = 1,
-    Inferior = 2,
-    Nonlinear = 3,
-    NonlinearVirtual = 4,
-    Pointer = 5,
-    PointerRoot = 6,
-    None = 7,
+impl_enum! {
+    #[repr(u8)]
+    enum FocusInOutDetail {
+        Ancestor = 0,
+        Virtual = 1,
+        Inferior = 2,
+        Nonlinear = 3,
+        NonlinearVirtual = 4,
+        Pointer = 5,
+        PointerRoot = 6,
+        None = 7,
+    }
 }
 
-#[derive(Debug, Clone)]
-#[repr(u8)]
-pub enum FocusInOutMode {
-    Normal = 0,
-    Grab = 1,
-    Ungrab = 2,
-    WhileGrabbed = 3,
+impl_enum! {
+    #[repr(u8)]
+    enum FocusInOutMode {
+        Normal = 0,
+        Grab = 1,
+        Ungrab = 2,
+        WhileGrabbed = 3,
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -246,12 +255,13 @@ impl NoExposure {
     }
 }
 
-#[derive(Debug, Clone)]
-#[repr(u8)]
-pub enum VisibilityNotifyState {
-    Unobscured = 0,
-    PartiallyObscured = 1,
-    FullyObscured = 2,
+impl_enum! {
+    #[repr(u8)]
+    enum VisibilityNotifyState {
+        Unobscured = 0,
+        PartiallyObscured = 1,
+        FullyObscured = 2,
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -407,8 +417,8 @@ impl ReparentNotify {
 #[derive(Debug, Clone)]
 #[repr(C)]
 pub struct ConfigureNotify {
-    pub _event_code: u8,
-    pub _unused: u8,
+    _event_code: u8,
+    _unused: u8,
     pub sequence_number: u16,
     pub event: WindowId,
     pub window: WindowId,
@@ -419,7 +429,7 @@ pub struct ConfigureNotify {
     pub height: u16,
     pub border_width: u16,
     pub override_redirect: bool,
-    pub _pad: [u8; 5],
+    _pad: [u8; 5],
 }
 
 impl ConfigureNotify {
@@ -438,14 +448,15 @@ impl ConfigureNotify {
     }
 }
 
-#[derive(Debug, Clone, Copy)]
-#[repr(u8)]
-pub enum ConfigureRequestStackMode {
-    Above = 0,
-    Below = 1,
-    TopIf = 2,
-    BottomIf = 3,
-    Opposite = 4,
+impl_enum! {
+    #[repr(u8)]
+    enum ConfigureRequestStackMode {
+        Above = 0,
+        Below = 1,
+        TopIf = 2,
+        BottomIf = 3,
+        Opposite = 4,
+    }
 }
 
 impl From<ConfigureRequestStackMode> for u32 {
@@ -519,11 +530,12 @@ impl ResizeRequest {
     }
 }
 
-#[derive(Debug, Clone)]
-#[repr(u8)]
-pub enum CirculateNotifyPlace {
-    Top = 0,
-    Bottom = 1,
+impl_enum! {
+    #[repr(u8)]
+    enum CirculateNotifyPlace {
+        Top = 0,
+        Bottom = 1,
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -572,11 +584,12 @@ impl CirculateRequest {
     }
 }
 
-#[derive(Debug, Clone)]
-#[repr(u8)]
-pub enum PropertyNotifyState {
-    NewValue,
-    Deleted,
+impl_enum! {
+    #[repr(u8)]
+    enum PropertyNotifyState {
+        NewValue = 0,
+        Deleted = 1,
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -661,11 +674,12 @@ impl SelectionNotify {
     }
 }
 
-#[derive(Debug, Clone)]
-#[repr(u8)]
-pub enum ColormapNotifyState {
-    Uninstalled = 0,
-    Installed = 1,
+impl_enum! {
+    #[repr(u8)]
+    enum ColormapNotifyState {
+        Uninstalled = 0,
+        Installed = 1,
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -708,12 +722,13 @@ impl ClientMessage {
     }
 }
 
-#[derive(Debug, Clone)]
-#[repr(u8)]
-pub enum MappingNotifyRequest {
-    Modifier = 0,
-    Keyboard = 1,
-    Pointer = 2,
+impl_enum! {
+    #[repr(u8)]
+    enum MappingNotifyRequest {
+        Modifier = 0,
+        Keyboard = 1,
+        Pointer = 2,
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -724,7 +739,7 @@ pub struct MappingNotify {
     pub sequence_number: u16,
     pub request: MappingNotifyRequest,
     pub first_keycode: u8,
-    count: u8,
+    pub count: u8,
     _pad: [u8; 25],
 }
 
