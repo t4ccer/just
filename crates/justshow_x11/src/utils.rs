@@ -29,7 +29,8 @@ pub(crate) fn display_maybe_utf8(buf: &[u8]) -> String {
 }
 
 macro_rules! bitmask {
-    (#[repr($inner:ident)] bitmask $ty:ident { $($key:ident = $value:literal,)* }) => {
+    (#[repr($inner:ident)] $(#[$name_attr_post:meta])* bitmask $ty:ident { $( $(#[$field_attr:meta])* $key:ident = $value:literal,)* }) => {
+        $(#[$name_attr_post])*
         #[repr(transparent)]
         pub struct $ty {
             value: $inner,
@@ -37,7 +38,7 @@ macro_rules! bitmask {
 
         #[automatically_derived]
         impl $ty {
-            $(pub const $key: Self = Self { value: $value };)*
+            $($(#[$field_attr])* pub const $key: Self = Self { value: $value };)*
         }
 
         #[automatically_derived]
@@ -87,14 +88,14 @@ impl BytesSize for u32 {
     const SIZE: usize = 4;
 }
 
-// TODO: Support comments on enum constructors
 /// Create an enum with basic implementations like going from underlying representation to the enum
 macro_rules! impl_enum {
-    (#[repr($inner:ident)] enum $name:ident { $($key:ident = $value:literal,)* }) => {
+    (#[repr($inner:ident)] $(#[$name_attr_post:meta])*  enum $name:ident { $( $(#[$field_attr:meta])* $key:ident = $value:literal,)* }) => {
+        $(#[$name_attr_post])*
         #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
         #[repr($inner)]
         pub enum $name {
-            $($key = $value,)*
+            $($(#[$field_attr])* $key = $value,)*
         }
 
         #[automatically_derived]

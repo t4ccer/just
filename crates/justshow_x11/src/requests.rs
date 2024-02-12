@@ -3176,9 +3176,11 @@ PutImage
 
 impl_enum! {
     #[repr(u8)]
+    /// Image format
     enum PutImageFormat {
         Bitmap = 0,
         XYPixmap = 1,
+        /// Probably the one you want. Pixels stores as scanlines
         ZPixmap = 2,
     }
 }
@@ -5181,6 +5183,7 @@ bitmask! {
         MOD_3 = 0x0020,
         MOD_4 = 0x0040,
         MOD_5 = 0x0080,
+        /// Match any modifier key
         MOD_ANY = 0x8000,
     }
 }
