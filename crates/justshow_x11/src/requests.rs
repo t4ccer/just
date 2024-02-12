@@ -1,6 +1,6 @@
 use crate::{
     atoms::AtomId,
-    events::{self, ConfigureRequestStackMode, EventType},
+    events::{self, EventType, StackMode},
     replies::{self, ReplyType},
     utils::{bitmask, impl_enum, pad},
     ColormapId, CursorId, Drawable, FontId, GContextId, LeBytes, ListOfStr, OrNone, PixmapId,
@@ -119,30 +119,26 @@ impl_value!(bool as);
 
 impl_value!(EventType into);
 impl_value!(KeyCode into);
-impl_value!(ConfigureRequestStackMode into);
-
-macro_rules! impl_raw_field {
-    ($ty:path, $setter:ident, $idx:expr) => {
-        pub fn $setter(mut self, new_value: $ty) -> Self {
-            self.values.values[$idx] = Some(new_value.to_raw_value());
-            self
-        }
-    };
-}
+impl_value!(StackMode into);
 
 macro_rules! impl_raw_fields_go {
     ($idx:expr $(,)?) => { };
 
-    ($idx:expr, $setter:ident: $ty:path, $($rest:tt)*) => {
-        impl_raw_field!($ty, $setter, $idx);
+    ($idx:expr, $(#[$field_attr:meta])* $setter:ident: $ty:path, $($rest:tt)*) => {
+        $(#[$field_attr])*
+        pub fn $setter(mut self, new_value: $ty) -> Self {
+            self.values.values[$idx] = Some(new_value.to_raw_value());
+            self
+        }
+
         impl_raw_fields_go!($idx + 1, $($rest)*);
     };
 }
 
 macro_rules! impl_raw_fields_debug {
-    ($d:expr, $self:expr, $idx:expr $(,)?) => { };
+    ($d:expr, $self:expr, $idx:expr, $(,)?) => { };
 
-    ($d:expr, $self:expr, $idx:expr, $setter:ident : $ty:path, $($rest:tt)*) => {
+    ($d:expr, $self:expr, $idx:expr, $(#[$field_attr:meta])* $setter:ident : $ty:path, $($rest:tt)*) => {
         // strip `set_` prfix
         $d.field(&stringify!($setter)[4..], &$self.values.values[$idx]);
         impl_raw_fields_debug!($d, $self, $idx + 1, $($rest)*);
@@ -150,7 +146,13 @@ macro_rules! impl_raw_fields_debug {
 }
 
 macro_rules! impl_raw_fields {
-    ($name:ident, $($rest:tt)*) => {
+    ($(#[$name_attr:meta])* $name:ident [$size:literal] { $($rest:tt)* }) => {
+        #[derive(Clone)]
+        $(#[$name_attr])*
+        pub struct $name {
+            values: ListOfValues<$size>,
+        }
+
         impl $name {
             pub fn new() -> Self {
                 Self {
@@ -377,29 +379,26 @@ ChangeWindowAttributes
      4n     LISTofVALUE                    value-list
           encodings are the same as for CreateWindow
 */
-
-#[derive(Clone)]
-pub struct WindowCreationAttributes {
-    values: ListOfValues<15>,
-}
-
 impl_raw_fields! {
-    WindowCreationAttributes,
-    set_background_pixmap: u32,
-    set_background_pixel: u32,
-    set_border_pixmap: u32,
-    set_border_pixel: u32,
-    set_bit_gravity: u32,
-    set_win_gravity: u32,
-    set_backing_store: u32,
-    set_backing_planes: u32,
-    set_backing_pixel: u32,
-    set_override_redirect: u32,
-    set_save_under: u32,
-    set_event_mask: EventType,
-    set_do_not_propagate_mask: u32,
-    set_colormap: u32,
-    set_cursor: u32,
+    /// Test comment
+    WindowCreationAttributes[15] {
+        /// Test comment: Set background color.
+        set_background_pixmap: u32,
+        set_background_pixel: u32,
+        set_border_pixmap: u32,
+        set_border_pixel: u32,
+        set_bit_gravity: u32,
+        set_win_gravity: u32,
+        set_backing_store: u32,
+        set_backing_planes: u32,
+        set_backing_pixel: u32,
+        set_override_redirect: u32,
+        set_save_under: u32,
+        set_event_mask: EventType,
+        set_do_not_propagate_mask: u32,
+        set_colormap: u32,
+        set_cursor: u32,
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -749,20 +748,16 @@ ConfigureWindow
      4n     LISTofVALUE                    value-list
 */
 
-#[derive(Clone)]
-pub struct ConfigureWindowAttributes {
-    values: ListOfValues<7>,
-}
-
 impl_raw_fields! {
-    ConfigureWindowAttributes,
-    set_x: i16,
-    set_y: i16,
-    set_width: u16,
-    set_height: u16,
-    set_border_width: u16,
-    set_sibling: WindowId,
-    set_stack_mode: ConfigureRequestStackMode,
+    ConfigureWindowAttributes[7] {
+        set_x: i16,
+        set_y: i16,
+        set_width: u16,
+        set_height: u16,
+        set_border_width: u16,
+        set_sibling: WindowId,
+        set_stack_mode: StackMode,
+    }
 }
 
 impl From<&events::ConfigureRequest> for ConfigureWindowAttributes {
@@ -2381,36 +2376,32 @@ CreateGC
           1     PieSlice
 */
 
-#[derive(Clone)]
-pub struct GContextSettings {
-    values: ListOfValues<23>,
-}
-
 impl_raw_fields! {
-    GContextSettings,
-    set_function: u32, // TODO: type
-    set_plane_mask: u32,
-    set_foreground: u32,
-    set_background: u32,
-    set_line_width: u16,
-    set_line_style: u32, // TODO: type
-    set_cap_style: u32, // TODO: type
-    set_join_style: u32, // TODO: type
-    set_fill_style: u32, // TODO: type
-    set_fill_rule: u32, // TODO: type
-    set_tile: PixmapId,
-    set_stipple: PixmapId,
-    set_tile_stipple_x_origin: u16,
-    set_tile_stipple_y_origin: u16,
-    set_font: FontId,
-    set_subwindow_mode: u32,
-    set_graphics_exposures: bool,
-    set_clip_x_origin: u16,
-    set_clip_y_origin: u16,
-    set_clip_mask: PixmapId, // TODO: or None
-    set_dash_offset: u16,
-    set_dashes: u8,
-    set_arc_mode: u32,
+    GContextSettings[23] {
+        set_function: u32, // TODO: type
+        set_plane_mask: u32,
+        set_foreground: u32,
+        set_background: u32,
+        set_line_width: u16,
+        set_line_style: u32, // TODO: type
+        set_cap_style: u32, // TODO: type
+        set_join_style: u32, // TODO: type
+        set_fill_style: u32, // TODO: type
+        set_fill_rule: u32, // TODO: type
+        set_tile: PixmapId,
+        set_stipple: PixmapId,
+        set_tile_stipple_x_origin: u16,
+        set_tile_stipple_y_origin: u16,
+        set_font: FontId,
+        set_subwindow_mode: u32,
+        set_graphics_exposures: bool,
+        set_clip_x_origin: u16,
+        set_clip_y_origin: u16,
+        set_clip_mask: PixmapId, // TODO: or None
+        set_dash_offset: u16,
+        set_dashes: u8,
+        set_arc_mode: u32,
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -4551,26 +4542,17 @@ ChangeKeyboardControl
           2     Default
 */
 
-#[derive(Clone)]
-pub struct ChangeKeyboardControlValues {
-    values: ListOfValues<8>,
-}
-
 impl_raw_fields! {
-    ChangeKeyboardControlValues,
-    // FIXME: proper types but they lack `u32: From<i*>` impl
-    // set_key_click_percent: i8,
-    // set_bell_percent: i8,
-    // set_bell_pitch: i16,
-    // set_bell_duration: i16,
-    set_key_click_percent: u32,
-    set_bell_percent: u32,
-    set_bell_pitch: u32,
-    set_bell_duration: u32,
-    set_led: u8,
-    set_led_mode: bool,
-    set_key: KeyCode,
-    set_auto_repeat_m: u8,
+    ChangeKeyboardControlValues[8] {
+        set_key_click_percent: i8,
+        set_bell_percent: i8,
+        set_bell_pitch: i16,
+        set_bell_duration: i16,
+        set_led: u8,
+        set_led_mode: bool,
+        set_key: KeyCode,
+        set_auto_repeat_m: u8,
+    }
 }
 
 #[derive(Debug, Clone)]

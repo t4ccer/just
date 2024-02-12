@@ -450,7 +450,7 @@ impl ConfigureNotify {
 
 impl_enum! {
     #[repr(u8)]
-    enum ConfigureRequestStackMode {
+    enum StackMode {
         Above = 0,
         Below = 1,
         TopIf = 2,
@@ -459,8 +459,8 @@ impl_enum! {
     }
 }
 
-impl From<ConfigureRequestStackMode> for u32 {
-    fn from(value: ConfigureRequestStackMode) -> Self {
+impl From<StackMode> for u32 {
+    fn from(value: StackMode) -> Self {
         value as u32
     }
 }
@@ -469,7 +469,7 @@ impl From<ConfigureRequestStackMode> for u32 {
 #[repr(C)]
 pub struct ConfigureRequest {
     _event_code: u8,
-    pub stack_mode: ConfigureRequestStackMode,
+    pub stack_mode: StackMode,
     pub sequence_number: u16,
     pub parent: WindowId,
     pub window: WindowId,
