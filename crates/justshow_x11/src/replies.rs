@@ -886,12 +886,12 @@ impl FontProp {
 
 #[derive(Debug, Clone)]
 pub struct CharInfo {
-    left_side_bearing: i16,
-    right_side_bearing: i16,
-    character_width: i16,
-    ascent: i16,
-    descent: i16,
-    attributes: u16,
+    pub left_side_bearing: i16,
+    pub right_side_bearing: i16,
+    pub character_width: i16,
+    pub ascent: i16,
+    pub descent: i16,
+    pub attributes: u16,
 }
 
 impl CharInfo {
@@ -1770,7 +1770,7 @@ GetKeyboardMapping
 // TODO:  Read KeySym decoding section
 #[derive(Debug, Clone)]
 pub struct KeySym {
-    inner: u32,
+    pub inner: u32,
 }
 
 impl KeySym {

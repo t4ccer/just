@@ -544,7 +544,7 @@ pub struct DestroySubwindows {
 
 impl LeBytes for DestroySubwindows {
     fn to_le_bytes(&self, w: &mut impl Write) -> io::Result<()> {
-        write_le_bytes!(w, opcodes::DESTROY_WINDOW);
+        write_le_bytes!(w, opcodes::DESTROY_SUBWINDOWS);
         write_le_bytes!(w, 0u8); // unused
         write_le_bytes!(w, 2u16); // length
         write_le_bytes!(w, self.window);

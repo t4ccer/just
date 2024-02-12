@@ -1,7 +1,6 @@
 use crate::{error::Error, utils::bin_parse};
 use std::{fmt::Display, fs, io::Read};
 
-#[allow(dead_code)]
 #[derive(Debug)]
 pub struct XAuth {
     pub family: u16,

@@ -111,6 +111,7 @@ macro_rules! impl_enum {
         }
 
         #[automatically_derived]
+        #[allow(dead_code)]
         impl $name {
             #[inline]
             fn to_le_bytes(self) -> [u8; <$inner as crate::utils::BytesSize>::SIZE] {
@@ -128,6 +129,7 @@ macro_rules! impl_resource_id {
         #[repr(transparent)]
         pub struct $name(crate::ResourceId);
 
+        #[allow(dead_code)]
         impl $name {
             pub fn id(self) -> crate::ResourceId {
                 self.0
