@@ -27,19 +27,6 @@
         then [builtins.currentSystem]
         else inputs.nixpkgs.lib.systems.flakeExposed;
 
-      flake = {
-        nixosConfigurations = {
-          wm = self.inputs.nixpkgs.lib.nixosSystem rec {
-            system = "x86_64-linux";
-            modules = [
-              (import ./nix/wm-vm.nix {
-                inherit (self.packages.${system}) justwindows;
-              })
-            ];
-          };
-        };
-      };
-
       perSystem = {
         config,
         self',

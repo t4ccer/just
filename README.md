@@ -1,5 +1,7 @@
 # `justshow`
 
+The top level crate is just a placeholder for now for the common interface library.
+
 Zero dependency (only stdlib) graphics library.
 
 ## Roadmap
@@ -10,6 +12,8 @@ Zero dependency (only stdlib) graphics library.
     - [ ] Friendly interface (Nice types for bitmasks, etc. tracking resources with lifetimes)
     - [ ] Extensions
       - [ ] MIT-SHM
+      - [ ] XINERAMA
+      - [ ] GLX
   - [ ] Wayland
   - [ ] WinAPI
   - [ ] Web/Canvas?
@@ -19,10 +23,14 @@ Zero dependency (only stdlib) graphics library.
 
 ## Examples
 
+### X11 Window Manager
+
+[justwindows](./crates/justwindows)
+
 ### Pong
 
 ```console
-cargo run --release --bin pong
+cargo run --release --package justshow_x11 --bin pong
 ```
 
 Controls:
@@ -33,7 +41,7 @@ Controls:
 - Restart: `r`
 
 
-[Source](./src/bin/pong.rs)
+[Source](./crates/justshow_x11/src/bin/pong.rs)
 
 ![preview](./img/pong.png)
 
@@ -42,7 +50,7 @@ Controls:
 [Original implementation](https://gitlab.freedesktop.org/xorg/app/xlsfonts)
 
 ```console
-cargo run --release --bin xinfo ls fonts
+cargo run --release --package justshow_x11 --bin xinfo ls fonts
 ```
 
-[Source](./src/bin/xlsfonts.rs)
+[Source](./crates/justshow_x11/src/bin/xinfo.rs)
