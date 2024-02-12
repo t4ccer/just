@@ -612,7 +612,7 @@ impl QueryPointer {
         let root = WindowId(ResourceId {
             value: conn.read_le_u32()?,
         });
-        let child = OrNone(WindowId(ResourceId {
+        let child = OrNone::new(WindowId(ResourceId {
             value: conn.read_le_u32()?,
         }));
         let root_x = conn.read_le_i16()?;
@@ -676,7 +676,7 @@ impl GetMotionEvents {
 
         let mut events = Vec::with_capacity(event_count);
         for _ in 0..event_count {
-            let time = Timestamp(conn.read_le_u32()?);
+            let time = Timestamp::from(conn.read_le_u32()?);
             let x = conn.read_le_i16()?;
             let y = conn.read_le_i16()?;
             events.push(TimeCoord { time, x, y });

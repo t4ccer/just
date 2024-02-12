@@ -1,5 +1,5 @@
-use crate::{AtomId, ColormapId, OrNone, ResourceId, WindowId};
-use std::{mem, ops::BitOr};
+use crate::{utils::bitmask, AtomId, ColormapId, OrNone, ResourceId, WindowId};
+use std::mem;
 
 fn invalid_bool(value: u8) -> bool {
     value != 0 && value != 1
@@ -45,7 +45,7 @@ pub enum MotionNotifyDetail {
 pub struct MotionNotify {
     _event_code: u8,
     pub detail: MotionNotifyDetail,
-    _sequence_number: u16,
+    pub sequence_number: u16,
     pub time: u32,
     pub root: WindowId,
     pub event: WindowId,
@@ -96,7 +96,7 @@ pub enum EnterLeaveNotifyDetail {
 pub struct EnterLeaveNotify {
     _event_code: u8,
     pub detail: EnterLeaveNotifyDetail,
-    _sequence_number: u16,
+    pub sequence_number: u16,
     pub time: u32,
     pub root: WindowId,
     pub event: WindowId,
@@ -151,7 +151,7 @@ pub enum FocusInOutMode {
 pub struct FocusInOut {
     _event_code: u8,
     pub detail: FocusInOutDetail,
-    _sequence_number: u16,
+    pub sequence_number: u16,
     pub event: WindowId,
     pub mode: FocusInOutMode,
     _pad: [u8; 23],
@@ -189,7 +189,7 @@ impl KeymapNotify {
 pub struct Expose {
     _event_code: u8,
     _unused: u8,
-    _sequence_number: u16,
+    pub sequence_number: u16,
     pub window: WindowId,
     pub x: u16,
     pub y: u16,
@@ -210,7 +210,7 @@ impl Expose {
 pub struct GraphicsExposure {
     _event_code: u8,
     _unused: u8,
-    _sequence_number: u16,
+    pub sequence_number: u16,
     pub drawable: ResourceId,
     pub x: u16,
     pub y: u16,
@@ -233,7 +233,7 @@ impl GraphicsExposure {
 pub struct NoExposure {
     _event_code: u8,
     _unused: u8,
-    _sequence_number: u16,
+    pub sequence_number: u16,
     pub drawable: ResourceId,
     pub minor_opcode: u16,
     pub major_opcode: u8,
@@ -259,7 +259,7 @@ pub enum VisibilityNotifyState {
 pub struct VisibilityNotify {
     _event_code: u8,
     _unused: u8,
-    _sequence_number: u16,
+    pub sequence_number: u16,
     pub window: WindowId,
     pub state: VisibilityNotifyState,
     _pad: [u8; 23],
@@ -280,7 +280,7 @@ impl VisibilityNotify {
 pub struct CreateNotify {
     _event_code: u8,
     _unused: u8,
-    _sequence_number: u16,
+    pub sequence_number: u16,
     pub parent: WindowId,
     pub window: WindowId,
     pub x: i16,
@@ -307,7 +307,7 @@ impl CreateNotify {
 pub struct DestroyNotify {
     _event_code: u8,
     _unused: u8,
-    _sequence_number: u16,
+    pub sequence_number: u16,
     pub event: WindowId,
     pub window: WindowId,
     _pad: [u8; 20],
@@ -324,7 +324,7 @@ impl DestroyNotify {
 pub struct UnmapNotify {
     _event_code: u8,
     _unused: u8,
-    _sequence_number: u16,
+    pub sequence_number: u16,
     pub event: WindowId,
     pub window: WindowId,
     pub from_configure: bool,
@@ -367,7 +367,7 @@ impl MapNotify {
 pub struct MapRequest {
     _event_code: u8,
     _unused: u8,
-    _sequence_number: u16,
+    pub sequence_number: u16,
     pub parent: WindowId,
     pub window: WindowId,
     _pad: [u8; 20],
@@ -384,13 +384,13 @@ impl MapRequest {
 pub struct ReparentNotify {
     _event_code: u8,
     _unused: u8,
-    _sequence_number: u16,
-    event: WindowId,
-    window: WindowId,
-    parent: WindowId,
-    x: i16,
-    y: i16,
-    override_redirect: bool,
+    pub sequence_number: u16,
+    pub event: WindowId,
+    pub window: WindowId,
+    pub parent: WindowId,
+    pub x: i16,
+    pub y: i16,
+    pub override_redirect: bool,
     _pad: [u8; 11],
 }
 
@@ -409,7 +409,7 @@ impl ReparentNotify {
 pub struct ConfigureNotify {
     pub _event_code: u8,
     pub _unused: u8,
-    pub _sequence_number: u16,
+    pub sequence_number: u16,
     pub event: WindowId,
     pub window: WindowId,
     pub above_sibling: OrNone<WindowId>,
@@ -459,7 +459,7 @@ impl From<ConfigureRequestStackMode> for u32 {
 pub struct ConfigureRequest {
     _event_code: u8,
     pub stack_mode: ConfigureRequestStackMode,
-    _sequence_number: u16,
+    pub sequence_number: u16,
     pub parent: WindowId,
     pub window: WindowId,
     pub sibling: OrNone<WindowId>,
@@ -487,11 +487,11 @@ impl ConfigureRequest {
 pub struct GravityNotify {
     _event_code: u8,
     _unused: u8,
-    _sequence_number: u16,
+    pub sequence_number: u16,
     pub event: WindowId,
     pub window: WindowId,
-    x: i16,
-    y: i16,
+    pub x: i16,
+    pub y: i16,
     _pad: [u8; 16],
 }
 
@@ -506,7 +506,7 @@ impl GravityNotify {
 pub struct ResizeRequest {
     _event_code: u8,
     _unused: u8,
-    _sequence_number: u16,
+    pub sequence_number: u16,
     pub window: WindowId,
     pub width: u16,
     pub height: u16,
@@ -531,7 +531,7 @@ pub enum CirculateNotifyPlace {
 pub struct CirculateNotify {
     _event_code: u8,
     _unused1: u8,
-    _sequence_number: u16,
+    pub sequence_number: u16,
     pub event: WindowId,
     pub window: WindowId,
     _unused2: WindowId, // correct
@@ -554,7 +554,7 @@ impl CirculateNotify {
 pub struct CirculateRequest {
     _event_code: u8,
     _unused1: u8,
-    _sequence_number: u16,
+    pub sequence_number: u16,
     pub event: WindowId,
     pub window: WindowId,
     _unused2: u32,
@@ -584,7 +584,7 @@ pub enum PropertyNotifyState {
 pub struct PropertyNotify {
     _event_code: u8,
     _unused: u8,
-    _sequence_number: u16,
+    pub sequence_number: u16,
     pub window: WindowId,
     pub atom: AtomId,
     pub time: u32,
@@ -607,7 +607,7 @@ impl PropertyNotify {
 pub struct SelectionClear {
     _event_code: u8,
     _unused: u8,
-    _sequence_number: u16,
+    pub sequence_number: u16,
     pub time: u32,
     pub owner: WindowId,
     pub selection: AtomId,
@@ -625,7 +625,7 @@ impl SelectionClear {
 pub struct SelectionRequest {
     _event_code: u8,
     _unused: u8,
-    _sequence_number: u16,
+    pub sequence_number: u16,
     pub time: u32, // 0 for current
     pub owner: WindowId,
     pub requestor: WindowId,
@@ -646,7 +646,7 @@ impl SelectionRequest {
 pub struct SelectionNotify {
     _event_code: u8,
     _unused: u8,
-    _sequence_number: u16,
+    pub sequence_number: u16,
     pub time: u32, // 0 for current
     pub requestor: WindowId,
     pub selection: AtomId,
@@ -673,7 +673,7 @@ pub enum ColormapNotifyState {
 pub struct ColormapNotify {
     _event_code: u8,
     _unused: u8,
-    _sequence_number: u16,
+    pub sequence_number: u16,
     pub window: WindowId,
     pub colormap: OrNone<ColormapId>,
     pub new: bool,
@@ -696,7 +696,7 @@ impl ColormapNotify {
 pub struct ClientMessage {
     _event_code: u8,
     pub format: u8,
-    _sequence_number: u16,
+    pub sequence_number: u16,
     pub window: WindowId,
     pub type_message: AtomId, // 'type' is a keyword
     pub data: [u8; 20],
@@ -721,7 +721,7 @@ pub enum MappingNotifyRequest {
 pub struct MappingNotify {
     _event_code: u8,
     _unused: u8,
-    _sequence_number: u16,
+    pub sequence_number: u16,
     pub request: MappingNotifyRequest,
     pub first_keycode: u8,
     count: u8,
@@ -742,7 +742,7 @@ impl MappingNotify {
 #[repr(C)]
 pub struct UnknownEvent {
     _event_code: u8,
-    _sequence_number: u16,
+    pub sequence_number: u16,
     pub raw: [u8; 32],
 }
 
@@ -750,7 +750,7 @@ impl UnknownEvent {
     pub(crate) fn from_le_bytes(raw: [u8; 32]) -> Option<Self> {
         Some(Self {
             _event_code: raw[0],
-            _sequence_number: u16::from_le_bytes([raw[2], raw[3]]),
+            sequence_number: u16::from_le_bytes([raw[2], raw[3]]),
             raw,
         })
     }
@@ -861,55 +861,33 @@ impl SomeEvent {
     }
 }
 
-pub struct EventType {
-    value: u32,
-}
-
-// TODO: Macro for these
-impl EventType {
-    pub const KEY_PRESS: Self = Self { value: 0x00000001 };
-    pub const KEY_RELEASE: Self = Self { value: 0x00000002 };
-    pub const BUTTON_PRESS: Self = Self { value: 0x00000004 };
-    pub const BUTTON_RELEASE: Self = Self { value: 0x00000008 };
-    pub const ENTER_WINDOW: Self = Self { value: 0x00000010 };
-    pub const LEAVE_WINDOW: Self = Self { value: 0x00000020 };
-    pub const POINTER_MOTION: Self = Self { value: 0x00000040 };
-    pub const POINTER_MOTION_HINT: Self = Self { value: 0x00000080 };
-    pub const BUTTON1_MOTION: Self = Self { value: 0x00000100 };
-    pub const BUTTON2_MOTION: Self = Self { value: 0x00000200 };
-    pub const BUTTON3_MOTION: Self = Self { value: 0x00000400 };
-    pub const BUTTON4_MOTION: Self = Self { value: 0x00000800 };
-    pub const BUTTON5_MOTION: Self = Self { value: 0x00001000 };
-    pub const BUTTON_MOTION: Self = Self { value: 0x00002000 };
-    pub const KEYMAP_STATE: Self = Self { value: 0x00004000 };
-    pub const EXPOSURE: Self = Self { value: 0x00008000 };
-    pub const VISIBILITY_CHANGE: Self = Self { value: 0x00010000 };
-    pub const STRUCTURE_NOTIFY: Self = Self { value: 0x00020000 };
-    pub const RESIZE_REDIRECT: Self = Self { value: 0x00040000 };
-    pub const SUBSTRUCTURE_NOTIFY: Self = Self { value: 0x00080000 };
-    pub const SUBSTRUCTURE_REDIRECT: Self = Self { value: 0x00100000 };
-    pub const FOCUS_CHANGE: Self = Self { value: 0x00200000 };
-    pub const PROPERTY_CHANGE: Self = Self { value: 0x00400000 };
-    pub const COLORMAP_CHANGE: Self = Self { value: 0x00800000 };
-    pub const OWNER_GRAB_BUTTON: Self = Self { value: 0x01000000 };
-
-    fn contains(self, other: Self) -> bool {
-        (self.value & other.value) != 0
-    }
-}
-
-impl BitOr for EventType {
-    type Output = Self;
-
-    fn bitor(self, rhs: Self) -> Self::Output {
-        Self {
-            value: self.value | rhs.value,
-        }
-    }
-}
-
-impl From<EventType> for u32 {
-    fn from(val: EventType) -> Self {
-        val.value
+bitmask! {
+    #[repr(u32)]
+    bitmask EventType {
+        KEY_PRESS = 0x00000001,
+        KEY_RELEASE = 0x00000002,
+        BUTTON_PRESS = 0x00000004,
+        BUTTON_RELEASE = 0x00000008,
+        ENTER_WINDOW = 0x00000010,
+        LEAVE_WINDOW = 0x00000020,
+        POINTER_MOTION = 0x00000040,
+        POINTER_MOTION_HINT = 0x00000080,
+        BUTTON1_MOTION = 0x00000100,
+        BUTTON2_MOTION = 0x00000200,
+        BUTTON3_MOTION = 0x00000400,
+        BUTTON4_MOTION = 0x00000800,
+        BUTTON5_MOTION = 0x00001000,
+        BUTTON_MOTION = 0x00002000,
+        KEYMAP_STATE = 0x00004000,
+        EXPOSURE = 0x00008000,
+        VISIBILITY_CHANGE = 0x00010000,
+        STRUCTURE_NOTIFY = 0x00020000,
+        RESIZE_REDIRECT = 0x00040000,
+        SUBSTRUCTURE_NOTIFY = 0x00080000,
+        SUBSTRUCTURE_REDIRECT = 0x00100000,
+        FOCUS_CHANGE = 0x00200000,
+        PROPERTY_CHANGE = 0x00400000,
+        COLORMAP_CHANGE = 0x00800000,
+        OWNER_GRAB_BUTTON = 0x01000000,
     }
 }

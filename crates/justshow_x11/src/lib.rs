@@ -109,10 +109,14 @@ pub struct OrNone<T>(T);
 
 impl<T> OrNone<T>
 where
-    T: Into<u32> + Copy,
+    T: Into<u32> + From<u32> + Copy,
 {
     pub fn new(inner: T) -> Self {
         Self(inner)
+    }
+
+    pub fn none() -> Self {
+        Self(0.into())
     }
 
     pub fn value(self) -> Option<T> {

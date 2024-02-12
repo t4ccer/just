@@ -1,9 +1,9 @@
 use crate::{
     events::{self, ConfigureRequestStackMode, EventType},
     replies::{self, ReplyType},
-    utils::pad,
-    AtomId, ColormapId, CursorId, Drawable, FontId, GContextId, LeBytes, ListOfStr, PixmapId,
-    Point, Rectangle, VisualId, WindowClass, WindowId, WindowVisual,
+    utils::{bitmask, impl_enum, pad},
+    AtomId, ColormapId, CursorId, Drawable, FontId, GContextId, LeBytes, ListOfStr, OrNone,
+    PixmapId, Point, Rectangle, VisualId, WindowClass, WindowId, WindowVisual,
 };
 use std::{
     fmt,
@@ -13,53 +13,35 @@ use std::{
 
 pub(crate) mod opcodes;
 
-macro_rules! impl_enum_u8_fields {
-    ($name:ident, $($key:ident = $value:literal,)*) => {
-        #[repr(u8)]
-        #[derive(Debug, Clone, Copy)]
-        pub enum $name {
-            $($key = $value, )*
+#[derive(Debug, Clone, Copy)]
+pub enum Timestamp {
+    CurrentTime,
+    Timestamp(u32),
+}
+
+impl From<u32> for Timestamp {
+    fn from(value: u32) -> Self {
+        if value == 0 {
+            Self::CurrentTime
+        } else {
+            Self::Timestamp(value)
         }
     }
 }
 
-macro_rules! impl_enum_u8_from {
-    ($name:ident, $($key:ident = $value:literal,)*) => {
-        #[automatically_derived]
-        impl TryFrom<u8> for $name {
-            type Error = u8;
-
-            fn try_from(value: u8) -> Result<Self, Self::Error> {
-                match value {
-                    $($value => Ok(Self::$key), )*
-                    _ => Err(value),
-                }
-            }
+impl From<Timestamp> for u32 {
+    fn from(value: Timestamp) -> Self {
+        match value {
+            Timestamp::CurrentTime => 0,
+            Timestamp::Timestamp(t) => t,
         }
-
-        impl $name {
-            fn to_le_bytes(self) -> [u8; 1] {
-                (self as u8).to_le_bytes()
-            }
-        }
-    };
+    }
 }
-
-// TODO: Support comments on enum constructors
-macro_rules! impl_enum_u8 {
-    (enum $name:ident { $($rest:tt)* }) => {
-        impl_enum_u8_fields!($name, $($rest)*);
-        impl_enum_u8_from!($name, $($rest)*);
-    };
-}
-
-#[derive(Debug, Clone, Copy)]
-#[repr(transparent)]
-pub struct Timestamp(pub(crate) u32);
 
 impl Timestamp {
     fn to_le_bytes(self) -> [u8; 4] {
-        self.0.to_le_bytes()
+        let raw: u32 = self.into();
+        raw.to_le_bytes()
     }
 }
 
@@ -103,6 +85,7 @@ impl KeySym {
 
 macro_rules! impl_value {
     ($ty:ident as) => {
+        #[automatically_derived]
         impl crate::requests::Value for $ty {
             fn to_raw_value(self) -> u32 {
                 self as u32
@@ -111,6 +94,7 @@ macro_rules! impl_value {
     };
 
     ($ty:ident into) => {
+        #[automatically_derived]
         impl crate::requests::Value for $ty {
             fn to_raw_value(self) -> u32 {
                 self.into()
@@ -135,15 +119,6 @@ impl_value!(bool as);
 impl_value!(EventType into);
 impl_value!(KeyCode into);
 impl_value!(ConfigureRequestStackMode into);
-
-// impl<T> Value for T
-// where
-//     T: Into<u32>,
-// {
-//     fn to_raw_value(self) -> u32 {
-//         self.into()
-//     }
-// }
 
 macro_rules! impl_raw_field {
     ($ty:path, $setter:ident, $idx:expr) => {
@@ -201,9 +176,7 @@ pub struct NoReply;
 pub trait XRequest: LeBytes {
     type Reply;
 
-    fn reply_type() -> Option<ReplyType> {
-        None
-    }
+    fn reply_type() -> Option<ReplyType>;
 }
 
 macro_rules! impl_xrequest_with_response {
@@ -211,6 +184,7 @@ macro_rules! impl_xrequest_with_response {
         impl XRequest for $r {
             type Reply = replies::$r;
 
+            #[inline(always)]
             fn reply_type() -> Option<ReplyType> {
                 Some(ReplyType::$r)
             }
@@ -223,6 +197,7 @@ macro_rules! impl_xrequest_without_response {
         impl XRequest for $r {
             type Reply = NoReply;
 
+            #[inline(always)]
             fn reply_type() -> Option<ReplyType> {
                 None
             }
@@ -589,7 +564,8 @@ ChangeSaveSet
      4     WINDOW                          window
 */
 
-impl_enum_u8! {
+impl_enum! {
+    #[repr(u8)]
     enum ChangeSaveSetMode {
         Insert = 0,
         Delete = 1,
@@ -839,7 +815,8 @@ CirculateWindow
      4     WINDOW                          window
 */
 
-impl_enum_u8! {
+impl_enum! {
+    #[repr(u8)]
     enum CirculateWindowDirection {
         RaiseLowest = 0,
         LowerHighest = 1,
@@ -980,14 +957,6 @@ impl LeBytes for GetAtomName {
 
 impl_xrequest_with_response!(GetAtomName);
 
-impl_enum_u8! {
-    enum ChangePropertyMode {
-        Replace = 0,
-        Prepend = 1,
-        Append = 2,
-    }
-}
-
 /*
 ChangeProperty
      1     18                              opcode
@@ -1011,7 +980,17 @@ ChangeProperty
      p                                     unused, p=pad(n)
 */
 
-impl_enum_u8! {
+impl_enum! {
+    #[repr(u8)]
+    enum ChangePropertyMode {
+        Replace = 0,
+        Prepend = 1,
+        Append = 2,
+    }
+}
+
+impl_enum! {
+    #[repr(u8)]
     enum ChangePropertyFormat {
         Format8 = 8,
         Format16 = 16,
@@ -1100,7 +1079,7 @@ pub struct GetProperty {
     pub delete: bool,
     pub window: WindowId,
     pub property: AtomId,
-    pub type_: AtomId,
+    pub type_: AtomId, // TODO: Type
     pub long_offset: u32,
     pub long_length: u32,
 }
@@ -1162,9 +1141,9 @@ SetSelectionOwner
 
 #[derive(Debug, Clone, Copy)]
 pub struct SetSelectionOwner {
-    pub owner: WindowId,
+    pub owner: OrNone<WindowId>,
     pub selection: AtomId,
-    pub time: u32,
+    pub time: Timestamp,
 }
 
 impl LeBytes for SetSelectionOwner {
@@ -1172,7 +1151,7 @@ impl LeBytes for SetSelectionOwner {
         write_le_bytes!(w, opcodes::SET_SELECTION_OWNER);
         write_le_bytes!(w, 0u8); // unused
         write_le_bytes!(w, 4u16); // length
-        write_le_bytes!(w, self.owner);
+        write_le_bytes!(w, self.owner.0);
         write_le_bytes!(w, self.selection);
         write_le_bytes!(w, self.time);
 
@@ -1227,8 +1206,8 @@ pub struct ConvertSelection {
     pub requestor: WindowId,
     pub selection: AtomId,
     pub target: AtomId,
-    pub property: AtomId,
-    pub time: u32,
+    pub property: OrNone<AtomId>,
+    pub time: Timestamp,
 }
 
 impl LeBytes for ConvertSelection {
@@ -1239,7 +1218,7 @@ impl LeBytes for ConvertSelection {
         write_le_bytes!(w, self.requestor);
         write_le_bytes!(w, self.selection);
         write_le_bytes!(w, self.target);
-        write_le_bytes!(w, self.property);
+        write_le_bytes!(w, self.property.0);
         write_le_bytes!(w, self.time);
 
         Ok(())
@@ -1264,9 +1243,9 @@ SendEvent
 #[derive(Debug, Clone, Copy)]
 pub struct SendEvent {
     pub propagate: bool,
-    pub destination: WindowId,
-    pub event_mask: u32,
-    pub event: [u8; 32], // TODO: type
+    pub destination: WindowId, // TODO: Type
+    pub event_mask: u32,       // TODO: Type
+    pub event: [u8; 32],       // TODO: type
 }
 
 impl LeBytes for SendEvent {
@@ -1310,11 +1289,11 @@ pub struct GrabPointer {
     pub owner_events: bool,
     pub grab_window: WindowId,
     pub event_mask: u16, // TODO: Type
-    pub pointer_mode: u8,
-    pub keyboard_mode: u8,
-    pub confine_to: WindowId,
-    pub cursor: u32,
-    pub time: u32,
+    pub pointer_mode: SyncAsync,
+    pub keyboard_mode: SyncAsync,
+    pub confine_to: OrNone<WindowId>,
+    pub cursor: OrNone<CursorId>,
+    pub time: Timestamp,
 }
 
 impl LeBytes for GrabPointer {
@@ -1326,8 +1305,8 @@ impl LeBytes for GrabPointer {
         write_le_bytes!(w, self.event_mask);
         write_le_bytes!(w, self.pointer_mode);
         write_le_bytes!(w, self.keyboard_mode);
-        write_le_bytes!(w, self.confine_to);
-        write_le_bytes!(w, self.cursor);
+        write_le_bytes!(w, self.confine_to.0);
+        write_le_bytes!(w, self.cursor.0);
         write_le_bytes!(w, self.time);
 
         Ok(())
@@ -1347,7 +1326,7 @@ UngrabPointer
 
 #[derive(Debug, Clone, Copy)]
 pub struct UngrabPointer {
-    pub time: u32, // TODO: type
+    pub time: Timestamp,
 }
 
 impl LeBytes for UngrabPointer {
@@ -1391,13 +1370,13 @@ GrabButton
 pub struct GrabButton {
     pub owner_events: bool,
     pub grab_window: WindowId,
-    pub event_mask: u16,   // TODO: type
-    pub pointer_mode: u8,  // TODO: type
-    pub keyboard_mode: u8, // TODO: type
-    pub confine_to: WindowId,
-    pub cursor: u32,
-    pub button: u8,
-    pub modifiers: u16,
+    pub event_mask: u16, // TODO: type
+    pub pointer_mode: SyncAsync,
+    pub keyboard_mode: SyncAsync,
+    pub confine_to: OrNone<WindowId>,
+    pub cursor: OrNone<CursorId>,
+    pub button: u8,     // TODO: Type
+    pub modifiers: u16, // TODO: Type
 }
 
 impl LeBytes for GrabButton {
@@ -1409,8 +1388,8 @@ impl LeBytes for GrabButton {
         write_le_bytes!(w, self.event_mask);
         write_le_bytes!(w, self.pointer_mode);
         write_le_bytes!(w, self.keyboard_mode);
-        write_le_bytes!(w, self.confine_to);
-        write_le_bytes!(w, self.cursor);
+        write_le_bytes!(w, self.confine_to.0);
+        write_le_bytes!(w, self.cursor.0);
         write_le_bytes!(w, self.button);
         write_le_bytes!(w, 0u8); // unused
         write_le_bytes!(w, self.modifiers);
@@ -1435,9 +1414,9 @@ UngrabButton
 
 #[derive(Debug, Clone, Copy)]
 pub struct UngrabButton {
-    pub button: u8,
+    pub button: u8, // TODO: Type
     pub grab_window: WindowId,
-    pub modifiers: u16,
+    pub modifiers: u16, // TODO: Type
 }
 
 impl LeBytes for UngrabButton {
@@ -1470,9 +1449,9 @@ ChangeActivePointerGrab
 
 #[derive(Debug, Clone, Copy)]
 pub struct ChangeActivePointerGrab {
-    pub cursor: u32,
-    pub time: u32,
-    pub event_mask: u16,
+    pub cursor: OrNone<CursorId>,
+    pub time: Timestamp,
+    pub event_mask: u16, // TODO: TYpe
 }
 
 impl LeBytes for ChangeActivePointerGrab {
@@ -1480,7 +1459,7 @@ impl LeBytes for ChangeActivePointerGrab {
         write_le_bytes!(w, opcodes::CHANGE_ACTIVE_POINTER_GRAB);
         write_le_bytes!(w, 0u8); // unused
         write_le_bytes!(w, 4u16); // length
-        write_le_bytes!(w, self.cursor);
+        write_le_bytes!(w, self.cursor.0);
         write_le_bytes!(w, self.time);
         write_le_bytes!(w, self.event_mask);
         write_le_bytes!(w, 0u16); // unused
@@ -1512,9 +1491,9 @@ GrabKeyboard
 pub struct GrabKeyboard {
     pub owner_events: bool,
     pub grab_window: WindowId,
-    pub time: u32,
-    pub pointer_mode: u8,
-    pub keyboard_mode: u8,
+    pub time: Timestamp,
+    pub pointer_mode: SyncAsync,
+    pub keyboard_mode: SyncAsync,
 }
 
 impl LeBytes for GrabKeyboard {
@@ -1580,14 +1559,23 @@ GrabKey
      3                                     unused
 */
 
+// TODO: Name
+impl_enum! {
+    #[repr(u8)]
+    enum SyncAsync {
+        Synchronous = 0,
+        Asynchronous = 1,
+    }
+}
+
 #[derive(Debug, Clone, Copy)]
 pub struct GrabKey {
     pub owner_events: bool,
     pub grab_window: WindowId,
-    pub modifiers: u16,
-    pub key: u8,
-    pub pointer_mode: u8,
-    pub keyboard_mode: u8,
+    pub modifiers: u16, // TODO: Type
+    pub key: u8,        // TODO: Type
+    pub pointer_mode: SyncAsync,
+    pub keyboard_mode: SyncAsync,
 }
 
 impl LeBytes for GrabKey {
@@ -1622,9 +1610,9 @@ UngrabKey
 
 #[derive(Debug, Clone, Copy)]
 pub struct UngrabKey {
-    pub key: u8,
+    pub key: u8, // TODO: Type
     pub grab_window: WindowId,
-    pub modifiers: u16,
+    pub modifiers: u16, // TODO: Tyep
 }
 
 impl LeBytes for UngrabKey {
@@ -1642,19 +1630,6 @@ impl LeBytes for UngrabKey {
 
 impl_xrequest_without_response!(UngrabKey);
 
-impl_enum_u8! {
-    enum AllowEventsMode {
-        AsyncPointer = 0,
-        SyncPointer = 1,
-        ReplayPointer = 2,
-        AsyncKeyboard = 3,
-        SyncKeyboard = 4,
-        ReplayKeyboard = 5,
-        AsyncBoth = 6,
-        SyncBoth = 7,
-    }
-}
-
 /*
 AllowEvents
      1     35                              opcode
@@ -1671,6 +1646,20 @@ AllowEvents
      4     TIMESTAMP                       time
           0     CurrentTime
 */
+
+impl_enum! {
+    #[repr(u8)]
+    enum AllowEventsMode {
+        AsyncPointer = 0,
+        SyncPointer = 1,
+        ReplayPointer = 2,
+        AsyncKeyboard = 3,
+        SyncKeyboard = 4,
+        ReplayKeyboard = 5,
+        AsyncBoth = 6,
+        SyncBoth = 7,
+    }
+}
 
 #[derive(Debug, Clone, Copy)]
 pub struct AllowEvents {
@@ -1849,8 +1838,8 @@ WarpPointer
 
 #[derive(Debug, Clone, Copy)]
 pub struct WarpPointer {
-    pub src_window: WindowId,
-    pub dst_window: WindowId,
+    pub src_window: OrNone<WindowId>,
+    pub dst_window: OrNone<WindowId>,
     pub src_x: i16,
     pub src_y: i16,
     pub src_width: u16,
@@ -1864,8 +1853,8 @@ impl LeBytes for WarpPointer {
         write_le_bytes!(w, opcodes::WARP_POINTER);
         write_le_bytes!(w, 0u8); // unused
         write_le_bytes!(w, 6u16); // length
-        write_le_bytes!(w, self.src_window);
-        write_le_bytes!(w, self.dst_window);
+        write_le_bytes!(w, self.src_window.0);
+        write_le_bytes!(w, self.dst_window.0);
         write_le_bytes!(w, self.src_x);
         write_le_bytes!(w, self.src_y);
         write_le_bytes!(w, self.src_width);
@@ -1894,10 +1883,19 @@ SetInputFocus
           0     CurrentTime
 */
 
+impl_enum! {
+    #[repr(u8)]
+    enum RevertTo {
+        None = 0,
+        PointerRoot = 1,
+        Parent = 2,
+    }
+}
+
 #[derive(Debug, Clone, Copy)]
 pub struct SetInputFocus {
-    pub revert_to: u8,
-    pub focus: WindowId,
+    pub revert_to: RevertTo,
+    pub focus: WindowId, // TODO: type
     pub time: Timestamp,
 }
 
@@ -2563,7 +2561,8 @@ SetClipRectangles
      8n     LISTofRECTANGLE                rectangles
 */
 
-impl_enum_u8! {
+impl_enum! {
+    #[repr(u8)]
     enum Ordering {
         UnSorted = 0,
         YSorted = 1,
@@ -2782,7 +2781,8 @@ PolyPoint
      4n     LISTofPOINT                    points
 */
 
-impl_enum_u8! {
+impl_enum! {
+    #[repr(u8)]
     enum CoordinateMode {
         Origin = 0,
         Previous = 1,
@@ -3035,7 +3035,8 @@ FillPoly
      4n     LISTofPOINT                    points
 */
 
-impl_enum_u8! {
+impl_enum! {
+    #[repr(u8)]
     enum FillPolyShape {
         Complex = 0,
         Nonconvex = 1,
@@ -3172,7 +3173,8 @@ PutImage
      p                                     unused, p=pad(n)
 */
 
-impl_enum_u8! {
+impl_enum! {
+    #[repr(u8)]
     enum PutImageFormat {
         Bitmap = 0,
         XYPixmap = 1,
@@ -3262,6 +3264,10 @@ impl<'data> LeBytes for PutImage<'data> {
 
 impl<'data> XRequest for PutImage<'data> {
     type Reply = NoReply;
+
+    fn reply_type() -> Option<ReplyType> {
+        None
+    }
 }
 
 /*
@@ -3279,7 +3285,8 @@ GetImage
      4     CARD32                          plane-mask
 */
 
-impl_enum_u8! {
+impl_enum! {
+    #[repr(u8)]
     enum GetImageImageFormat {
         XYPixmap = 1,
         ZPixmap = 2,
@@ -3598,7 +3605,8 @@ CreateColormap
      4     VISUALID                        visual
 */
 
-impl_enum_u8! {
+impl_enum! {
+    #[repr(u8)]
     enum CreateColormapAlloc {
         None = 0,
         All = 1,
@@ -4171,7 +4179,7 @@ CreateCursor
 pub struct CreateCursor {
     pub cid: CursorId,
     pub source: PixmapId,
-    pub mask: PixmapId,
+    pub mask: OrNone<PixmapId>,
     pub fore_red: u16,
     pub fore_green: u16,
     pub fore_blue: u16,
@@ -4189,7 +4197,7 @@ impl LeBytes for CreateCursor {
         write_le_bytes!(w, 8u16); // request length
         write_le_bytes!(w, self.cid);
         write_le_bytes!(w, self.source);
-        write_le_bytes!(w, self.mask);
+        write_le_bytes!(w, self.mask.0);
         write_le_bytes!(w, 0u32); // None
         write_le_bytes!(w, self.fore_red);
         write_le_bytes!(w, self.fore_green);
@@ -4229,7 +4237,7 @@ CreateGlyphCursor
 pub struct CreateGlyphCursor {
     pub cid: CursorId,
     pub source_font: FontId,
-    pub mask_font: FontId,
+    pub mask_font: OrNone<FontId>,
     pub source_char: u16,
     pub mask_char: u16,
     pub fore_red: u16,
@@ -4247,7 +4255,7 @@ impl LeBytes for CreateGlyphCursor {
         write_le_bytes!(w, 8u16); // request length
         write_le_bytes!(w, self.cid);
         write_le_bytes!(w, self.source_font);
-        write_le_bytes!(w, self.mask_font);
+        write_le_bytes!(w, self.mask_font.0);
         write_le_bytes!(w, 0u32); // None
         write_le_bytes!(w, self.source_char);
         write_le_bytes!(w, self.mask_char);
@@ -4334,14 +4342,6 @@ impl LeBytes for RecolorCursor {
 
 impl_xrequest_without_response!(RecolorCursor);
 
-impl_enum_u8! {
-    enum QueryBestSizeClass {
-        Cursor = 0,
-        Tile = 1,
-        Stipple = 2,
-    }
-}
-
 /*
 QueryBestSize
      1     97                              opcode
@@ -4354,6 +4354,15 @@ QueryBestSize
      2     CARD16                          width
      2     CARD16                          height
 */
+
+impl_enum! {
+    #[repr(u8)]
+    enum QueryBestSizeClass {
+        Cursor = 0,
+        Tile = 1,
+        Stipple = 2,
+    }
+}
 
 #[derive(Debug, Clone)]
 pub struct QueryBestSize {
@@ -4707,12 +4716,21 @@ SetScreenSaver
      2                                     unused
 */
 
+impl_enum! {
+    #[repr(u8)]
+    enum NoYesDefault {
+        No = 0,
+        Yes = 1,
+        Default = 2,
+    }
+}
+
 #[derive(Debug, Clone)]
 pub struct SetScreenSaver {
     pub timeout: i16,
     pub interval: i16,
-    pub prefer_blanking: u8,
-    pub allow_exposures: u8,
+    pub prefer_blanking: NoYesDefault,
+    pub allow_exposures: NoYesDefault,
 }
 
 impl LeBytes for SetScreenSaver {
@@ -4771,10 +4789,27 @@ ChangeHosts
      p                                     unused, p=pad(n)
 */
 
+impl_enum! {
+    #[repr(u8)]
+    enum ChangeHostsMode {
+        Insert = 0,
+        Delete = 1,
+    }
+}
+
+impl_enum! {
+    #[repr(u8)]
+    enum ChangeHostsFamily {
+        Internet = 0,
+        DECnet = 1,
+        Chaos = 2,
+    }
+}
+
 #[derive(Debug, Clone)]
 pub struct ChangeHosts {
-    pub mode: u8,
-    pub family: u8,
+    pub mode: ChangeHostsMode,
+    pub family: ChangeHostsFamily,
     pub address: Vec<u8>,
 }
 
@@ -4830,9 +4865,17 @@ SetAccessControl
      2     1                               request length
 */
 
+impl_enum! {
+    #[repr(u8)]
+    enum SetAccessControlMode {
+        Disable = 0,
+        Enable = 1,
+    }
+}
+
 #[derive(Debug, Clone)]
 pub struct SetAccessControl {
-    pub mode: u8,
+    pub mode: SetAccessControlMode,
 }
 
 impl LeBytes for SetAccessControl {
@@ -4857,9 +4900,18 @@ SetCloseDownMode
      2     1                               request length
 */
 
+impl_enum! {
+    #[repr(u8)]
+    enum SetCloseDownModeMode {
+        Destroy = 0,
+        RetainPermanent = 1,
+        RetainTemporary = 2,
+    }
+}
+
 #[derive(Debug, Clone)]
 pub struct SetCloseDownMode {
-    pub mode: u8,
+    pub mode: SetCloseDownModeMode,
 }
 
 impl LeBytes for SetCloseDownMode {
@@ -4950,9 +5002,17 @@ ForceScreenSaver
      2     1                               request length
 */
 
+impl_enum! {
+    #[repr(u8)]
+    enum ForceScreenSaverMode {
+        Reset = 0,
+        Activate = 1,
+    }
+}
+
 #[derive(Debug, Clone)]
 pub struct ForceScreenSaver {
-    pub mode: u8,
+    pub mode: ForceScreenSaverMode,
 }
 
 impl LeBytes for ForceScreenSaver {
@@ -5108,3 +5168,18 @@ impl LeBytes for NoOperation {
 }
 
 impl_xrequest_without_response!(NoOperation);
+
+bitmask! {
+    #[repr(u32)]
+    bitmask ModMask {
+        MOD_SHIFT = 0x0001,
+        MOD_LOCK = 0x0002,
+        MOD_CONTROL = 0x0004,
+        MOD_1 = 0x0008,
+        MOD_2 = 0x0010,
+        MOD_3 = 0x0020,
+        MOD_4 = 0x0040,
+        MOD_5 = 0x0080,
+        MOD_ANY = 0x8000,
+    }
+}
