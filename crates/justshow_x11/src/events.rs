@@ -1,4 +1,4 @@
-use crate::{utils::bitmask, AtomId, ColormapId, OrNone, ResourceId, WindowId};
+use crate::{atoms::AtomId, utils::bitmask, ColormapId, OrNone, ResourceId, WindowId};
 use std::mem;
 
 fn invalid_bool(value: u8) -> bool {

@@ -1,10 +1,11 @@
 use crate::{
+    atoms::AtomId,
     connection::XConnection,
     error::Error,
     requests::Timestamp,
     requests::{opcodes, KeyCode},
     utils::pad,
-    AtomId, ColormapId, ListOfStr, OrNone, ResourceId, VisualId, WindowId,
+    ColormapId, ListOfStr, OrNone, ResourceId, VisualId, WindowId,
 };
 
 pub trait XReply: Sized {

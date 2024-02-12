@@ -121,3 +121,38 @@ macro_rules! impl_enum {
 }
 
 pub(crate) use impl_enum;
+
+macro_rules! impl_resource_id {
+    ($name:ident) => {
+        #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+        #[repr(transparent)]
+        pub struct $name(crate::ResourceId);
+
+        impl $name {
+            pub fn id(self) -> crate::ResourceId {
+                self.0
+            }
+
+            pub fn to_le_bytes(self) -> [u8; 4] {
+                let raw: u32 = self.into();
+                raw.to_le_bytes()
+            }
+        }
+
+        impl From<$name> for u32 {
+            fn from(value: $name) -> u32 {
+                value.0.value()
+            }
+        }
+
+        impl From<u32> for $name {
+            fn from(value: u32) -> Self {
+                Self(crate::ResourceId { value })
+            }
+        }
+
+        crate::requests::impl_value!($name into);
+    };
+}
+
+pub(crate) use impl_resource_id;

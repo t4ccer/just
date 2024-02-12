@@ -21,6 +21,7 @@ use std::{
     mem,
 };
 
+pub mod atoms;
 pub mod connection;
 pub mod error;
 pub mod events;
@@ -50,43 +51,9 @@ impl ResourceId {
     }
 }
 
-macro_rules! impl_resource_id {
-    ($name:ident) => {
-        #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-        #[repr(transparent)]
-        pub struct $name(ResourceId);
-
-        impl $name {
-            pub fn id(self) -> ResourceId {
-                self.0
-            }
-
-            pub fn to_le_bytes(self) -> [u8; 4] {
-                let raw: u32 = self.into();
-                raw.to_le_bytes()
-            }
-        }
-
-        impl From<$name> for u32 {
-            fn from(value: $name) -> u32 {
-                value.0.value()
-            }
-        }
-
-        impl From<u32> for $name {
-            fn from(value: u32) -> Self {
-                Self(ResourceId { value })
-            }
-        }
-
-        crate::requests::impl_value!($name into);
-    };
-}
-
 impl_resource_id!(PixmapId);
 impl_resource_id!(VisualId);
 impl_resource_id!(FontId);
-impl_resource_id!(AtomId);
 impl_resource_id!(ColormapId);
 impl_resource_id!(CursorId);
 impl_resource_id!(WindowId);

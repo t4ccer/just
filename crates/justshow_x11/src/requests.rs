@@ -1,9 +1,10 @@
 use crate::{
+    atoms::AtomId,
     events::{self, ConfigureRequestStackMode, EventType},
     replies::{self, ReplyType},
     utils::{bitmask, impl_enum, pad},
-    AtomId, ColormapId, CursorId, Drawable, FontId, GContextId, LeBytes, ListOfStr, OrNone,
-    PixmapId, Point, Rectangle, VisualId, WindowClass, WindowId, WindowVisual,
+    ColormapId, CursorId, Drawable, FontId, GContextId, LeBytes, ListOfStr, OrNone, PixmapId,
+    Point, Rectangle, VisualId, WindowClass, WindowId, WindowVisual,
 };
 use std::{
     fmt,

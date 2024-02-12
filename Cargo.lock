@@ -19,5 +19,4 @@ name = "justwindows"
 version = "0.1.0"
 dependencies = [
  "justshow_x11",
- "justshow_x11_simple",
 ]
