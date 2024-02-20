@@ -648,8 +648,7 @@ impl XDisplay {
         Ok(new_window_id)
     }
 
-    // TODO: remove pub
-    pub fn send_request_impl<Request: LeBytes>(
+    fn send_request_impl<Request: LeBytes>(
         &mut self,
         request: &Request,
     ) -> Result<SequenceNumber, Error> {
@@ -913,6 +912,16 @@ impl XDisplay {
             ReplyType::GetPointerMapping => handle_reply!(GetPointerMapping),
             ReplyType::SetModifierMapping => handle_reply!(SetModifierMapping),
             ReplyType::GetModifierMapping => handle_reply!(GetModifierMapping),
+            ReplyType::ExtensionRandr(randr_reply) => match randr_reply {
+                extensions::randr::replies::ReplyType::GetMonitors => {
+                    let reply = crate::extensions::randr::replies::GetMonitors::from_le_bytes(
+                        &mut self.connection,
+                    )?;
+                    Ok(SomeReply::ExtensionRandr(
+                        crate::extensions::randr::replies::SomeReply::GetMonitors(reply),
+                    ))
+                }
+            },
         }
     }
 

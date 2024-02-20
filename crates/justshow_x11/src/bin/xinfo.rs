@@ -1,4 +1,4 @@
-use justshow_x11::{error::Error, replies, requests, XDisplay};
+use justshow_x11::{error::Error, extensions::randr, replies, requests, XDisplay};
 use std::process::ExitCode;
 
 macro_rules! request_blocking {
@@ -88,9 +88,45 @@ fn lsextensions(display: &mut XDisplay) -> Result<(), Error> {
     Ok(())
 }
 
+fn lsmonitors(display: &mut XDisplay) -> Result<(), Error> {
+    let r = randr::requests::GetMonitors {
+        window: display.screens()[0].root,
+        get_active: false,
+    };
+    let _ = display.send_request(&r)?;
+    let pending = display.send_request(&r)?;
+    display.flush()?;
+
+    let reply = display.await_pending_reply(pending)?;
+
+    for monitor in &reply.monitors {
+        // dbg!(monitor);
+
+        let p = display.send_request(&requests::GetAtomName { atom: monitor.name })?;
+        display.flush()?;
+        let r = display.await_pending_reply(p)?;
+        eprintln!(
+            "{} {}x{}+{}+{} (...) {}mmx{}mm",
+            r.name.to_string(),
+            monitor.width_in_pixels,
+            monitor.height_in_pixels,
+            monitor.x,
+            monitor.y,
+            monitor.width_in_millimeters,
+            monitor.height_in_millimeters,
+        );
+    }
+
+    for e in display.errors() {
+        dbg!(e);
+    }
+    Ok(())
+}
+
 enum Mode {
     LsFonts,
     LsExtensions,
+    LsMonitors,
 }
 
 fn go(mode: Mode) -> Result<(), Error> {
@@ -99,6 +135,7 @@ fn go(mode: Mode) -> Result<(), Error> {
     match mode {
         Mode::LsFonts => lsfonts(&mut display),
         Mode::LsExtensions => lsextensions(&mut display),
+        Mode::LsMonitors => lsmonitors(&mut display),
     }
 }
 
@@ -108,6 +145,7 @@ fn main() -> ExitCode {
     let mode = match &args.as_slice() {
         ["ls", "fonts"] => Mode::LsFonts,
         ["ls", "extensions"] => Mode::LsExtensions,
+        ["ls", "monitors"] => Mode::LsMonitors,
         _ => {
             eprintln!("xinfo: error: Invalid arguments: '{:?}'", args);
             return ExitCode::FAILURE;

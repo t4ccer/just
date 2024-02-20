@@ -1,7 +1,7 @@
 use crate::{
     atoms::AtomId,
     events::{self, EventType, StackMode},
-    replies::{self, ReplyType},
+    replies::ReplyType,
     utils::{bitmask, impl_enum, pad},
     ColormapId, CursorId, Drawable, FontId, GContextId, LeBytes, ListOfStr, OrNone, PixmapId,
     Point, Rectangle, VisualId, WindowClass, WindowId, WindowVisual,
@@ -184,12 +184,12 @@ pub trait XRequest: LeBytes {
 
 macro_rules! impl_xrequest_with_response {
     ($r:tt) => {
-        impl XRequest for $r {
-            type Reply = replies::$r;
+        impl crate::requests::XRequest for $r {
+            type Reply = crate::replies::$r;
 
             #[inline(always)]
-            fn reply_type() -> Option<ReplyType> {
-                Some(ReplyType::$r)
+            fn reply_type() -> Option<crate::replies::ReplyType> {
+                Some(crate::replies::ReplyType::$r)
             }
         }
     };
@@ -197,11 +197,11 @@ macro_rules! impl_xrequest_with_response {
 
 macro_rules! impl_xrequest_without_response {
     ($r:tt) => {
-        impl XRequest for $r {
-            type Reply = NoReply;
+        impl crate::requests::XRequest for $r {
+            type Reply = crate::requests::NoReply;
 
             #[inline(always)]
-            fn reply_type() -> Option<ReplyType> {
+            fn reply_type() -> Option<crate::replies::ReplyType> {
                 None
             }
         }

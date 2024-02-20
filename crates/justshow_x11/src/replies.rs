@@ -1,35 +1,24 @@
 use std::fmt::Display;
 
 use crate::{
-    atoms::AtomId,
-    connection::XConnection,
-    error::Error,
-    requests::Timestamp,
-    requests::{opcodes, KeyCode},
-    utils::pad,
-    ColormapId, ListOfStr, OrNone, ResourceId, VisualId, WindowId,
+    atoms::AtomId, connection::XConnection, error::Error, requests::KeyCode, requests::Timestamp,
+    utils::pad, ColormapId, ListOfStr, OrNone, ResourceId, VisualId, WindowId,
 };
 
 pub trait XReply: Sized {
     fn from_reply(reply: SomeReply) -> Option<Self>;
 }
 
-macro_rules! impl_xreply_go {
-    ($inner:ty, $wrapper:path) => {
-        impl XReply for $inner {
+macro_rules! impl_xreply {
+    ($t:tt) => {
+        impl XReply for $t {
             fn from_reply(reply: SomeReply) -> Option<Self> {
                 match reply {
-                    $wrapper(r) => Some(r),
+                    SomeReply::$t(r) => Some(r),
                     _ => None,
                 }
             }
         }
-    };
-}
-
-macro_rules! impl_xreply {
-    ($t:tt) => {
-        impl_xreply_go!($t, SomeReply::$t);
     };
 }
 
@@ -2233,51 +2222,52 @@ pub enum SomeReply {
     GetPointerMapping(GetPointerMapping),
     SetModifierMapping(SetModifierMapping),
     GetModifierMapping(GetModifierMapping),
+    ExtensionRandr(crate::extensions::randr::replies::SomeReply),
 }
 
 #[derive(Debug, Clone, Copy)]
-#[repr(u8)]
 pub enum ReplyType {
-    GetWindowAttributes = opcodes::GET_WINDOW_ATTRIBUTES,
-    GetGeometry = opcodes::GET_GEOMETRY,
-    QueryTree = opcodes::QUERY_TREE,
-    InternAtom = opcodes::INTERN_ATOM,
-    GetAtomName = opcodes::GET_ATOM_NAME,
-    GetProperty = opcodes::GET_PROPERTY,
-    ListProperties = opcodes::LIST_PROPERTIES,
-    GetSelectionOwner = opcodes::GET_SELECTION_OWNER,
-    GrabPointer = opcodes::GRAB_POINTER,
-    GrabKeyboard = opcodes::GRAB_KEYBOARD,
-    QueryPointer = opcodes::QUERY_POINTER,
-    GetMotionEvents = opcodes::GET_MOTION_EVENTS,
-    TranslateCoordinates = opcodes::TRANSLATE_COORDINATES,
-    GetInputFocus = opcodes::GET_INPUT_FOCUS,
-    QueryKeymap = opcodes::QUERY_KEYMAP,
-    QueryFont = opcodes::QUERY_FONT,
-    QueryTextExtents = opcodes::QUERY_TEXT_EXTENTS,
-    ListFonts = opcodes::LIST_FONTS,
-    ListFontsWithInfo = opcodes::LIST_FONTS_WITH_INFO,
-    GetFontPath = opcodes::GET_FONT_PATH,
-    GetImage = opcodes::GET_IMAGE,
-    ListInstalledColormaps = opcodes::LIST_INSTALLED_COLORMAPS,
-    AllocColor = opcodes::ALLOC_COLOR,
-    AllocNamedColor = opcodes::ALLOC_NAMED_COLOR,
-    AllocColorCells = opcodes::ALLOC_COLOR_CELLS,
-    AllocColorPlanes = opcodes::ALLOC_COLOR_PLANES,
-    QueryColors = opcodes::QUERY_COLORS,
-    LookupColor = opcodes::LOOKUP_COLOR,
-    QueryBestSize = opcodes::QUERY_BEST_SIZE,
-    QueryExtension = opcodes::QUERY_EXTENSION,
-    ListExtensions = opcodes::LIST_EXTENSIONS,
-    GetKeyboardMapping = opcodes::GET_KEYBOARD_MAPPING,
-    GetKeyboardControl = opcodes::GET_KEYBOARD_CONTROL,
-    GetPointerControl = opcodes::GET_POINTER_CONTROL,
-    GetScreenSaver = opcodes::GET_SCREEN_SAVER,
-    ListHosts = opcodes::LIST_HOSTS,
-    SetPointerMapping = opcodes::SET_POINTER_MAPPING,
-    GetPointerMapping = opcodes::GET_POINTER_MAPPING,
-    SetModifierMapping = opcodes::SET_MODIFIER_MAPPING,
-    GetModifierMapping = opcodes::GET_MODIFIER_MAPPING,
+    GetWindowAttributes,
+    GetGeometry,
+    QueryTree,
+    InternAtom,
+    GetAtomName,
+    GetProperty,
+    ListProperties,
+    GetSelectionOwner,
+    GrabPointer,
+    GrabKeyboard,
+    QueryPointer,
+    GetMotionEvents,
+    TranslateCoordinates,
+    GetInputFocus,
+    QueryKeymap,
+    QueryFont,
+    QueryTextExtents,
+    ListFonts,
+    ListFontsWithInfo,
+    GetFontPath,
+    GetImage,
+    ListInstalledColormaps,
+    AllocColor,
+    AllocNamedColor,
+    AllocColorCells,
+    AllocColorPlanes,
+    QueryColors,
+    LookupColor,
+    QueryBestSize,
+    QueryExtension,
+    ListExtensions,
+    GetKeyboardMapping,
+    GetKeyboardControl,
+    GetPointerControl,
+    GetScreenSaver,
+    ListHosts,
+    SetPointerMapping,
+    GetPointerMapping,
+    SetModifierMapping,
+    GetModifierMapping,
+    ExtensionRandr(crate::extensions::randr::replies::ReplyType),
 }
 
 #[derive(Debug, Clone)]
