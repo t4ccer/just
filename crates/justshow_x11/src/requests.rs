@@ -176,15 +176,19 @@ macro_rules! impl_raw_fields {
 #[derive(Debug, Clone, Copy)]
 pub struct NoReply;
 
-pub trait XRequest: LeBytes {
+pub trait XRequestBase: LeBytes {
     type Reply;
 
     fn reply_type() -> Option<ReplyType>;
 }
 
+pub trait XRequest: XRequestBase {}
+
+pub trait XExtensionRequest: XRequestBase {}
+
 macro_rules! impl_xrequest_with_response {
     ($r:tt) => {
-        impl crate::requests::XRequest for $r {
+        impl crate::requests::XRequestBase for $r {
             type Reply = crate::replies::$r;
 
             #[inline(always)]
@@ -192,12 +196,14 @@ macro_rules! impl_xrequest_with_response {
                 Some(crate::replies::ReplyType::$r)
             }
         }
+
+        impl crate::requests::XRequest for $r {}
     };
 }
 
 macro_rules! impl_xrequest_without_response {
     ($r:tt) => {
-        impl crate::requests::XRequest for $r {
+        impl crate::requests::XRequestBase for $r {
             type Reply = crate::requests::NoReply;
 
             #[inline(always)]
@@ -205,6 +211,8 @@ macro_rules! impl_xrequest_without_response {
                 None
             }
         }
+
+        impl crate::requests::XRequest for $r {}
     };
 }
 
@@ -3257,13 +3265,15 @@ impl<'data> LeBytes for PutImage<'data> {
     }
 }
 
-impl<'data> XRequest for PutImage<'data> {
+impl<'data> XRequestBase for PutImage<'data> {
     type Reply = NoReply;
 
     fn reply_type() -> Option<ReplyType> {
         None
     }
 }
+
+impl<'data> XRequest for PutImage<'data> {}
 
 /*
 GetImage

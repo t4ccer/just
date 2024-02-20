@@ -181,6 +181,12 @@ macro_rules! impl_resource_id {
             }
         }
 
+        impl From<crate::ResourceId> for $name {
+            fn from(value: crate::ResourceId) -> Self {
+                Self(value)
+            }
+        }
+
         crate::requests::impl_value!($name into);
     };
 }

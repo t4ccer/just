@@ -1,11 +1,11 @@
 use crate::{
-    requests::{write_le_bytes, XRequest},
+    requests::{write_le_bytes, XExtensionRequest, XRequestBase},
     LeBytes, WindowId,
 };
 
 macro_rules! impl_xrequest_with_response {
     ($r:tt) => {
-        impl XRequest for $r {
+        impl XRequestBase for $r {
             type Reply = super::replies::$r;
 
             #[inline(always)]
@@ -15,6 +15,8 @@ macro_rules! impl_xrequest_with_response {
                 ))
             }
         }
+
+        impl XExtensionRequest for $r {}
     };
 }
 
@@ -26,11 +28,11 @@ pub struct GetMonitors {
 
 impl LeBytes for GetMonitors {
     fn to_le_bytes(&self, w: &mut impl std::io::Write) -> std::io::Result<()> {
-        write_le_bytes!(w, 140u8); // major opcode // FIXME: don't hardcode, query it from server
         write_le_bytes!(w, 42u8); // minor opcode
 
         // The spec says 2 not 3, why? idk, probably a bug.
         write_le_bytes!(w, 3u16); // request length
+
         write_le_bytes!(w, self.window);
         write_le_bytes!(w, self.get_active as u8);
         w.write_all(&[0u8; 3])?; // unused

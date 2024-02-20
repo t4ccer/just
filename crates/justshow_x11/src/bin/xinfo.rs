@@ -89,25 +89,40 @@ fn lsextensions(display: &mut XDisplay) -> Result<(), Error> {
 }
 
 fn lsmonitors(display: &mut XDisplay) -> Result<(), Error> {
-    let r = randr::requests::GetMonitors {
-        window: display.screens()[0].root,
-        get_active: false,
-    };
-    let _ = display.send_request(&r)?;
-    let pending = display.send_request(&r)?;
-    display.flush()?;
+    let randr_major_opcode = {
+        let request = requests::QueryExtension {
+            name: b"RANDR".to_vec(),
+        };
 
-    let reply = display.await_pending_reply(pending)?;
-
-    for monitor in &reply.monitors {
-        // dbg!(monitor);
-
-        let p = display.send_request(&requests::GetAtomName { atom: monitor.name })?;
+        let pending = display.send_request(&request)?;
         display.flush()?;
-        let r = display.await_pending_reply(p)?;
+
+        let reply = display.await_pending_reply(pending)?;
+        reply.major_opcode
+    };
+
+    let monitors = {
+        let request = randr::requests::GetMonitors {
+            window: display.screens()[0].root,
+            get_active: false,
+        };
+
+        let pending = display.send_extension_request(&request, randr_major_opcode)?;
+        display.flush()?;
+
+        let reply = display.await_pending_reply(pending)?;
+        reply.monitors
+    };
+
+    for monitor in &monitors {
+        let monitor_name_pending =
+            display.send_request(&requests::GetAtomName { atom: monitor.name })?;
+        display.flush()?;
+
+        let monitor_name_reply = display.await_pending_reply(monitor_name_pending)?;
         eprintln!(
             "{} {}x{}+{}+{} (...) {}mmx{}mm",
-            r.name.to_string(),
+            monitor_name_reply.name.to_string(),
             monitor.width_in_pixels,
             monitor.height_in_pixels,
             monitor.x,

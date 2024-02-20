@@ -1,12 +1,11 @@
+use requests::{XExtensionRequest, XRequestBase};
+
 use crate::{
     connection::{ConnectionKind, XConnection},
     error::Error,
     events::SomeEvent,
     replies::{AwaitingReply, ReceivedReply, ReplyType, SomeReply, XReply},
-    requests::{
-        ChangeGC, CreateGC, CreateWindow, GContextSettings, InitializeConnection, MapWindow,
-        PolyFillRectangle, WindowCreationAttributes, XProtocolVersion, XRequest,
-    },
+    requests::{InitializeConnection, XProtocolVersion, XRequest},
     utils::*,
     xauth::XAuth,
     xerror::SomeError,
@@ -57,17 +56,6 @@ impl_resource_id!(ColormapId);
 impl_resource_id!(CursorId);
 impl_resource_id!(WindowId);
 impl_resource_id!(GContextId);
-
-impl GContextId {
-    pub fn change(self, display: &mut XDisplay, settings: GContextSettings) -> Result<(), Error> {
-        let request = ChangeGC {
-            gcontext: self,
-            values: settings,
-        };
-        display.send_request(&request)?;
-        Ok(())
-    }
-}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 #[repr(transparent)]
@@ -176,55 +164,6 @@ impl XResponse for InitializeConnectionResponseRefused {
             protocol_minor_version,
             reason,
         })
-    }
-}
-
-impl WindowId {
-    pub fn map(self, display: &mut XDisplay) -> Result<(), Error> {
-        let request = MapWindow { window: self };
-        display.send_request(&request)?;
-        Ok(())
-    }
-
-    pub fn create_gc(
-        self,
-        display: &mut XDisplay,
-        values: GContextSettings,
-    ) -> Result<GContextId, Error> {
-        let cid = GContextId(display.id_allocator.allocate_id());
-
-        let request = CreateGC {
-            cid,
-            drawable: Drawable::Window(self),
-            values,
-        };
-        display.send_request(&request)?;
-
-        Ok(cid)
-    }
-
-    pub fn draw_rectangle(
-        self,
-        display: &mut XDisplay,
-        gc: GContextId,
-        rectangle: Rectangle,
-    ) -> Result<(), Error> {
-        self.draw_rectangles(display, gc, vec![rectangle])
-    }
-
-    pub fn draw_rectangles(
-        self,
-        display: &mut XDisplay,
-        gc: GContextId,
-        rectangles: Vec<Rectangle>,
-    ) -> Result<(), Error> {
-        let request = PolyFillRectangle {
-            drawable: Drawable::Window(self),
-            gc,
-            rectangles,
-        };
-        display.send_request(&request)?;
-        Ok(())
     }
 }
 
@@ -612,6 +551,10 @@ impl XDisplay {
         })
     }
 
+    pub fn id_allocator(&mut self) -> &mut IdAllocator {
+        &mut self.id_allocator
+    }
+
     pub fn maximum_request_length(&self) -> u16 {
         self.maximum_request_length
     }
@@ -620,40 +563,7 @@ impl XDisplay {
         &self.screens
     }
 
-    pub fn create_simple_window(
-        &mut self,
-        x: i16,
-        y: i16,
-        width: u16,
-        height: u16,
-        border_width: u16,
-        attributes: WindowCreationAttributes,
-    ) -> Result<WindowId, Error> {
-        let new_window_id = WindowId(self.id_allocator.allocate_id());
-        let create_window = CreateWindow {
-            depth: self.screens[0].allowed_depths[0].depth,
-            wid: new_window_id,
-            parent: self.screens[0].root,
-            x,
-            y,
-            width,
-            height,
-            border_width,
-            window_class: WindowClass::CopyFromParent,
-            visual: WindowVisual::CopyFromParent,
-            attributes,
-        };
-        self.send_request(&create_window)?;
-
-        Ok(new_window_id)
-    }
-
-    fn send_request_impl<Request: LeBytes>(
-        &mut self,
-        request: &Request,
-    ) -> Result<SequenceNumber, Error> {
-        self.connection.send_request(request)?;
-
+    fn next_sequence_number(&mut self) -> Result<SequenceNumber, Error> {
         let this_sequence_number = self.next_sequence_number.value;
         self.next_sequence_number = SequenceNumber {
             value: self.next_sequence_number.value.wrapping_add(1),
@@ -664,12 +574,10 @@ impl XDisplay {
         })
     }
 
-    pub fn send_request<Request: XRequest + std::fmt::Debug>(
+    fn wrap_reply<Request: XRequestBase>(
         &mut self,
-        request: &Request,
+        sequence_number: SequenceNumber,
     ) -> Result<PendingReply<Request::Reply>, Error> {
-        let sequence_number = self.send_request_impl(request)?;
-
         if let Some(reply_type) = Request::reply_type() {
             let sequence_number_is_fresh = self
                 .awaiting_replies
@@ -682,6 +590,28 @@ impl XDisplay {
             sequence_number,
             reply_type: PhantomData,
         })
+    }
+
+    /// Send a request to X11 server and return a handler to a pending response. Note that the
+    /// request may be buffered until [`Self::flush`] is used.
+    pub fn send_request<Request: XRequest>(
+        &mut self,
+        request: &Request,
+    ) -> Result<PendingReply<Request::Reply>, Error> {
+        self.connection.send_request(request)?;
+        let sequence_number = self.next_sequence_number()?;
+        self.wrap_reply::<Request>(sequence_number)
+    }
+
+    pub fn send_extension_request<Request: XExtensionRequest>(
+        &mut self,
+        request: &Request,
+        major_opcode: u8,
+    ) -> Result<PendingReply<Request::Reply>, Error> {
+        self.connection
+            .send_extension_request(request, major_opcode)?;
+        let sequence_number = self.next_sequence_number()?;
+        self.wrap_reply::<Request>(sequence_number)
     }
 
     pub fn flush(&mut self) -> Result<(), Error> {

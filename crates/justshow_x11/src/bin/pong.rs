@@ -2,8 +2,10 @@ use justshow_x11::{
     error::Error,
     events::EventType,
     events::SomeEvent,
-    requests::{GContextSettings, GetGeometry, PutImage, PutImageFormat, WindowCreationAttributes},
-    Drawable, GContextId, WindowId, XDisplay,
+    requests::{
+        self, GContextSettings, GetGeometry, PutImage, PutImageFormat, WindowCreationAttributes,
+    },
+    Drawable, GContextId, WindowClass, WindowId, WindowVisual, XDisplay,
 };
 use std::time::{Duration, SystemTime};
 
@@ -12,14 +14,39 @@ const FPS: u64 = 60;
 pub fn go() -> Result<(), Error> {
     let mut display = XDisplay::open()?;
 
-    let window_attributes = WindowCreationAttributes::new().set_event_mask(
-        EventType::KEY_PRESS | EventType::KEY_RELEASE | EventType::STRUCTURE_NOTIFY,
-    );
-    let window = display.create_simple_window(0, 0, 600, 800, 0, window_attributes)?;
+    let window = {
+        let window_id = WindowId::from(display.id_allocator().allocate_id());
+        let window_attributes = WindowCreationAttributes::new().set_event_mask(
+            EventType::KEY_PRESS | EventType::KEY_RELEASE | EventType::STRUCTURE_NOTIFY,
+        );
+        let create_window = requests::CreateWindow {
+            depth: display.screens()[0].allowed_depths[0].depth,
+            wid: window_id,
+            parent: display.screens()[0].root,
+            x: 0,
+            y: 0,
+            width: 600,
+            height: 800,
+            border_width: 0,
+            window_class: WindowClass::CopyFromParent,
+            visual: WindowVisual::CopyFromParent,
+            attributes: window_attributes,
+        };
+        display.send_request(&create_window)?;
+        window_id
+    };
 
-    window.map(&mut display)?;
+    display.send_request(&requests::MapWindow { window })?;
 
-    let gc = window.create_gc(&mut display, GContextSettings::new())?;
+    let gc = {
+        let gc_id = GContextId::from(display.id_allocator().allocate_id());
+        display.send_request(&requests::CreateGC {
+            cid: gc_id,
+            drawable: Drawable::Window(window),
+            values: GContextSettings::new(),
+        })?;
+        gc_id
+    };
 
     let pad_size = V2 { x: 20, y: 150 };
 
