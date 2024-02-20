@@ -1,5 +1,9 @@
 use crate::{
-    atoms::AtomId, connection::XConnection, error::Error, replies::XReply, requests::Timestamp,
+    atoms::AtomId,
+    connection::XConnection,
+    error::Error,
+    replies::{read_vec, XReply},
+    requests::Timestamp,
     utils::impl_resource_id,
 };
 
@@ -45,10 +49,8 @@ impl MonitorInfo {
         let height_in_pixels = conn.read_le_u16()?;
         let width_in_millimeters = conn.read_le_u32()?;
         let height_in_millimeters = conn.read_le_u32()?;
-        let mut crtcs = Vec::with_capacity(ncrtcs as usize);
-        for _ in 0..ncrtcs {
-            crtcs.push(CrtcId::unchecked_from(conn.read_le_u32()?));
-        }
+        let crtcs = read_vec!(ncrtcs, CrtcId::unchecked_from(conn.read_le_u32()?));
+
         Ok(Self {
             name,
             primary,
@@ -94,10 +96,7 @@ impl GetMonitors {
         let nmonitors = conn.read_le_u32()?;
         let _noutputs = conn.read_le_u32()?;
         drop(conn.drain(12)?);
-        let mut monitors = Vec::with_capacity(nmonitors as usize);
-        for _ in 0..nmonitors {
-            monitors.push(MonitorInfo::from_le_bytes(conn)?);
-        }
+        let monitors = read_vec!(nmonitors, MonitorInfo::from_le_bytes(conn)?);
 
         Ok(Self {
             timestamp,

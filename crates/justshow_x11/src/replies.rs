@@ -246,6 +246,18 @@ pub struct QueryTree {
     pub children: Vec<WindowId>,
 }
 
+// TODO: Move somewhere else
+macro_rules! read_vec {
+    ($count:expr, $generator:expr) => {{
+        let mut res = Vec::with_capacity($count as usize);
+        for _ in 0..$count {
+            res.push($generator);
+        }
+        res
+    }};
+}
+pub(crate) use read_vec;
+
 impl QueryTree {
     pub(crate) fn from_le_bytes(conn: &mut XConnection) -> Result<Self, Error> {
         let _unused = conn.read_u8()?;
@@ -259,13 +271,12 @@ impl QueryTree {
         }));
         let children_count = conn.read_le_u16()?;
         drop(conn.drain(14)?);
-        let mut children = Vec::with_capacity(children_count as usize);
-        for _ in 0..children_count {
-            let child = WindowId(ResourceId {
+        let children = read_vec!(
+            children_count,
+            WindowId(ResourceId {
                 value: conn.read_le_u32()?,
-            });
-            children.push(child);
-        }
+            })
+        );
 
         Ok(Self {
             root,
@@ -445,11 +456,7 @@ impl ListProperties {
         let _reply_length = conn.read_le_u32()?;
         let atom_count = conn.read_le_u16()?;
         drop(conn.drain(22)?);
-        let mut atoms = Vec::with_capacity(atom_count as usize);
-        for _ in 0..atom_count {
-            let atom = AtomId::unchecked_from(conn.read_le_u32()?);
-            atoms.push(atom);
-        }
+        let atoms = read_vec!(atom_count, AtomId::unchecked_from(conn.read_le_u32()?));
 
         Ok(Self { atoms })
     }
@@ -968,17 +975,8 @@ impl QueryFont {
         let font_descent = conn.read_le_i16()?;
         let char_infos_count = conn.read_le_u32()?;
 
-        let mut properties = Vec::with_capacity(properties_count as usize);
-        for _ in 0..properties_count {
-            let property = FontProp::from_le_bytes(conn)?;
-            properties.push(property);
-        }
-
-        let mut char_infos = Vec::with_capacity(char_infos_count as usize);
-        for _ in 0..char_infos_count {
-            let char_info = CharInfo::from_le_bytes(conn)?;
-            char_infos.push(char_info);
-        }
+        let properties = read_vec!(properties_count, FontProp::from_le_bytes(conn)?);
+        let char_infos = read_vec!(char_infos_count, CharInfo::from_le_bytes(conn)?);
 
         Ok(Self {
             min_bounds,
@@ -1197,10 +1195,7 @@ impl ListFontsWithInfoPartial {
             let font_descent = conn.read_le_i16()?;
             drop(conn.drain(4)?);
 
-            let mut properties = Vec::with_capacity(properties_count as usize);
-            for _ in 0..properties_count {
-                properties.push(FontProp::from_le_bytes(conn)?);
-            }
+            let properties = read_vec!(properties_count, FontProp::from_le_bytes(conn)?);
 
             let name = conn.read_n_bytes(name_length as usize)?;
             drop(conn.drain(pad(name_length as usize))?);
@@ -1294,7 +1289,7 @@ impl GetImage {
         drop(conn.drain(20)?);
         let data_length = reply_length * 4; // NOTE: Check this math
         let data = conn.read_n_bytes(data_length as usize)?;
-        let _ = conn.drain(pad(data_length as usize))?;
+        drop(conn.drain(pad(data_length as usize))?);
 
         Ok(Self {
             depth,
@@ -1330,12 +1325,7 @@ impl ListInstalledColormaps {
         let _reply_length = conn.read_le_u32()?;
         let cmaps_count = conn.read_le_u16()?;
         drop(conn.drain(22)?);
-
-        let mut cmaps = Vec::with_capacity(cmaps_count as usize);
-        for _ in 0..cmaps_count {
-            let colormap = ColormapId::unchecked_from(conn.read_le_u32()?);
-            cmaps.push(colormap);
-        }
+        let cmaps = read_vec!(cmaps_count, ColormapId::unchecked_from(conn.read_le_u32()?));
 
         Ok(Self { cmaps })
     }
@@ -1473,18 +1463,8 @@ impl AllocColorCells {
         let pixels_count = conn.read_le_u16()?;
         let masks_count = conn.read_le_u16()?;
         drop(conn.drain(20)?);
-
-        let mut pixels = Vec::with_capacity(pixels_count as usize);
-        for _ in 0..pixels_count {
-            let pixel = conn.read_le_u32()?;
-            pixels.push(pixel);
-        }
-
-        let mut masks = Vec::with_capacity(masks_count as usize);
-        for _ in 0..masks_count {
-            let mask = conn.read_le_u32()?;
-            masks.push(mask);
-        }
+        let pixels = read_vec!(pixels_count, conn.read_le_u32()?);
+        let masks = read_vec!(masks_count, conn.read_le_u32()?);
 
         Ok(Self { pixels, masks })
     }
@@ -1527,13 +1507,7 @@ impl AllocColorPlanes {
         let green_mask = conn.read_le_u32()?;
         let blue_mask = conn.read_le_u32()?;
         drop(conn.drain(8)?);
-
-        // TODO: Optimize it
-        let mut pixels = Vec::with_capacity(pixels_count as usize);
-        for _ in 0..pixels_count {
-            let pixel = conn.read_le_u32()?;
-            pixels.push(pixel);
-        }
+        let pixels = read_vec!(pixels_count, conn.read_le_u32()?);
 
         Ok(Self {
             red_mask,
@@ -1593,11 +1567,7 @@ impl QueryColors {
         let _reply_length = conn.read_le_u32()? as usize;
         let colors_count = conn.read_le_u16()? as usize;
         drop(conn.drain(22)?);
-
-        let mut colors = Vec::with_capacity(colors_count);
-        for _ in 0..colors_count {
-            colors.push(Rgb::from_le_bytes(conn)?);
-        }
+        let colors = read_vec!(colors_count, Rgb::from_le_bytes(conn)?);
 
         Ok(Self { colors })
     }
@@ -1805,11 +1775,7 @@ impl GetKeyboardMapping {
         drop(conn.drain(24)?);
 
         let m = reply_length as usize / 4;
-        let mut keysyms = Vec::with_capacity(m);
-        for _ in 0..m {
-            let keysym = KeySym::from_le_bytes(conn)?;
-            keysyms.push(keysym);
-        }
+        let keysyms = read_vec!(m, KeySym::from_le_bytes(conn)?);
 
         Ok(Self {
             keysyms_per_keycode,
@@ -1954,7 +1920,7 @@ impl GetScreenSaver {
         let prefer_blanking = prefer_blanking_byte != 0;
         let allow_exposures_byte = conn.read_u8()?;
         let allow_exposures = allow_exposures_byte != 0;
-        let _unused = conn.drain(18)?;
+        drop(conn.drain(18)?);
 
         Ok(Self {
             timeout,
@@ -2005,12 +1971,7 @@ impl ListHosts {
         let _reply_length = conn.read_le_u32()? as usize;
         let num_hosts = conn.read_le_u16()? as usize;
         drop(conn.drain(22)?);
-
-        // Read the hosts
-        let mut hosts = Vec::with_capacity(num_hosts);
-        for _ in 0..num_hosts {
-            hosts.push(Host::from_le_bytes(conn)?);
-        }
+        let hosts = read_vec!(num_hosts, Host::from_le_bytes(conn)?);
 
         Ok(Self { mode, hosts })
     }
