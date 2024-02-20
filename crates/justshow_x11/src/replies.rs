@@ -1,3 +1,5 @@
+use std::fmt::Display;
+
 use crate::{
     atoms::AtomId,
     connection::XConnection,
@@ -308,7 +310,7 @@ impl InternAtom {
         let _unused = conn.read_u8()?;
         let _sequence_code = conn.read_le_u16()?;
         let _reply_length = conn.read_le_u32()?;
-        let atom = AtomId::from(conn.read_le_u32()?);
+        let atom = AtomId::unchecked_from(conn.read_le_u32()?);
         drop(conn.drain(20)?);
 
         Ok(Self { atom })
@@ -330,9 +332,30 @@ GetAtomName
      p                                     unused, p=pad(n)
 */
 
+// TODO: Correct 'String Equivalence' from spec
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct String8(String);
+
+impl Display for String8 {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        self.0.fmt(f)
+    }
+}
+
+impl String8 {
+    fn from_bytes(bytes: Vec<u8>) -> Option<Self> {
+        // TODO: Proper ISO Latin-1 decoding
+        String::from_utf8(bytes).map_or(None, |s| Some(Self(s)))
+    }
+
+    pub fn from_str(s: &str) -> Self {
+        Self(String::from(s))
+    }
+}
+
 #[derive(Debug, Clone)]
 pub struct GetAtomName {
-    pub name: Vec<u8>,
+    pub name: String8,
 }
 
 impl GetAtomName {
@@ -343,6 +366,7 @@ impl GetAtomName {
         let name_length = conn.read_le_u16()? as usize;
         drop(conn.drain(22)?);
         let name = conn.read_n_bytes(name_length)?;
+        let name = String8::from_bytes(name).ok_or(Error::InvalidResponse("String8"))?;
         drop(conn.drain(pad(name_length))?);
 
         Ok(Self { name })
@@ -388,11 +412,11 @@ impl GetProperty {
         let format = conn.read_u8()?;
         let _sequence_code = conn.read_le_u16()?;
         let _reply_length = conn.read_le_u32()?;
-        let type_ = AtomId::from(conn.read_le_u32()?);
+        let type_ = AtomId::unchecked_from(conn.read_le_u32()?);
         let bytes_after = conn.read_le_u32()?;
         let length_of_value = conn.read_le_u32()?;
         drop(conn.drain(12)?);
-        let value_length = length_of_value as usize;
+        let value_length = length_of_value as usize * (format as usize / 8);
         let value = conn.read_n_bytes(value_length)?;
         drop(conn.drain(pad(value_length))?);
 
@@ -434,7 +458,7 @@ impl ListProperties {
         drop(conn.drain(22)?);
         let mut atoms = Vec::with_capacity(atom_count as usize);
         for _ in 0..atom_count {
-            let atom = AtomId::from(conn.read_le_u32()?);
+            let atom = AtomId::unchecked_from(conn.read_le_u32()?);
             atoms.push(atom);
         }
 
@@ -613,9 +637,7 @@ impl QueryPointer {
         let root = WindowId(ResourceId {
             value: conn.read_le_u32()?,
         });
-        let child = OrNone::new(WindowId(ResourceId {
-            value: conn.read_le_u32()?,
-        }));
+        let child = OrNone::new(WindowId::unchecked_from(conn.read_le_u32()?));
         let root_x = conn.read_le_i16()?;
         let root_y = conn.read_le_i16()?;
         let win_x = conn.read_le_i16()?;
@@ -785,7 +807,7 @@ impl GetInputFocus {
         let focus = match focus_value {
             0 => Focus::None,
             1 => Focus::PointerRoot,
-            wid => Focus::Window(WindowId::from(wid)),
+            wid => Focus::Window(WindowId::unchecked_from(wid)),
         };
         drop(conn.drain(20)?);
 
@@ -878,7 +900,7 @@ pub struct FontProp {
 
 impl FontProp {
     pub(crate) fn from_le_bytes(conn: &mut XConnection) -> Result<Self, Error> {
-        let name = AtomId::from(conn.read_le_u32()?);
+        let name = AtomId::unchecked_from(conn.read_le_u32()?);
         let value = conn.read_le_u32()?;
         Ok(Self { name, value })
     }
@@ -1279,7 +1301,7 @@ impl GetImage {
         let depth = conn.read_u8()?;
         let _sequence_number = conn.read_le_u16()?;
         let reply_length = conn.read_le_u32()?;
-        let visual = OrNone::new(VisualId::from(conn.read_le_u32()?));
+        let visual = OrNone::new(VisualId::unchecked_from(conn.read_le_u32()?));
         drop(conn.drain(20)?);
         let data_length = reply_length * 4; // NOTE: Check this math
         let data = conn.read_n_bytes(data_length as usize)?;
@@ -1322,7 +1344,7 @@ impl ListInstalledColormaps {
 
         let mut cmaps = Vec::with_capacity(cmaps_count as usize);
         for _ in 0..cmaps_count {
-            let colormap = ColormapId::from(conn.read_le_u32()?);
+            let colormap = ColormapId::unchecked_from(conn.read_le_u32()?);
             cmaps.push(colormap);
         }
 

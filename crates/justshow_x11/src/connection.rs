@@ -1,4 +1,4 @@
-use crate::{error::Error, requests::XRequest};
+use crate::{error::Error, LeBytes};
 use std::{
     collections::{vec_deque::Drain, VecDeque},
     fmt::Display,
@@ -198,7 +198,7 @@ impl XConnection {
         Ok(*self.read_buf.get(index).unwrap())
     }
 
-    pub(crate) fn send_request<R: XRequest>(&mut self, request: &R) -> Result<(), Error> {
+    pub(crate) fn send_request<R: LeBytes>(&mut self, request: &R) -> Result<(), Error> {
         request.to_le_bytes(&mut self.write_end)?;
         Ok(())
     }

@@ -114,7 +114,17 @@ pub struct EnterLeaveNotify {
     pub event_y: i16,
     pub state: u16, // TODO: SETofKEYBUTMASK
     pub mode: EnterLeaveNotifyMode,
-    pub same_screen_focus: u8, // TODO: Type
+    _same_screen_focus: u8, // TODO: Type
+}
+
+impl EnterLeaveNotify {
+    pub fn same_screen(&self) -> bool {
+        self._same_screen_focus & 0x01 == 1
+    }
+
+    pub fn focus(&self) -> bool {
+        self._same_screen_focus & 0x02 == 1
+    }
 }
 
 impl EnterLeaveNotify {
@@ -705,11 +715,20 @@ impl ColormapNotify {
     }
 }
 
+impl_enum! {
+    #[repr(u8)]
+    enum MessageFormat {
+        Format8 = 8,
+        Format16 = 16,
+        Format32 = 32,
+    }
+}
+
 #[derive(Debug, Clone)]
 #[repr(C)]
 pub struct ClientMessage {
     _event_code: u8,
-    pub format: u8,
+    pub format: MessageFormat,
     pub sequence_number: u16,
     pub window: WindowId,
     pub type_message: AtomId, // 'type' is a keyword
@@ -718,7 +737,23 @@ pub struct ClientMessage {
 
 impl ClientMessage {
     pub(crate) fn from_le_bytes(raw: [u8; 32]) -> Option<Self> {
+        if raw[1] != 8 && raw[1] != 16 && raw[1] != 32 {
+            return None;
+        }
+
         Some(unsafe { mem::transmute(raw) })
+    }
+
+    pub fn data8(&self) -> &[u8; 20] {
+        &self.data
+    }
+
+    pub fn data16(&self) -> &[u16; 10] {
+        unsafe { mem::transmute(&self.data) }
+    }
+
+    pub fn data32(&self) -> &[u32; 5] {
+        unsafe { mem::transmute(&self.data) }
     }
 }
 
@@ -869,7 +904,8 @@ impl SomeEvent {
             32 => Some(SomeEvent::ColormapNotify(ColormapNotify::from_le_bytes(
                 raw,
             )?)),
-            33 => Some(SomeEvent::ClientMessage(ClientMessage::from_le_bytes(raw)?)),
+            // 161 = 128 + 33 for messages sent by client
+            33 | 161 => Some(SomeEvent::ClientMessage(ClientMessage::from_le_bytes(raw)?)),
             34 => Some(SomeEvent::MappingNotify(MappingNotify::from_le_bytes(raw)?)),
             _unknown_event_code => Some(SomeEvent::UnknownEvent(UnknownEvent::from_le_bytes(raw)?)),
         }

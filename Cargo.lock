@@ -13,10 +13,14 @@ version = "0.1.0"
 [[package]]
 name = "justshow_x11_simple"
 version = "0.1.0"
+dependencies = [
+ "justshow_x11",
+]
 
 [[package]]
 name = "justwindows"
 version = "0.1.0"
 dependencies = [
  "justshow_x11",
+ "justshow_x11_simple",
 ]

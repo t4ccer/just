@@ -74,3 +74,40 @@ pub mod predefined {
     pub const WM_CLASS: AtomId = AtomId(ResourceId { value: 67 });
     pub const WM_TRANSIENT_FOR: AtomId = AtomId(ResourceId { value: 68 });
 }
+
+/// 'Extended Window Manager Hints' atoms
+pub mod wm {
+    #![allow(non_snake_case)]
+
+    use crate::replies::String8;
+
+    macro_rules! define_atoms {
+        ($($atom:tt,)*) => {
+            $(
+                pub fn $atom() -> String8 {
+                    String8::from_str(stringify!($atom))
+                }
+            )*
+
+        };
+    }
+
+    define_atoms! {
+        _NET_WM_NAME,
+        _NET_WM_VISIBLE_NAME,
+        _NET_WM_ICON_NAME,
+        _NET_WM_VISIBLE_ICON_NAME,
+        _NET_WM_DESKTOP,
+        _NET_WM_WINDOW_TYPE,
+        _NET_WM_STATE,
+        _NET_WM_ALLOWED_ACTIONS,
+        _NET_WM_STRUT,
+        _NET_WM_STRUT_PARTIAL,
+        _NET_WM_ICON_GEOMETRY,
+        _NET_WM_ICON,
+        _NET_WM_PID,
+        _NET_WM_HANDLED_ICONS,
+        _NET_WM_USER_TIME,
+        _NET_FRAME_EXTENTS,
+    }
+}

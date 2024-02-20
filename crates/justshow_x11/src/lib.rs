@@ -23,6 +23,7 @@ pub mod atoms;
 pub mod connection;
 pub mod error;
 pub mod events;
+pub mod extensions;
 pub mod replies;
 pub mod requests;
 mod utils;
@@ -74,14 +75,10 @@ pub struct OrNone<T>(T);
 
 impl<T> OrNone<T>
 where
-    T: Into<u32> + From<u32> + Copy,
+    T: Into<u32> + Copy,
 {
     pub fn new(inner: T) -> Self {
         Self(inner)
-    }
-
-    pub fn none() -> Self {
-        Self(0.into())
     }
 
     pub fn value(self) -> Option<T> {
@@ -651,7 +648,8 @@ impl XDisplay {
         Ok(new_window_id)
     }
 
-    fn send_request_impl<Request: XRequest>(
+    // TODO: remove pub
+    pub fn send_request_impl<Request: LeBytes>(
         &mut self,
         request: &Request,
     ) -> Result<SequenceNumber, Error> {
@@ -672,9 +670,6 @@ impl XDisplay {
         request: &Request,
     ) -> Result<PendingReply<Request::Reply>, Error> {
         let sequence_number = self.send_request_impl(request)?;
-
-        // dbg!(sequence_number);
-        // dbg!(request);
 
         if let Some(reply_type) = Request::reply_type() {
             let sequence_number_is_fresh = self

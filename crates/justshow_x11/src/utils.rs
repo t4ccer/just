@@ -28,12 +28,34 @@ pub(crate) fn display_maybe_utf8(buf: &[u8]) -> String {
     }
 }
 
+#[macro_export]
 macro_rules! bitmask {
     (#[repr($inner:ident)] $(#[$name_attr_post:meta])* bitmask $ty:ident { $( $(#[$field_attr:meta])* $key:ident = $value:literal,)* }) => {
         $(#[$name_attr_post])*
         #[repr(transparent)]
+        #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
         pub struct $ty {
             value: $inner,
+        }
+
+        #[automatically_derived]
+        impl ::std::fmt::Debug for $ty {
+            fn fmt(&self, f: &mut ::std::fmt::Formatter<'_>) -> Result<(), ::std::fmt::Error> {
+                let fields = [ $( stringify!($key),)* ];
+
+                write!(f, "{:#x} (", self.value)?;
+                for (idx, field) in [ $( Self::$key,)* ]
+                    .into_iter()
+                    .enumerate()
+                    .filter(|(_, field)| self.has(*field)) {
+                        if idx != 0 {
+                            write!(f, " | ")?;
+                        }
+                        write!(f, "{}", fields[idx])?;
+                    }
+                write!(f, ")")?;
+                Ok(())
+            }
         }
 
         #[automatically_derived]
@@ -41,11 +63,18 @@ macro_rules! bitmask {
             $($(#[$field_attr])* pub const $key: Self = Self { value: $value };)*
         }
 
+        impl $ty {
+            #[inline(always)]
+            pub fn has(self, flag: Self) -> bool {
+                (self.value & flag.value) == flag.value
+            }
+        }
+
         #[automatically_derived]
         impl ::std::ops::BitOr for $ty {
             type Output = Self;
 
-            #[inline]
+            #[inline(always)]
             fn bitor(self, rhs: Self) -> Self::Output {
                 Self {
                     value: self.value | rhs.value,
@@ -55,7 +84,7 @@ macro_rules! bitmask {
 
         #[automatically_derived]
         impl ::std::ops::BitOrAssign for $ty {
-            #[inline]
+            #[inline(always)]
             fn bitor_assign(&mut self, rhs: Self) {
                 self.value |= rhs.value
             }
@@ -63,7 +92,7 @@ macro_rules! bitmask {
 
         #[automatically_derived]
         impl ::std::convert::From<$ty> for $inner {
-            #[inline]
+            #[inline(always)]
             fn from(val: $ty) -> Self {
                 val.value
             }
@@ -140,17 +169,15 @@ macro_rules! impl_resource_id {
                 let raw: u32 = self.into();
                 raw.to_le_bytes()
             }
+
+            pub(crate) fn unchecked_from(value: u32) -> Self {
+                Self(crate::ResourceId { value })
+            }
         }
 
         impl From<$name> for u32 {
             fn from(value: $name) -> u32 {
                 value.0.value()
-            }
-        }
-
-        impl From<u32> for $name {
-            fn from(value: u32) -> Self {
-                Self(crate::ResourceId { value })
             }
         }
 

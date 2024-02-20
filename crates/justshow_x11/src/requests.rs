@@ -213,6 +213,7 @@ macro_rules! write_le_bytes {
         $w.write_all(&(($content).to_le_bytes()))?;
     };
 }
+pub(crate) use write_le_bytes;
 
 #[derive(Debug, Clone)]
 pub struct ListOfValues<const N: usize> {
