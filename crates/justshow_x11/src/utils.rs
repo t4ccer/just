@@ -170,7 +170,7 @@ macro_rules! impl_resource_id {
                 raw.to_le_bytes()
             }
 
-            pub(crate) fn unchecked_from(value: u32) -> Self {
+            pub fn unchecked_from(value: u32) -> Self {
                 Self(crate::ResourceId { value })
             }
         }

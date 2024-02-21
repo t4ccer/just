@@ -1,4 +1,10 @@
-use justshow_x11::{error::Error, extensions::randr, replies, requests, XDisplay};
+use justshow_x11::{
+    error::Error,
+    extensions::randr,
+    replies,
+    requests::{self},
+    XDisplay,
+};
 use std::process::ExitCode;
 
 macro_rules! request_blocking {
@@ -101,7 +107,7 @@ fn lsmonitors(display: &mut XDisplay) -> Result<(), Error> {
         reply.major_opcode
     };
 
-    let monitors = {
+    let monitors_reply = {
         let request = randr::requests::GetMonitors {
             window: display.screens()[0].root,
             get_active: false,
@@ -111,18 +117,36 @@ fn lsmonitors(display: &mut XDisplay) -> Result<(), Error> {
         display.flush()?;
 
         let reply = display.await_pending_reply(pending)?;
-        reply.monitors
+        reply
     };
 
-    for monitor in &monitors {
-        let monitor_name_pending =
-            display.send_request(&requests::GetAtomName { atom: monitor.name })?;
-        display.flush()?;
+    for monitor in &monitors_reply.monitors {
+        let name = {
+            let monitor_name_pending =
+                display.send_request(&requests::GetAtomName { atom: monitor.name })?;
+            display.flush()?;
+            let monitor_name_reply = display.await_pending_reply(monitor_name_pending)?;
+            monitor_name_reply.name
+        };
+        dbg!(&name);
 
-        let monitor_name_reply = display.await_pending_reply(monitor_name_pending)?;
+        let crtc = {
+            let pending = display.send_extension_request(
+                &randr::requests::GetCrtcInfo {
+                    crtc: dbg!(monitor.crtcs[0]),
+                    // crtc: CrtcId::unchecked_from(62),
+                    timestamp: dbg!(monitors_reply.timestamp),
+                },
+                randr_major_opcode,
+            )?;
+            display.flush()?;
+            display.await_pending_reply(pending)?
+        };
+        dbg!(&crtc);
+
         eprintln!(
             "{} {}x{}+{}+{} (...) {}mmx{}mm",
-            monitor_name_reply.name.to_string(),
+            name.to_string(),
             monitor.width_in_pixels,
             monitor.height_in_pixels,
             monitor.x,

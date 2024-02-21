@@ -4,6 +4,7 @@ use crate::{
     connection::{ConnectionKind, XConnection},
     error::Error,
     events::SomeEvent,
+    extensions::randr,
     replies::{AwaitingReply, ReceivedReply, ReplyType, SomeReply, XReply},
     requests::{InitializeConnection, XProtocolVersion, XRequest},
     utils::*,
@@ -842,16 +843,21 @@ impl XDisplay {
             ReplyType::GetPointerMapping => handle_reply!(GetPointerMapping),
             ReplyType::SetModifierMapping => handle_reply!(SetModifierMapping),
             ReplyType::GetModifierMapping => handle_reply!(GetModifierMapping),
-            ReplyType::ExtensionRandr(randr_reply) => match randr_reply {
-                extensions::randr::replies::ReplyType::GetMonitors => {
-                    let reply = crate::extensions::randr::replies::GetMonitors::from_le_bytes(
-                        &mut self.connection,
-                    )?;
-                    Ok(SomeReply::ExtensionRandr(
-                        crate::extensions::randr::replies::SomeReply::GetMonitors(reply),
-                    ))
+            ReplyType::ExtensionRandr(randr_reply) => {
+                macro_rules! handle_randr_reply {
+                    ($t:tt) => {{
+                        let reply = randr::replies::$t::from_le_bytes(&mut self.connection)?;
+                        Ok(SomeReply::ExtensionRandr(randr::replies::SomeReply::$t(
+                            reply,
+                        )))
+                    }};
                 }
-            },
+
+                match randr_reply {
+                    randr::replies::ReplyType::GetMonitors => handle_randr_reply!(GetMonitors),
+                    randr::replies::ReplyType::GetCrtcInfo => handle_randr_reply!(GetCrtcInfo),
+                }
+            }
         }
     }
 

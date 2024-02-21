@@ -40,7 +40,7 @@ impl From<Timestamp> for u32 {
 }
 
 impl Timestamp {
-    fn to_le_bytes(self) -> [u8; 4] {
+    pub(crate) fn to_le_bytes(self) -> [u8; 4] {
         let raw: u32 = self.into();
         raw.to_le_bytes()
     }
