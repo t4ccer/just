@@ -1285,8 +1285,8 @@ pub struct GrabPointer {
     pub owner_events: bool,
     pub grab_window: WindowId,
     pub event_mask: u16, // TODO: Type
-    pub pointer_mode: SyncAsync,
-    pub keyboard_mode: SyncAsync,
+    pub pointer_mode: GrabMode,
+    pub keyboard_mode: GrabMode,
     pub confine_to: OrNone<WindowId>,
     pub cursor: OrNone<CursorId>,
     pub time: Timestamp,
@@ -1367,8 +1367,8 @@ pub struct GrabButton {
     pub owner_events: bool,
     pub grab_window: WindowId,
     pub event_mask: u16, // TODO: type
-    pub pointer_mode: SyncAsync,
-    pub keyboard_mode: SyncAsync,
+    pub pointer_mode: GrabMode,
+    pub keyboard_mode: GrabMode,
     pub confine_to: OrNone<WindowId>,
     pub cursor: OrNone<CursorId>,
     pub button: u8,     // TODO: Type
@@ -1488,8 +1488,8 @@ pub struct GrabKeyboard {
     pub owner_events: bool,
     pub grab_window: WindowId,
     pub time: Timestamp,
-    pub pointer_mode: SyncAsync,
-    pub keyboard_mode: SyncAsync,
+    pub pointer_mode: GrabMode,
+    pub keyboard_mode: GrabMode,
 }
 
 impl LeBytes for GrabKeyboard {
@@ -1555,10 +1555,9 @@ GrabKey
      3                                     unused
 */
 
-// TODO: Name (GrabMode?)
 impl_enum! {
     #[repr(u8)]
-    enum SyncAsync {
+    enum GrabMode {
         Synchronous = 0,
         Asynchronous = 1,
     }
@@ -1568,10 +1567,10 @@ impl_enum! {
 pub struct GrabKey {
     pub owner_events: bool,
     pub grab_window: WindowId,
-    pub modifiers: ModMask,
-    pub key: u8, // TODO: Type
-    pub pointer_mode: SyncAsync,
-    pub keyboard_mode: SyncAsync,
+    pub modifiers: KeyModifier,
+    pub key: KeyCode,
+    pub pointer_mode: GrabMode,
+    pub keyboard_mode: GrabMode,
 }
 
 impl LeBytes for GrabKey {
@@ -5158,16 +5157,17 @@ impl_xrequest_without_response!(NoOperation);
 
 bitmask! {
     #[repr(u16)]
-    bitmask ModMask {
-        MOD_SHIFT = 0x0001,
-        MOD_LOCK = 0x0002,
-        MOD_CONTROL = 0x0004,
+    bitmask KeyModifier {
+        SHIFT = 0x0001,
+        LOCK = 0x0002,
+        CONTROL = 0x0004,
         MOD_1 = 0x0008,
         MOD_2 = 0x0010,
         MOD_3 = 0x0020,
         MOD_4 = 0x0040,
         MOD_5 = 0x0080,
+
         /// Match any modifier key
-        MOD_ANY = 0x8000,
+        ANY = 0x8000,
     }
 }

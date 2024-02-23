@@ -3,7 +3,7 @@ use justshow_x11::{
     events::EventType,
     events::SomeEvent,
     keysym::KeySym,
-    requests::{self, ConfigureWindowAttributes, ModMask, SyncAsync},
+    requests::{self, ConfigureWindowAttributes, GrabMode, KeyModifier},
     xerror::SomeError,
     Rectangle, WindowId, XDisplay,
 };
@@ -91,14 +91,14 @@ impl JustWindows {
 
         let key_symbols = conn.key_symbols()?;
 
-        for key in key_symbols.get_keycode(KeySym::q) {
+        for key in key_symbols.get_keycodes(KeySym::q) {
             conn.display_mut().send_request(&requests::GrabKey {
                 owner_events: false,
                 grab_window: root,
-                modifiers: ModMask::MOD_CONTROL,
+                modifiers: KeyModifier::CONTROL,
                 key,
-                pointer_mode: SyncAsync::Asynchronous,
-                keyboard_mode: SyncAsync::Asynchronous,
+                pointer_mode: GrabMode::Asynchronous,
+                keyboard_mode: GrabMode::Asynchronous,
             })?;
         }
 

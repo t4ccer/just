@@ -1,4 +1,4 @@
-use justshow_x11::{keysym::KeySym, replies::GetKeyboardMapping};
+use justshow_x11::{keysym::KeySym, replies::GetKeyboardMapping, requests::KeyCode};
 
 #[derive(Debug, Clone)]
 pub struct KeySymbols {
@@ -44,14 +44,14 @@ impl KeySymbols {
         keysyms[col]
     }
 
-    pub fn get_keycode(&self, keysym: KeySym) -> Vec<u8> {
+    pub fn get_keycodes(&self, keysym: KeySym) -> Vec<KeyCode> {
         let mut res = Vec::new();
 
         for i in self.min_keycode..=self.max_keycode {
             for j in 0..self.reply.keysyms_per_keycode {
                 let ks = self.get_keysym(i, j as usize);
                 if ks == keysym {
-                    res.push(i);
+                    res.push(KeyCode::from(i));
                     break;
                 }
             }
