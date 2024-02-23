@@ -119,11 +119,11 @@ pub struct EnterLeaveNotify {
 
 impl EnterLeaveNotify {
     pub fn same_screen(&self) -> bool {
-        self._same_screen_focus & 0x01 == 1
+        self._same_screen_focus & 0x01 == 0x01
     }
 
     pub fn focus(&self) -> bool {
-        self._same_screen_focus & 0x02 == 1
+        self._same_screen_focus & 0x02 == 0x02
     }
 }
 

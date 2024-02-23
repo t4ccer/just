@@ -3190,7 +3190,7 @@ pub struct PutImageOwned {
 }
 
 impl PutImageOwned {
-    pub fn to_shared<'data>(&'data self) -> PutImage<'data> {
+    pub fn to_shared(&self) -> PutImage<'_> {
         PutImage {
             format: self.format,
             drawable: self.drawable,

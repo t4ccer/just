@@ -91,7 +91,8 @@ pub mod wm {
         ($($atom:tt,)*) => {
             $(
                 pub fn $atom() -> String8 {
-                    String8::from_str(stringify!($atom))
+                    use std::str::FromStr;
+                    String8::from_str(stringify!($atom)).unwrap()
                 }
             )*
 

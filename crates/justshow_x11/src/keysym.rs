@@ -31,7 +31,7 @@ impl Sub for KeySym {
 
     fn sub(self, rhs: Self) -> Self::Output {
         Self {
-            inner: self.inner + rhs.inner,
+            inner: self.inner - rhs.inner,
         }
     }
 }

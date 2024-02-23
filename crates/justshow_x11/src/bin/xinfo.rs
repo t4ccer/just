@@ -116,8 +116,7 @@ fn lsmonitors(display: &mut XDisplay) -> Result<(), Error> {
         let pending = display.send_extension_request(&request, randr_major_opcode)?;
         display.flush()?;
 
-        let reply = display.await_pending_reply(pending)?;
-        reply
+        display.await_pending_reply(pending)?
     };
 
     for monitor in &monitors_reply.monitors {
@@ -146,7 +145,7 @@ fn lsmonitors(display: &mut XDisplay) -> Result<(), Error> {
 
         eprintln!(
             "{} {}x{}+{}+{} (...) {}mmx{}mm",
-            name.to_string(),
+            name,
             monitor.width_in_pixels,
             monitor.height_in_pixels,
             monitor.x,
@@ -162,6 +161,8 @@ fn lsmonitors(display: &mut XDisplay) -> Result<(), Error> {
     Ok(())
 }
 
+// false positive
+#[cfg_attr(feature = "cargo-clippy", allow(clippy::enum_variant_names))]
 enum Mode {
     LsFonts,
     LsExtensions,

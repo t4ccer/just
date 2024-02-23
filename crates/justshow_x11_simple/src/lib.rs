@@ -1,3 +1,6 @@
+// `Default` is a bad idea.
+#![cfg_attr(feature = "cargo-clippy", allow(clippy::new_without_default))]
+
 use crate::keys::KeySymbols;
 use justshow_x11::{
     atoms::AtomId,
@@ -11,7 +14,7 @@ use justshow_x11::{
     },
     Drawable, OrNone, PendingReply, PixmapId, ResourceId, WindowId, XDisplay,
 };
-use std::{collections::HashMap, mem};
+use std::{collections::HashMap, mem, str::FromStr};
 
 pub mod keys;
 
@@ -197,7 +200,7 @@ impl X11Connection {
     }
 
     pub fn set_supported(&mut self) -> Result<(), Error> {
-        let net_supported = self.get_atom_id(String8::from_str("_NET_SUPPORTED"))?;
+        let net_supported = self.get_atom_id(String8::from_str("_NET_SUPPORTED").unwrap())?;
 
         let mut data = Vec::new();
 
@@ -208,12 +211,12 @@ impl X11Connection {
             "_NET_WM_STATE",
         ] {
             data.extend(
-                self.get_atom_id(String8::from_str(atom_name))?
+                self.get_atom_id(String8::from_str(atom_name).unwrap())?
                     .to_le_bytes(),
             );
         }
 
-        requests::ChangeProperty {
+        let request = requests::ChangeProperty {
             mode: ChangePropertyMode::Replace,
             window: self.default_screen().root, // TODO: take as parameter
             property: net_supported,

@@ -1,4 +1,4 @@
-use std::{fmt::Display, ops::Deref};
+use std::{fmt::Display, ops::Deref, str::FromStr};
 
 use crate::{
     atoms::AtomId, connection::XConnection, error::Error, keysym::KeySym, requests::KeyCode,
@@ -350,13 +350,22 @@ impl String8 {
     }
 
     #[inline(always)]
-    pub fn from_str(s: &str) -> Self {
-        Self(String::from(s))
+    pub fn len(&self) -> usize {
+        self.0.len()
     }
 
     #[inline(always)]
-    pub fn len(&self) -> usize {
-        self.0.len()
+    pub fn is_empty(&self) -> bool {
+        self.0.is_empty()
+    }
+}
+
+impl FromStr for String8 {
+    type Err = std::convert::Infallible;
+
+    #[inline(always)]
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        Ok(Self(String::from(s)))
     }
 }
 

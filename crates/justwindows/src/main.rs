@@ -129,7 +129,7 @@ impl JustWindows {
                     .rev()
                     .collect::<Vec<WindowId>>()
                     .split_first()
-                    .map(|(l, r)| (l.clone(), r.to_vec()))
+                    .map(|(l, r)| (*l, r.to_vec()))
                 {
                     if stack_windows.is_empty() {
                         layout.arrange_windows(
@@ -181,7 +181,7 @@ impl JustWindows {
     }
 
     fn manage_window(&mut self, window: WindowId) -> Result<(), Error> {
-        if let Some(_) = self.find_managed_window(window) {
+        if self.find_managed_window(window).is_some() {
             eprintln!(
                 "justwindows: debug: window is already managed: {:?}",
                 window
