@@ -1,13 +1,19 @@
+use crate::keys::KeySymbols;
 use justshow_x11::{
     atoms::{self, AtomId},
     bitmask,
     error::Error,
     events::EventType,
     replies::{self, String8},
-    requests::{self, ConfigureWindowAttributes, NoReply, WindowCreationAttributes},
+    requests::{
+        self, ChangePropertyFormat, ChangePropertyMode, ConfigureWindowAttributes, KeyCode,
+        NoReply, WindowCreationAttributes,
+    },
     Drawable, OrNone, PendingReply, PixmapId, ResourceId, WindowId, XDisplay,
 };
 use std::{collections::HashMap, mem};
+
+pub mod keys;
 
 macro_rules! request_blocking {
     ($display:expr, $request:expr) => {{
@@ -22,15 +28,22 @@ macro_rules! request_blocking {
 
 pub struct X11Connection {
     display: XDisplay,
-    known_atoms: HashMap<AtomId, String8>,
+    known_atoms_names: HashMap<AtomId, String8>,
+    known_atoms_ids: HashMap<String8, AtomId>,
 }
 
 impl X11Connection {
     pub fn new(display: XDisplay) -> Self {
         X11Connection {
             display,
-            known_atoms: HashMap::new(),
+            known_atoms_names: HashMap::new(),
+            known_atoms_ids: HashMap::new(),
         }
+    }
+
+    fn insert_atom(&mut self, atom_name: String8, atom_id: AtomId) {
+        self.known_atoms_names.insert(atom_id, atom_name.clone());
+        self.known_atoms_ids.insert(atom_name, atom_id);
     }
 
     pub fn display(&self) -> &XDisplay {
@@ -85,14 +98,31 @@ impl X11Connection {
     }
 
     pub fn get_atom_name(&mut self, atom: AtomId) -> Result<String8, Error> {
-        if let Some(atom_name) = self.known_atoms.get(&atom) {
+        if let Some(atom_name) = self.known_atoms_names.get(&atom) {
             return Ok(atom_name.clone());
         }
 
         let r = request_blocking!(self.display, requests::GetAtomName { atom })?;
 
-        self.known_atoms.insert(atom, r.name.clone());
+        self.insert_atom(r.name.clone(), atom);
         Ok(r.name)
+    }
+
+    pub fn get_atom_id(&mut self, atom_name: String8) -> Result<AtomId, Error> {
+        if let Some(atom_id) = self.known_atoms_ids.get(&atom_name) {
+            return Ok(*atom_id);
+        }
+
+        let r = request_blocking!(
+            self.display,
+            requests::InternAtom {
+                only_if_exists: false,
+                name: atom_name.clone()
+            }
+        )?;
+
+        self.insert_atom(atom_name, r.atom);
+        Ok(r.atom)
     }
 
     pub fn flush(&mut self) -> Result<(), Error> {
@@ -118,7 +148,24 @@ impl X11Connection {
         request_blocking!(self.display, requests::QueryTree { window })
     }
 
-    pub fn get_wm_hints(&mut self, window: WindowId) -> Result<WindowManagerHints, Error> {
+    pub fn key_symbols(&mut self) -> Result<KeySymbols, Error> {
+        let min_keycode = self.display().min_keycode;
+        let max_keycode = self.display().max_keycode;
+        let reply = request_blocking!(
+            self.display,
+            requests::GetKeyboardMapping {
+                first_keycode: KeyCode::from(min_keycode),
+                count: max_keycode - min_keycode + 1,
+            }
+        )?;
+        Ok(KeySymbols {
+            min_keycode,
+            max_keycode,
+            reply,
+        })
+    }
+
+    pub fn get_wm_hints(&mut self, window: WindowId) -> Result<Option<WindowManagerHints>, Error> {
         const NUM_PROP_WMHINTS_ELEMENTS: usize = mem::size_of::<WindowManagerHints>() / 4;
 
         let reply = request_blocking!(
@@ -133,16 +180,49 @@ impl X11Connection {
             }
         )?;
 
-        assert!(reply.type_ == atoms::predefined::WM_HINTS);
-        assert!(reply.length_of_value == NUM_PROP_WMHINTS_ELEMENTS as u32);
+        if reply.type_ != atoms::predefined::WM_HINTS {
+            return Ok(None);
+        }
+
+        assert_eq!(reply.length_of_value, NUM_PROP_WMHINTS_ELEMENTS as u32);
 
         let raw: [u8; NUM_PROP_WMHINTS_ELEMENTS * 4] = reply.value.try_into().unwrap();
         let raw: [u32; NUM_PROP_WMHINTS_ELEMENTS] = unsafe { mem::transmute(raw) };
 
+        // Check if bool invariant holds
         assert!(raw[1] == 0 || raw[1] == 1);
 
         let hints: WindowManagerHints = unsafe { mem::transmute(raw) };
-        Ok(hints)
+        Ok(Some(hints))
+    }
+
+    pub fn set_supported(&mut self) -> Result<(), Error> {
+        let net_supported = self.get_atom_id(String8::from_str("_NET_SUPPORTED"))?;
+
+        let mut data = Vec::new();
+
+        for atom_name in &[
+            "_NET_SUPPORTED",
+            "_NET_SUPPORTING_WM_CHECK",
+            "_NET_ACTIVE_WINDOW",
+            "_NET_WM_STATE",
+        ] {
+            data.extend(
+                self.get_atom_id(String8::from_str(atom_name))?
+                    .to_le_bytes(),
+            );
+        }
+
+        requests::ChangeProperty {
+            mode: ChangePropertyMode::Replace,
+            window: self.default_screen().root, // TODO: take as parameter
+            property: net_supported,
+            type_: atoms::predefined::ATOM,
+            format: ChangePropertyFormat::Format32,
+            data,
+        };
+
+        Ok(())
     }
 }
 

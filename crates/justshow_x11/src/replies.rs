@@ -1,8 +1,8 @@
-use std::fmt::Display;
+use std::{fmt::Display, ops::Deref};
 
 use crate::{
-    atoms::AtomId, connection::XConnection, error::Error, requests::KeyCode, requests::Timestamp,
-    utils::pad, ColormapId, ListOfStr, OrNone, ResourceId, VisualId, WindowId,
+    atoms::AtomId, connection::XConnection, error::Error, keysym::KeySym, requests::KeyCode,
+    requests::Timestamp, utils::pad, ColormapId, ListOfStr, OrNone, ResourceId, VisualId, WindowId,
 };
 
 pub trait XReply: Sized {
@@ -302,7 +302,7 @@ InternAtom
 
 #[derive(Debug, Clone)]
 pub struct InternAtom {
-    pub atom: AtomId,
+    pub atom: AtomId, // TODO: Or none
 }
 
 impl InternAtom {
@@ -333,7 +333,7 @@ GetAtomName
 */
 
 // TODO: Correct 'String Equivalence' from spec
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct String8(String);
 
 impl Display for String8 {
@@ -343,13 +343,28 @@ impl Display for String8 {
 }
 
 impl String8 {
+    #[inline(always)]
     fn from_bytes(bytes: Vec<u8>) -> Option<Self> {
         // TODO: Proper ISO Latin-1 decoding
         String::from_utf8(bytes).map_or(None, |s| Some(Self(s)))
     }
 
+    #[inline(always)]
     pub fn from_str(s: &str) -> Self {
         Self(String::from(s))
+    }
+
+    #[inline(always)]
+    pub fn len(&self) -> usize {
+        self.0.len()
+    }
+}
+
+impl Deref for String8 {
+    type Target = [u8];
+
+    fn deref(&self) -> &Self::Target {
+        self.0.as_bytes()
     }
 }
 
@@ -1748,19 +1763,6 @@ GetKeyboardMapping
      4nm     LISTofKEYSYM                  keysyms
 */
 
-// TODO:  Read KeySym decoding section
-#[derive(Debug, Clone)]
-pub struct KeySym {
-    pub inner: u32,
-}
-
-impl KeySym {
-    pub(crate) fn from_le_bytes(conn: &mut XConnection) -> Result<Self, Error> {
-        let inner = conn.read_le_u32()?;
-        Ok(Self { inner })
-    }
-}
-
 #[derive(Debug, Clone)]
 pub struct GetKeyboardMapping {
     pub keysyms_per_keycode: u8,
@@ -1769,16 +1771,16 @@ pub struct GetKeyboardMapping {
 
 impl GetKeyboardMapping {
     pub(crate) fn from_le_bytes(conn: &mut XConnection) -> Result<Self, Error> {
-        let keysyms_per_keycode = conn.read_u8()?;
+        let n = conn.read_u8()?;
         let _sequence_number = conn.read_le_u16()?;
         let reply_length = conn.read_le_u32()?;
         drop(conn.drain(24)?);
 
-        let m = reply_length as usize / 4;
-        let keysyms = read_vec!(m, KeySym::from_le_bytes(conn)?);
+        let m = reply_length as usize / n as usize;
+        let keysyms = read_vec!(n as usize * m, KeySym::from_le_bytes(conn)?);
 
         Ok(Self {
-            keysyms_per_keycode,
+            keysyms_per_keycode: n,
             keysyms,
         })
     }

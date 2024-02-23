@@ -2,7 +2,8 @@ use justshow_x11::{
     error::Error,
     events::EventType,
     events::SomeEvent,
-    requests::{self, ConfigureWindowAttributes},
+    keysym::KeySym,
+    requests::{self, ConfigureWindowAttributes, ModMask, SyncAsync},
     xerror::SomeError,
     Rectangle, WindowId, XDisplay,
 };
@@ -84,9 +85,23 @@ impl JustWindows {
                 | EventType::SUBSTRUCTURE_NOTIFY
                 | EventType::ENTER_WINDOW
                 | EventType::LEAVE_WINDOW
-                | EventType::STRUCTURE_NOTIFY
-                | EventType::BUTTON_PRESS,
+                | EventType::STRUCTURE_NOTIFY,
         )?;
+        conn.set_supported()?;
+
+        let key_symbols = conn.key_symbols()?;
+
+        for key in key_symbols.get_keycode(KeySym::q) {
+            conn.display_mut().send_request(&requests::GrabKey {
+                owner_events: false,
+                grab_window: root,
+                modifiers: ModMask::MOD_CONTROL,
+                key,
+                pointer_mode: SyncAsync::Asynchronous,
+                keyboard_mode: SyncAsync::Asynchronous,
+            })?;
+        }
+
         conn.flush()?;
 
         Ok(Self {
@@ -254,7 +269,9 @@ impl JustWindows {
                     self.unmanage_window(event.window)?;
                 }
             }
-            SomeEvent::ClientMessage(_event) => {}
+            SomeEvent::ClientMessage(event) => {
+                dbg!(event);
+            }
             SomeEvent::UnknownEvent(event) => {
                 dbg!(event);
             }
@@ -268,7 +285,7 @@ impl JustWindows {
             SomeEvent::LeaveNotify(event) => {
                 let root = self.root_window();
                 if event.event == root && !event.same_screen() {
-                    self.conn.set_focus(root)?;
+                    // self.conn.set_focus(root)?;
                 }
             }
             SomeEvent::ConfigureNotify(event) => {
@@ -287,6 +304,7 @@ impl JustWindows {
             }
         }
 
+        self.conn.flush()?;
         Ok(())
     }
 }
@@ -295,8 +313,8 @@ pub fn go() -> Result<(), Error> {
     let mut wm = JustWindows::setup()?;
     wm.restore_windows()?;
 
-    std::process::Command::new("xterm").spawn()?;
-    std::process::Command::new("xterm").spawn()?;
+    // std::process::Command::new("xterm").spawn()?;
+    // std::process::Command::new("xterm").spawn()?;
     std::process::Command::new("xterm").spawn()?;
 
     loop {

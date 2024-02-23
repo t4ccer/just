@@ -24,6 +24,7 @@ pub mod connection;
 pub mod error;
 pub mod events;
 pub mod extensions;
+pub mod keysym;
 pub mod replies;
 pub mod requests;
 mod utils;
@@ -506,6 +507,8 @@ pub struct XDisplay {
     event_queue: VecDeque<SomeEvent>,
     error_queue: VecDeque<SomeError>,
     maximum_request_length: u16,
+    pub min_keycode: u8,
+    pub max_keycode: u8,
 }
 
 impl XDisplay {
@@ -549,6 +552,8 @@ impl XDisplay {
             event_queue: VecDeque::new(),
             error_queue: VecDeque::new(),
             maximum_request_length: response.maximum_request_length,
+            max_keycode: response.max_keycode,
+            min_keycode: response.min_keycode,
         })
     }
 
@@ -633,6 +638,7 @@ impl XDisplay {
                 Ok(reply) => return Ok(reply),
                 Err(returned_pending) => {
                     pending = returned_pending;
+                    self.flush()?;
                     self.decode_response_blocking()?;
                 }
             }

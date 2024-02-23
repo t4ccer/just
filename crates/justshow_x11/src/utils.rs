@@ -68,6 +68,11 @@ macro_rules! bitmask {
             pub fn has(self, flag: Self) -> bool {
                 (self.value & flag.value) == flag.value
             }
+
+            #[inline(always)]
+            pub fn raw(self) -> $inner {
+                self.value
+            }
         }
 
         #[automatically_derived]

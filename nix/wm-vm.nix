@@ -44,6 +44,10 @@
 
   environment.systemPackages = [
     pkgs.rofi
+    pkgs.polybar
+    (pkgs.writeShellScriptBin "poly" ''
+      ${pkgs.polybar}/bin/polybar --config=${pkgs.polybar}/etc/polybar/config.ini
+    '')
   ];
 
   system.stateVersion = "24.05";

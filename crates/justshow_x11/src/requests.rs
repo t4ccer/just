@@ -1,7 +1,8 @@
 use crate::{
     atoms::AtomId,
     events::{self, EventType, StackMode},
-    replies::ReplyType,
+    keysym::KeySym,
+    replies::{ReplyType, String8},
     utils::{bitmask, impl_enum, pad},
     ColormapId, CursorId, Drawable, FontId, GContextId, LeBytes, ListOfStr, OrNone, PixmapId,
     Point, Rectangle, VisualId, WindowClass, WindowId, WindowVisual,
@@ -71,16 +72,6 @@ impl From<u32> for KeyCode {
 impl From<KeyCode> for u32 {
     fn from(value: KeyCode) -> Self {
         value.0 as u32
-    }
-}
-
-#[derive(Debug, Clone, Copy)]
-#[repr(transparent)]
-pub struct KeySym(u32);
-
-impl KeySym {
-    fn to_le_bytes(self) -> [u8; 4] {
-        self.0.to_le_bytes()
     }
 }
 
@@ -913,7 +904,7 @@ InternAtom
 #[derive(Debug, Clone)]
 pub struct InternAtom {
     pub only_if_exists: bool,
-    pub name: Vec<u8>,
+    pub name: String8,
 }
 
 impl LeBytes for InternAtom {
@@ -925,10 +916,10 @@ impl LeBytes for InternAtom {
         write_le_bytes!(w, opcodes::INTERN_ATOM);
         write_le_bytes!(w, self.only_if_exists as u8);
         write_le_bytes!(w, request_len);
-        write_le_bytes!(w, n);
+        write_le_bytes!(w, n as u16);
         write_le_bytes!(w, 0u16); // unused
         w.write_all(&self.name)?;
-        write_le_bytes!(w, p);
+        w.write_all(&vec![0u8; p])?;
 
         Ok(())
     }
@@ -1027,7 +1018,7 @@ impl LeBytes for ChangeProperty {
         write_le_bytes!(w, self.type_);
         write_le_bytes!(w, self.format);
         w.write_all(&[0u8; 3])?; // unused
-        write_le_bytes!(w, n);
+        write_le_bytes!(w, (n as u64) / (self.format as u64 / 8));
         w.write_all(&self.data)?;
         w.write_all(&vec![0u8; p])?;
 
@@ -1564,7 +1555,7 @@ GrabKey
      3                                     unused
 */
 
-// TODO: Name
+// TODO: Name (GrabMode?)
 impl_enum! {
     #[repr(u8)]
     enum SyncAsync {
@@ -1577,8 +1568,8 @@ impl_enum! {
 pub struct GrabKey {
     pub owner_events: bool,
     pub grab_window: WindowId,
-    pub modifiers: u16, // TODO: Type
-    pub key: u8,        // TODO: Type
+    pub modifiers: ModMask,
+    pub key: u8, // TODO: Type
     pub pointer_mode: SyncAsync,
     pub keyboard_mode: SyncAsync,
 }
@@ -1589,7 +1580,7 @@ impl LeBytes for GrabKey {
         write_le_bytes!(w, self.owner_events as u8);
         write_le_bytes!(w, 4u16); // length
         write_le_bytes!(w, self.grab_window);
-        write_le_bytes!(w, self.modifiers);
+        write_le_bytes!(w, self.modifiers.raw() as u16);
         write_le_bytes!(w, self.key);
         write_le_bytes!(w, self.pointer_mode);
         write_le_bytes!(w, self.keyboard_mode);
@@ -5166,7 +5157,7 @@ impl LeBytes for NoOperation {
 impl_xrequest_without_response!(NoOperation);
 
 bitmask! {
-    #[repr(u32)]
+    #[repr(u16)]
     bitmask ModMask {
         MOD_SHIFT = 0x0001,
         MOD_LOCK = 0x0002,
