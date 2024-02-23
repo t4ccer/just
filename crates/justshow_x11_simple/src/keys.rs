@@ -1,5 +1,24 @@
+//! This module corresponds to `xcb-keysyms` library.
+//! ## XCB migration guide
+//! - `xcb_key_symbols_t` → [`KeySymbols`]
+//! - `xcb_key_symbols_alloc` → [`crate::X11Connection::key_symbols`]
+//! - `xcb_key_symbols_free` → Dropped when out of scope.
+//! - `xcb_key_symbols_get_keysym` → [`KeySymbols::get_keysym`]
+//! - `xcb_key_symbols_get_keycode` → [`KeySymbols::get_keycodes`]
+//! - `xcb_key_press_lookup_keysym` → TODO
+//! - `xcb_key_release_lookup_keysym` → TODO
+//! - `xcb_refresh_keyboard_mapping` → TODO
+//! - `xcb_is_keypad_key` → TODO
+//! - `xcb_is_private_keypad_key` → TODO
+//! - `xcb_is_cursor_key` → TODO
+//! - `xcb_is_pf_key` → TODO
+//! - `xcb_is_function_key` → TODO
+//! - `xcb_is_misc_function_key` → TODO
+//! - `xcb_is_modifier_key` → TODO
+
 use justshow_x11::{keysym::KeySym, replies::GetKeyboardMapping, requests::KeyCode};
 
+/// A [`KeySym`] conversion table. Constructed using [`crate::X11Connection::key_symbols`].
 #[derive(Debug, Clone)]
 pub struct KeySymbols {
     pub(crate) min_keycode: u8,
@@ -8,7 +27,7 @@ pub struct KeySymbols {
 }
 
 impl KeySymbols {
-    fn get_keysym(&self, keycode: u8, mut col: usize) -> KeySym {
+    pub fn get_keysym(&self, keycode: u8, mut col: usize) -> KeySym {
         let mut per = self.reply.keysyms_per_keycode;
         if (col >= per as usize && col > 3)
             || keycode < self.min_keycode
@@ -44,6 +63,8 @@ impl KeySymbols {
         keysyms[col]
     }
 
+    /// Return all key codes that correspond to a given key symbol. Note that unlike XCB equivalent
+    /// the return key codes will not include final `NO_SYMBOL` entry.
     pub fn get_keycodes(&self, keysym: KeySym) -> Vec<KeyCode> {
         let mut res = Vec::new();
 
