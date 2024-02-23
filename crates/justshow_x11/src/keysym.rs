@@ -478,6 +478,12 @@ impl KeySym {
 
     pub const ISO_Level3_Lock: Self = Self { inner: 0xfe05 };
 
+    pub const ISO_Level5_Shift: Self = Self { inner: 0xfe11 };
+
+    pub const ISO_Level5_Latch: Self = Self { inner: 0xfe12 };
+
+    pub const ISO_Level5_Lock: Self = Self { inner: 0xfe13 };
+
     /// Alias for mode_switch
     pub const ISO_Group_Shift: Self = Self { inner: 0xff7e };
 

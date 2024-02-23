@@ -1,22 +1,28 @@
 //! This module corresponds to `xcb-keysyms` library.
 //! ## XCB migration guide
+//! If you are familiar with XCB, this module offers the same functionality, so please
+//! refffer to following lists of differences and similarities.
+//! ### Differences
+//! - `xcb_refresh_keyboard_mapping` → Use [`crate::X11Connection::key_symbols`] again to recreate.
+//! - `xcb_key_symbols_free` → Dropped when out of scope.
+//! ### One to one
 //! - `xcb_key_symbols_t` → [`KeySymbols`]
 //! - `xcb_key_symbols_alloc` → [`crate::X11Connection::key_symbols`]
-//! - `xcb_key_symbols_free` → Dropped when out of scope.
 //! - `xcb_key_symbols_get_keysym` → [`KeySymbols::get_keysym`]
 //! - `xcb_key_symbols_get_keycode` → [`KeySymbols::get_keycodes`]
-//! - `xcb_key_press_lookup_keysym` → TODO
-//! - `xcb_key_release_lookup_keysym` → TODO
-//! - `xcb_refresh_keyboard_mapping` → TODO
-//! - `xcb_is_keypad_key` → TODO
-//! - `xcb_is_private_keypad_key` → TODO
-//! - `xcb_is_cursor_key` → TODO
-//! - `xcb_is_pf_key` → TODO
-//! - `xcb_is_function_key` → TODO
-//! - `xcb_is_misc_function_key` → TODO
-//! - `xcb_is_modifier_key` → TODO
+//! - `xcb_key_press_lookup_keysym` → [`KeySymbols::key_event_lookup_keysym`]
+//! - `xcb_key_release_lookup_keysym` → [`KeySymbols::key_event_lookup_keysym`]
+//! - `xcb_is_keypad_key` → [`KeySymbols::is_keypad_key`]
+//! - `xcb_is_private_keypad_key` → [`KeySymbols::is_private_keypad_key`]
+//! - `xcb_is_cursor_key` → [`KeySymbols::is_cursor_key`]
+//! - `xcb_is_pf_key` → [`KeySymbols::is_pf_key`]
+//! - `xcb_is_function_key` → [`KeySymbols::is_function_key`]
+//! - `xcb_is_misc_function_key` → [`KeySymbols::is_misc_function_key`]
+//! - `xcb_is_modifier_key` → [`KeySymbols::is_modifier_key`]
 
-use justshow_x11::{keysym::KeySym, replies::GetKeyboardMapping, requests::KeyCode};
+use justshow_x11::{
+    events::KeyPressRelease, keysym::KeySym, replies::GetKeyboardMapping, requests::KeyCode,
+};
 
 /// A [`KeySym`] conversion table. Constructed using [`crate::X11Connection::key_symbols`].
 #[derive(Debug, Clone)]
@@ -79,6 +85,49 @@ impl KeySymbols {
         }
 
         res
+    }
+
+    #[inline(always)]
+    pub fn key_event_lookup_keysym(&self, event: &KeyPressRelease, col: usize) -> KeySym {
+        self.get_keysym(event.detail, col)
+    }
+
+    #[inline(always)]
+    pub fn is_keypad_key(keysym: KeySym) -> bool {
+        (keysym >= KeySym::KP_Space) && (keysym <= KeySym::KP_Equal)
+    }
+
+    #[inline(always)]
+    pub fn is_private_keypad_key(keysym: KeySym) -> bool {
+        (keysym.inner >= 0x11000000) && (keysym.inner <= 0x1100FFFF)
+    }
+
+    #[inline(always)]
+    pub fn is_cursor_key(keysym: KeySym) -> bool {
+        (keysym >= KeySym::Home) && (keysym <= KeySym::Select)
+    }
+
+    #[inline(always)]
+    pub fn is_pf_key(keysym: KeySym) -> bool {
+        (keysym >= KeySym::KP_F1) && (keysym <= KeySym::KP_F4)
+    }
+
+    #[inline(always)]
+    pub fn is_function_key(keysym: KeySym) -> bool {
+        (keysym >= KeySym::F1) && (keysym <= KeySym::F35)
+    }
+
+    #[inline(always)]
+    pub fn is_misc_function_key(keysym: KeySym) -> bool {
+        (keysym >= KeySym::Select) && (keysym <= KeySym::Break)
+    }
+
+    #[inline(always)]
+    pub fn is_modifier_key(keysym: KeySym) -> bool {
+        ((keysym >= KeySym::Shift_L) && (keysym <= KeySym::Hyper_R))
+            || ((keysym >= KeySym::ISO_Lock) && (keysym <= KeySym::ISO_Level5_Lock))
+            || (keysym == KeySym::Mode_switch)
+            || (keysym == KeySym::Num_Lock)
     }
 }
 
