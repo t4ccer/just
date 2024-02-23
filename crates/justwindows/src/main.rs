@@ -1,5 +1,3 @@
-use std::collections::HashMap;
-
 use justshow_x11::{
     error::Error,
     events::EventType,
@@ -10,6 +8,7 @@ use justshow_x11::{
     Rectangle, WindowId, XDisplay,
 };
 use justshow_x11_simple::{keys::KeySymbols, X11Connection};
+use std::collections::HashMap;
 
 #[derive(Clone)]
 struct TallLayout {
@@ -138,7 +137,7 @@ impl JustWindows {
                 | EventType::LEAVE_WINDOW
                 | EventType::STRUCTURE_NOTIFY,
         )?;
-        conn.set_supported()?;
+        // conn.set_supported()?;
 
         let key_symbols = conn.key_symbols()?;
         let mut bindings = KeyBindings::new(key_symbols);
@@ -255,6 +254,7 @@ impl JustWindows {
         let tree = self.conn.query_tree(root)?;
         for window in tree.children {
             self.manage_window(window)?;
+            self.set_initial_window_properties(window)?;
         }
         self.conn.flush()?;
 
@@ -342,8 +342,10 @@ impl JustWindows {
                 if let Some(event) = self.bindings.get_action(event.detail) {
                     match event {
                         JustAction::Kill => {
-                            // TODO: send message (need to look it up) and close window
-                            dbg!(event);
+                            if let Some(active) = self.active_window {
+                                self.unmanage_window(active)?;
+                                self.conn.kill_window(active)?;
+                            }
                         }
                         JustAction::Term => {
                             std::process::Command::new("xterm").spawn()?;

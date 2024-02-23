@@ -728,7 +728,7 @@ impl_enum! {
 #[derive(Debug, Clone)]
 #[repr(C)]
 pub struct ClientMessage {
-    _event_code: u8,
+    pub event_code: u8,
     pub format: MessageFormat,
     pub sequence_number: u16,
     pub window: WindowId,

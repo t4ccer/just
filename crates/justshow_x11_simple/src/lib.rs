@@ -6,7 +6,7 @@ use justshow_x11::{
     atoms::AtomId,
     bitmask,
     error::Error,
-    events::EventType,
+    events::{self, EventType},
     replies::{self, String8},
     requests::{
         self, ChangePropertyFormat, ChangePropertyMode, ConfigureWindowAttributes, KeyCode,
@@ -14,7 +14,12 @@ use justshow_x11::{
     },
     Drawable, OrNone, PendingReply, PixmapId, ResourceId, WindowId, XDisplay,
 };
-use std::{collections::HashMap, mem, str::FromStr};
+use std::{
+    collections::HashMap,
+    io::{Cursor, Write},
+    mem,
+    str::FromStr,
+};
 
 pub mod keys;
 
@@ -168,6 +173,73 @@ impl X11Connection {
         })
     }
 
+    pub fn get_wm_protocols(&mut self, window: WindowId) -> Result<Vec<AtomId>, Error> {
+        let wm_protocols = self.get_atom_id(String8::from_str("WM_PROTOCOLS").unwrap())?;
+        let props = request_blocking!(
+            self.display,
+            requests::GetProperty {
+                delete: false,
+                window,
+                property: wm_protocols,
+                type_: AtomId::ATOM,
+                long_offset: 0, // Xlib uses these magic values
+                long_length: 1000000,
+            }
+        )?;
+
+        if props.format != 32 || props.type_ != AtomId::ATOM {
+            return Ok(Vec::new());
+        }
+
+        let mut res = Vec::with_capacity(props.value.len() / 4);
+        for raw_atom_id in props.value.windows(4) {
+            res.push(AtomId::unchecked_from(u32::from_le_bytes([
+                raw_atom_id[0],
+                raw_atom_id[1],
+                raw_atom_id[2],
+                raw_atom_id[3],
+            ])));
+        }
+
+        Ok(res)
+    }
+
+    pub fn kill_window(&mut self, window: WindowId) -> Result<(), Error> {
+        let wm_delete_window = self.get_atom_id(String8::from_str("WM_DELETE_WINDOW").unwrap())?;
+        let wm_protocols = self.get_atom_id(String8::from_str("WM_PROTOCOLS").unwrap())?;
+
+        let protocols = self.get_wm_protocols(window)?;
+        if protocols.contains(&wm_delete_window) {
+            let mut buf = Cursor::new([0u8; 20]);
+            buf.write_all(&wm_delete_window.to_le_bytes()).unwrap();
+            let event_data = buf.into_inner();
+
+            let event = events::ClientMessage {
+                event_code: 33,
+                format: events::MessageFormat::Format32,
+                sequence_number: 0,
+                window,
+                type_message: wm_protocols,
+                data: event_data,
+            };
+            let raw_event: [u8; 32] = unsafe { std::mem::transmute(event) };
+
+            let request = requests::SendEvent {
+                propagate: false,
+                destination: window,
+                event_mask: 0,
+                event: raw_event,
+            };
+            self.display_mut().send_request(&request)?;
+        } else {
+            self.display_mut().send_request(&requests::KillClient {
+                resource: window.into(),
+            })?;
+        }
+
+        Ok(())
+    }
+
     pub fn get_wm_hints(&mut self, window: WindowId) -> Result<Option<WindowManagerHints>, Error> {
         const NUM_PROP_WMHINTS_ELEMENTS: usize = mem::size_of::<WindowManagerHints>() / 4;
 
@@ -216,7 +288,7 @@ impl X11Connection {
             );
         }
 
-        let request = requests::ChangeProperty {
+        let _request = requests::ChangeProperty {
             mode: ChangePropertyMode::Replace,
             window: self.default_screen().root, // TODO: take as parameter
             property: net_supported,
@@ -225,7 +297,7 @@ impl X11Connection {
             data,
         };
 
-        Ok(())
+        todo!();
     }
 }
 
