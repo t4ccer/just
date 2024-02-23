@@ -1,13 +1,15 @@
+use std::collections::HashMap;
+
 use justshow_x11::{
     error::Error,
     events::EventType,
     events::SomeEvent,
     keysym::KeySym,
-    requests::{self, ConfigureWindowAttributes, GrabMode, KeyModifier},
+    requests::{self, ConfigureWindowAttributes, GrabMode, KeyCode, KeyModifier},
     xerror::SomeError,
     Rectangle, WindowId, XDisplay,
 };
-use justshow_x11_simple::X11Connection;
+use justshow_x11_simple::{keys::KeySymbols, X11Connection};
 
 #[derive(Clone)]
 struct TallLayout {
@@ -63,6 +65,54 @@ enum Layout {
     Tall(TallLayout),
 }
 
+/// Abstract action type
+#[derive(Debug, Clone, Copy)]
+enum JustAction {
+    Kill,
+    Term,
+}
+
+struct KeyBindings {
+    bindings: HashMap<KeyCode, JustAction>,
+    key_symbols: KeySymbols,
+}
+
+impl KeyBindings {
+    fn new(key_symbols: KeySymbols) -> Self {
+        Self {
+            bindings: HashMap::new(),
+            key_symbols,
+        }
+    }
+
+    fn bind_key_sym(
+        &mut self,
+        display: &mut XDisplay,
+        root: WindowId,
+        sym: KeySym,
+        event: JustAction,
+    ) -> Result<(), Error> {
+        let key_codes = self.key_symbols.get_keycodes(sym);
+        for key in key_codes {
+            display.send_request(&requests::GrabKey {
+                owner_events: false,
+                grab_window: root,
+                modifiers: KeyModifier::CONTROL,
+                key,
+                pointer_mode: GrabMode::Asynchronous,
+                keyboard_mode: GrabMode::Asynchronous,
+            })?;
+            self.bindings.insert(key, event);
+        }
+
+        Ok(())
+    }
+
+    fn get_action(&self, key_code: KeyCode) -> Option<JustAction> {
+        self.bindings.get(&key_code).copied()
+    }
+}
+
 struct JustWindows {
     conn: X11Connection,
     managed_windows: Vec<WindowId>,
@@ -70,6 +120,7 @@ struct JustWindows {
     screen_width: u16,
     screen_height: u16,
     active_window: Option<WindowId>,
+    bindings: KeyBindings,
 }
 
 impl JustWindows {
@@ -90,17 +141,9 @@ impl JustWindows {
         conn.set_supported()?;
 
         let key_symbols = conn.key_symbols()?;
-
-        for key in key_symbols.get_keycodes(KeySym::q) {
-            conn.display_mut().send_request(&requests::GrabKey {
-                owner_events: false,
-                grab_window: root,
-                modifiers: KeyModifier::CONTROL,
-                key,
-                pointer_mode: GrabMode::Asynchronous,
-                keyboard_mode: GrabMode::Asynchronous,
-            })?;
-        }
+        let mut bindings = KeyBindings::new(key_symbols);
+        bindings.bind_key_sym(conn.display_mut(), root, KeySym::q, JustAction::Kill)?;
+        bindings.bind_key_sym(conn.display_mut(), root, KeySym::Return, JustAction::Term)?;
 
         conn.flush()?;
 
@@ -116,6 +159,7 @@ impl JustWindows {
             screen_width: screen.width_in_pixels,
             screen_height: screen.height_in_pixels,
             active_window: None,
+            bindings,
         })
     }
 
@@ -261,7 +305,7 @@ impl JustWindows {
                 })?;
                 self.manage_window(event.window)?;
                 self.arrange_windows()?;
-                self.conn.set_focus(event.window)?;
+                // self.conn.set_focus(event.window)?;
                 self.conn.flush()?;
             }
             SomeEvent::DestroyNotify(event) => {
@@ -294,11 +338,26 @@ impl JustWindows {
                     self.rescreen()?;
                 }
             }
+            SomeEvent::KeyPress(event) => {
+                if let Some(event) = self.bindings.get_action(event.detail) {
+                    match event {
+                        JustAction::Kill => {
+                            // TODO: send message (need to look it up) and close window
+                            dbg!(event);
+                        }
+                        JustAction::Term => {
+                            std::process::Command::new("xterm").spawn()?;
+                        }
+                    }
+                }
+            }
             SomeEvent::MapNotify(_)
             | SomeEvent::CreateNotify(_)
             | SomeEvent::UnmapNotify(_)
             | SomeEvent::MappingNotify(_)
-            | SomeEvent::PropertyNotify(_) => {}
+            | SomeEvent::PropertyNotify(_)
+            | SomeEvent::KeyRelease(_)
+            | SomeEvent::ButtonPress(_) => {}
             _ => {
                 dbg!(event);
             }

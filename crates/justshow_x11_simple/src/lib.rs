@@ -162,8 +162,8 @@ impl X11Connection {
             }
         )?;
         Ok(KeySymbols {
-            min_keycode,
-            max_keycode,
+            min_keycode: KeyCode::from(min_keycode),
+            max_keycode: KeyCode::from(max_keycode),
             reply,
         })
     }

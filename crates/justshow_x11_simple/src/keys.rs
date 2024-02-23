@@ -27,13 +27,13 @@ use justshow_x11::{
 /// A [`KeySym`] conversion table. Constructed using [`crate::X11Connection::key_symbols`].
 #[derive(Debug, Clone)]
 pub struct KeySymbols {
-    pub(crate) min_keycode: u8,
-    pub(crate) max_keycode: u8,
+    pub(crate) min_keycode: KeyCode,
+    pub(crate) max_keycode: KeyCode,
     pub(crate) reply: GetKeyboardMapping,
 }
 
 impl KeySymbols {
-    pub fn get_keysym(&self, keycode: u8, mut col: usize) -> KeySym {
+    pub fn get_keysym(&self, keycode: KeyCode, mut col: usize) -> KeySym {
         let mut per = self.reply.keysyms_per_keycode;
         if (col >= per as usize && col > 3)
             || keycode < self.min_keycode
@@ -42,8 +42,8 @@ impl KeySymbols {
             return KeySym::NO_SYMBOL;
         }
 
-        let keysyms =
-            &self.reply.keysyms[(keycode as usize - self.min_keycode as usize) * per as usize..];
+        let keysyms = &self.reply.keysyms
+            [(keycode.raw() as usize - self.min_keycode.raw() as usize) * per as usize..];
         if col < 4 {
             if col > 1 {
                 while per > 2 && keysyms[per as usize - 1] == KeySym::NO_SYMBOL {
@@ -74,11 +74,12 @@ impl KeySymbols {
     pub fn get_keycodes(&self, keysym: KeySym) -> Vec<KeyCode> {
         let mut res = Vec::new();
 
-        for i in self.min_keycode..=self.max_keycode {
+        for i in self.min_keycode.raw()..=self.max_keycode.raw() {
             for j in 0..self.reply.keysyms_per_keycode {
+                let i = KeyCode::from(i);
                 let ks = self.get_keysym(i, j as usize);
                 if ks == keysym {
-                    res.push(KeyCode::from(i));
+                    res.push(i);
                     break;
                 }
             }

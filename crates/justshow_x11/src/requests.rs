@@ -47,13 +47,19 @@ impl Timestamp {
     }
 }
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[repr(transparent)]
 pub struct KeyCode(u8);
 
 impl KeyCode {
+    #[inline(always)]
     fn to_le_bytes(self) -> [u8; 1] {
         self.0.to_le_bytes()
+    }
+
+    #[inline(always)]
+    pub fn raw(self) -> u8 {
+        self.0
     }
 }
 

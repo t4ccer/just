@@ -1,5 +1,6 @@
 use crate::{
     atoms::AtomId,
+    requests::KeyCode,
     utils::{bitmask, impl_enum},
     ColormapId, OrNone, ResourceId, WindowId,
 };
@@ -13,7 +14,7 @@ fn invalid_bool(value: u8) -> bool {
 #[repr(C)]
 pub struct KeyPressRelease {
     _event_code: u8,
-    pub detail: u8,
+    pub detail: KeyCode,
     pub time: u32,
     pub root: u32,
     pub event: u32,
