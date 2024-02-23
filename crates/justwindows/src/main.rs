@@ -5,10 +5,18 @@ use justshow_x11::{
     keysym::KeySym,
     requests::{self, ConfigureWindowAttributes, GrabMode, KeyCode, KeyModifier},
     xerror::SomeError,
-    Rectangle, WindowId, XDisplay,
+    WindowId, XDisplay,
 };
 use justshow_x11_simple::{keys::KeySymbols, X11Connection};
 use std::collections::HashMap;
+
+#[derive(Debug, Clone, Copy)]
+pub struct Rectangle {
+    pub x: f32,
+    pub y: f32,
+    pub width: f32,
+    pub height: f32,
+}
 
 #[derive(Debug, Clone, Copy)]
 struct PositionedWindow {
@@ -21,10 +29,10 @@ struct PositionedWindow {
 impl PositionedWindow {
     fn to_attributes(self) -> ConfigureWindowAttributes {
         ConfigureWindowAttributes::new()
-            .set_width(self.position.width)
-            .set_height(self.position.height)
-            .set_x(self.position.x)
-            .set_y(self.position.y)
+            .set_width(self.position.width as u16)
+            .set_height(self.position.height as u16)
+            .set_x(self.position.x as i16)
+            .set_y(self.position.y as i16)
             .set_border_width(self.border_width)
     }
 }
@@ -60,10 +68,12 @@ impl Layout for SingleWindow {
                     self.inactive_border
                 };
 
-                let width = area.width - self.border_width * 2 - self.window_pad * 2;
-                let height = (area.height - (self.window_pad * 2)) - self.border_width * 2;
-                let x = self.window_pad as i16 + area.x;
-                let y = self.window_pad as i16 + area.y;
+                let width =
+                    area.width - self.border_width as f32 * 2.0 - self.window_pad as f32 * 2.0;
+                let height =
+                    (area.height - (self.window_pad as f32 * 2.0)) - self.border_width as f32 * 2.0;
+                let x = self.window_pad as f32 + area.x;
+                let y = self.window_pad as f32 + area.y;
 
                 PositionedWindow {
                     window,
@@ -119,7 +129,7 @@ impl Layout for VerticalMasterSplit {
                     Rectangle {
                         x: area.x,
                         y: area.y,
-                        width: area.width / 2 + self.window_pad / 2,
+                        width: area.width / 2.0 + self.window_pad as f32 / 2.0,
                         height: area.height,
                     },
                     active_window,
@@ -128,9 +138,9 @@ impl Layout for VerticalMasterSplit {
 
                 let right = self.right.position_windows(
                     Rectangle {
-                        x: area.x + (area.width / 2 - self.window_pad / 2) as i16,
+                        x: area.x + (area.width / 2.0 - self.window_pad as f32 / 2.0),
                         y: area.y,
-                        width: area.width / 2 + self.window_pad / 2,
+                        width: area.width / 2.0 + self.window_pad as f32 / 2.0,
                         height: area.height,
                     },
                     active_window,
@@ -172,13 +182,15 @@ impl Layout for VerticalStack {
             .iter()
             .enumerate()
             .map(|(idx, &window)| {
-                let width = area.width - self.border_width * 2 - self.window_pad * 2;
-                let height = (area.height - (self.window_pad * (window_count + 1))) / window_count
-                    - self.border_width * 2;
+                let width =
+                    area.width - self.border_width as f32 * 2.0 - self.window_pad as f32 * 2.0;
+                let height = (area.height - (self.window_pad as f32 * (window_count + 1) as f32))
+                    / window_count as f32
+                    - self.border_width as f32 * 2.0;
 
-                let x = self.window_pad as i16 + area.x;
-                let y = ((height as i16 + 2 * self.border_width as i16) * idx as i16
-                    + (self.window_pad as i16 * (1 + idx as i16)))
+                let x = self.window_pad as f32 + area.x;
+                let y = ((height + 2.0 * self.border_width as f32) * idx as f32
+                    + (self.window_pad as f32 * (1.0 + idx as f32)))
                     + area.y;
 
                 let border_color = if active_window == Some(window) {
@@ -296,24 +308,12 @@ impl JustWindows {
                 window_pad,
                 inactive_border,
                 active_border,
-                right: Box::new(VerticalMasterSplit {
+                right: Box::new(VerticalStack {
                     border_width,
                     window_pad,
-                    active_border,
                     inactive_border,
-                    right: Box::new(VerticalStack {
-                        border_width,
-                        window_pad,
-                        inactive_border,
-                        active_border,
-                    }),
+                    active_border,
                 }),
-                // right: Box::new(VerticalStack {
-                //     border_width,
-                //     window_pad,
-                //     inactive_border,
-                //     active_border,
-                // }),
             }
         };
 
@@ -338,10 +338,10 @@ impl JustWindows {
 
         let positioned = self.layout.position_windows(
             Rectangle {
-                x: 0,
-                y: 0,
-                width: self.screen_width,
-                height: self.screen_height,
+                x: 0.0,
+                y: 0.0,
+                width: self.screen_width as f32,
+                height: self.screen_height as f32,
             },
             self.active_window,
             &windows,
