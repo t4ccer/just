@@ -1,6 +1,6 @@
 use crate::keys::KeySymbols;
 use justshow_x11::{
-    atoms::{self, AtomId},
+    atoms::AtomId,
     bitmask,
     error::Error,
     events::EventType,
@@ -173,14 +173,14 @@ impl X11Connection {
             requests::GetProperty {
                 delete: false,
                 window,
-                property: atoms::predefined::WM_HINTS,
-                type_: atoms::predefined::WM_HINTS,
+                property: AtomId::WM_HINTS,
+                type_: AtomId::WM_HINTS,
                 long_offset: 0,
                 long_length: NUM_PROP_WMHINTS_ELEMENTS as u32,
             }
         )?;
 
-        if reply.type_ != atoms::predefined::WM_HINTS {
+        if reply.type_ != AtomId::WM_HINTS {
             return Ok(None);
         }
 
@@ -217,7 +217,7 @@ impl X11Connection {
             mode: ChangePropertyMode::Replace,
             window: self.default_screen().root, // TODO: take as parameter
             property: net_supported,
-            type_: atoms::predefined::ATOM,
+            type_: AtomId::ATOM,
             format: ChangePropertyFormat::Format32,
             data,
         };

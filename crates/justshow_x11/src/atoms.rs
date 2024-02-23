@@ -1,78 +1,84 @@
-use crate::utils::impl_resource_id;
+use crate::{utils::impl_resource_id, ResourceId};
 
 impl_resource_id!(AtomId);
 
-pub mod predefined {
-    use crate::{atoms::AtomId, ResourceId};
+macro_rules! define_atom_id {
+    ($($name:ident = $value:expr,)*) => {
+        $(pub const $name: Self = Self(ResourceId { value: $value });)*
+    };
+}
 
-    pub const PRIMARY: AtomId = AtomId(ResourceId { value: 1 });
-    pub const SECONDARY: AtomId = AtomId(ResourceId { value: 2 });
-    pub const ARC: AtomId = AtomId(ResourceId { value: 3 });
-    pub const ATOM: AtomId = AtomId(ResourceId { value: 4 });
-    pub const BITMAP: AtomId = AtomId(ResourceId { value: 5 });
-    pub const CARDINAL: AtomId = AtomId(ResourceId { value: 6 });
-    pub const COLORMAP: AtomId = AtomId(ResourceId { value: 7 });
-    pub const CURSOR: AtomId = AtomId(ResourceId { value: 8 });
-    pub const CUT_BUFFER0: AtomId = AtomId(ResourceId { value: 9 });
-    pub const CUT_BUFFER1: AtomId = AtomId(ResourceId { value: 10 });
-    pub const CUT_BUFFER2: AtomId = AtomId(ResourceId { value: 11 });
-    pub const CUT_BUFFER3: AtomId = AtomId(ResourceId { value: 12 });
-    pub const CUT_BUFFER4: AtomId = AtomId(ResourceId { value: 13 });
-    pub const CUT_BUFFER5: AtomId = AtomId(ResourceId { value: 14 });
-    pub const CUT_BUFFER6: AtomId = AtomId(ResourceId { value: 15 });
-    pub const CUT_BUFFER7: AtomId = AtomId(ResourceId { value: 16 });
-    pub const DRAWABLE: AtomId = AtomId(ResourceId { value: 17 });
-    pub const FONT: AtomId = AtomId(ResourceId { value: 18 });
-    pub const INTEGER: AtomId = AtomId(ResourceId { value: 19 });
-    pub const PIXMAP: AtomId = AtomId(ResourceId { value: 20 });
-    pub const POINT: AtomId = AtomId(ResourceId { value: 21 });
-    pub const RECTANGLE: AtomId = AtomId(ResourceId { value: 22 });
-    pub const RESOURCE_MANAGER: AtomId = AtomId(ResourceId { value: 23 });
-    pub const RGB_COLOR_MAP: AtomId = AtomId(ResourceId { value: 24 });
-    pub const RGB_BEST_MAP: AtomId = AtomId(ResourceId { value: 25 });
-    pub const RGB_BLUE_MAP: AtomId = AtomId(ResourceId { value: 26 });
-    pub const RGB_DEFAULT_MAP: AtomId = AtomId(ResourceId { value: 27 });
-    pub const RGB_GRAY_MAP: AtomId = AtomId(ResourceId { value: 28 });
-    pub const RGB_GREEN_MAP: AtomId = AtomId(ResourceId { value: 29 });
-    pub const RGB_RED_MAP: AtomId = AtomId(ResourceId { value: 30 });
-    pub const STRING: AtomId = AtomId(ResourceId { value: 31 });
-    pub const VISUALID: AtomId = AtomId(ResourceId { value: 32 });
-    pub const WINDOW: AtomId = AtomId(ResourceId { value: 33 });
-    pub const WM_COMMAND: AtomId = AtomId(ResourceId { value: 34 });
-    pub const WM_HINTS: AtomId = AtomId(ResourceId { value: 35 });
-    pub const WM_CLIENT_MACHINE: AtomId = AtomId(ResourceId { value: 36 });
-    pub const WM_ICON_NAME: AtomId = AtomId(ResourceId { value: 37 });
-    pub const WM_ICON_SIZE: AtomId = AtomId(ResourceId { value: 38 });
-    pub const WM_NAME: AtomId = AtomId(ResourceId { value: 39 });
-    pub const WM_NORMAL_HINTS: AtomId = AtomId(ResourceId { value: 40 });
-    pub const WM_SIZE_HINTS: AtomId = AtomId(ResourceId { value: 41 });
-    pub const WM_ZOOM_HINTS: AtomId = AtomId(ResourceId { value: 42 });
-    pub const MIN_SPACE: AtomId = AtomId(ResourceId { value: 43 });
-    pub const NORM_SPACE: AtomId = AtomId(ResourceId { value: 44 });
-    pub const MAX_SPACE: AtomId = AtomId(ResourceId { value: 45 });
-    pub const END_SPACE: AtomId = AtomId(ResourceId { value: 46 });
-    pub const SUPERSCRIPT_X: AtomId = AtomId(ResourceId { value: 47 });
-    pub const SUPERSCRIPT_Y: AtomId = AtomId(ResourceId { value: 48 });
-    pub const SUBSCRIPT_X: AtomId = AtomId(ResourceId { value: 49 });
-    pub const SUBSCRIPT_Y: AtomId = AtomId(ResourceId { value: 50 });
-    pub const UNDERLINE_POSITION: AtomId = AtomId(ResourceId { value: 51 });
-    pub const UNDERLINE_THICKNESS: AtomId = AtomId(ResourceId { value: 52 });
-    pub const STRIKEOUT_ASCENT: AtomId = AtomId(ResourceId { value: 53 });
-    pub const STRIKEOUT_DESCENT: AtomId = AtomId(ResourceId { value: 54 });
-    pub const ITALIC_ANGLE: AtomId = AtomId(ResourceId { value: 55 });
-    pub const X_HEIGHT: AtomId = AtomId(ResourceId { value: 56 });
-    pub const QUAD_WIDTH: AtomId = AtomId(ResourceId { value: 57 });
-    pub const WEIGHT: AtomId = AtomId(ResourceId { value: 58 });
-    pub const POINT_SIZE: AtomId = AtomId(ResourceId { value: 59 });
-    pub const RESOLUTION: AtomId = AtomId(ResourceId { value: 60 });
-    pub const COPYRIGHT: AtomId = AtomId(ResourceId { value: 61 });
-    pub const NOTICE: AtomId = AtomId(ResourceId { value: 62 });
-    pub const FONT_NAME: AtomId = AtomId(ResourceId { value: 63 });
-    pub const FAMILY_NAME: AtomId = AtomId(ResourceId { value: 64 });
-    pub const FULL_NAME: AtomId = AtomId(ResourceId { value: 65 });
-    pub const CAP_HEIGHT: AtomId = AtomId(ResourceId { value: 66 });
-    pub const WM_CLASS: AtomId = AtomId(ResourceId { value: 67 });
-    pub const WM_TRANSIENT_FOR: AtomId = AtomId(ResourceId { value: 68 });
+impl AtomId {
+    define_atom_id! {
+        PRIMARY = 1,
+        SECONDARY = 2,
+        ARC = 3,
+        ATOM = 4,
+        BITMAP = 5,
+        CARDINAL = 6,
+        COLORMAP = 7,
+        CURSOR = 8,
+        CUT_BUFFER0 = 9,
+        CUT_BUFFER1 = 10,
+        CUT_BUFFER2 = 11,
+        CUT_BUFFER3 = 12,
+        CUT_BUFFER4 = 13,
+        CUT_BUFFER5 = 14,
+        CUT_BUFFER6 = 15,
+        CUT_BUFFER7 = 16,
+        DRAWABLE = 17,
+        FONT = 18,
+        INTEGER = 19,
+        PIXMAP = 20,
+        POINT = 21,
+        RECTANGLE = 22,
+        RESOURCE_MANAGER = 23,
+        RGB_COLOR_MAP = 24,
+        RGB_BEST_MAP = 25,
+        RGB_BLUE_MAP = 26,
+        RGB_DEFAULT_MAP = 27,
+        RGB_GRAY_MAP = 28,
+        RGB_GREEN_MAP = 29,
+        RGB_RED_MAP = 30,
+        STRING = 31,
+        VISUALID = 32,
+        WINDOW = 33,
+        WM_COMMAND = 34,
+        WM_HINTS = 35,
+        WM_CLIENT_MACHINE = 36,
+        WM_ICON_NAME = 37,
+        WM_ICON_SIZE = 38,
+        WM_NAME = 39,
+        WM_NORMAL_HINTS = 40,
+        WM_SIZE_HINTS = 41,
+        WM_ZOOM_HINTS = 42,
+        MIN_SPACE = 43,
+        NORM_SPACE = 44,
+        MAX_SPACE = 45,
+        END_SPACE = 46,
+        SUPERSCRIPT_X = 47,
+        SUPERSCRIPT_Y = 48,
+        SUBSCRIPT_X = 49,
+        SUBSCRIPT_Y = 50,
+        UNDERLINE_POSITION = 51,
+        UNDERLINE_THICKNESS = 52,
+        STRIKEOUT_ASCENT = 53,
+        STRIKEOUT_DESCENT = 54,
+        ITALIC_ANGLE = 55,
+        X_HEIGHT = 56,
+        QUAD_WIDTH = 57,
+        WEIGHT = 58,
+        POINT_SIZE = 59,
+        RESOLUTION = 60,
+        COPYRIGHT = 61,
+        NOTICE = 62,
+        FONT_NAME = 63,
+        FAMILY_NAME = 64,
+        FULL_NAME = 65,
+        CAP_HEIGHT = 66,
+        WM_CLASS = 67,
+        WM_TRANSIENT_FOR = 68,
+    }
 }
 
 /// 'Extended Window Manager Hints' atoms
