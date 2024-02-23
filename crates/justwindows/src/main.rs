@@ -10,64 +10,203 @@ use justshow_x11::{
 use justshow_x11_simple::{keys::KeySymbols, X11Connection};
 use std::collections::HashMap;
 
-#[derive(Clone)]
-struct TallLayout {
+#[derive(Debug, Clone, Copy)]
+struct PositionedWindow {
+    window: WindowId,
+    position: Rectangle,
+    border_width: u16,
+    border_color: u32,
+}
+
+impl PositionedWindow {
+    fn to_attributes(self) -> ConfigureWindowAttributes {
+        ConfigureWindowAttributes::new()
+            .set_width(self.position.width)
+            .set_height(self.position.height)
+            .set_x(self.position.x)
+            .set_y(self.position.y)
+            .set_border_width(self.border_width)
+    }
+}
+
+trait Layout {
+    fn position_windows(
+        &self,
+        area: Rectangle,
+        active_window: Option<WindowId>,
+        windows: &[WindowId],
+    ) -> Vec<PositionedWindow>;
+}
+
+struct SingleWindow {
     border_width: u16,
     window_pad: u16,
     active_border: u32,
     inactive_border: u32,
 }
 
-impl TallLayout {
-    fn arrange_windows(
+impl Layout for SingleWindow {
+    fn position_windows(
         &self,
-        wm: &mut JustWindows,
         area: Rectangle,
+        active_window: Option<WindowId>,
         windows: &[WindowId],
-    ) -> Result<(), Error> {
-        let window_count = windows.len() as u16;
+    ) -> Vec<PositionedWindow> {
+        if let Some(&window) = windows.get(0) {
+            let master_positioned = {
+                let border_color = if active_window == Some(window) {
+                    self.active_border
+                } else {
+                    self.inactive_border
+                };
 
-        for (idx, &window) in windows.iter().enumerate() {
-            let width = area.width - self.border_width * 2 - self.window_pad * 2;
-            let height = (area.height - (self.window_pad * (window_count + 1))) / window_count
-                - self.border_width * 2;
+                let width = area.width - self.border_width * 2 - self.window_pad * 2;
+                let height = (area.height - (self.window_pad * 2)) - self.border_width * 2;
+                let x = self.window_pad as i16 + area.x;
+                let y = self.window_pad as i16 + area.y;
 
-            wm.conn
-                .display_mut()
-                .send_request(&requests::ConfigureWindow {
+                PositionedWindow {
                     window,
-                    attributes: ConfigureWindowAttributes::new()
-                        .set_width(width)
-                        .set_height(height)
-                        .set_x(self.window_pad as i16 + area.x)
-                        .set_y(
-                            ((height as i16 + 2 * self.border_width as i16) * idx as i16
-                                + (self.window_pad as i16 * (1 + idx as i16)))
-                                + area.y,
-                        )
-                        .set_border_width(self.border_width),
-                })?;
-            let color = if wm.active_window == Some(window) {
-                self.active_border
-            } else {
-                self.inactive_border
+                    position: Rectangle {
+                        width,
+                        height,
+                        x,
+                        y,
+                    },
+                    border_width: self.border_width,
+                    border_color,
+                }
             };
-            wm.conn.set_border_color(window, color)?;
+            vec![master_positioned]
+        } else {
+            Vec::new()
         }
+    }
+}
 
-        Ok(())
+struct VerticalMasterSplit {
+    border_width: u16,
+    window_pad: u16,
+    active_border: u32,
+    inactive_border: u32,
+    right: Box<dyn Layout>,
+}
+
+impl Layout for VerticalMasterSplit {
+    fn position_windows(
+        &self,
+        area: Rectangle,
+        active_window: Option<WindowId>,
+        windows: &[WindowId],
+    ) -> Vec<PositionedWindow> {
+        if let Some((&master_window, rest_windows)) = windows.split_first() {
+            if rest_windows.is_empty() {
+                SingleWindow {
+                    border_width: self.border_width,
+                    window_pad: self.window_pad,
+                    active_border: self.active_border,
+                    inactive_border: self.inactive_border,
+                }
+                .position_windows(area, active_window, &[master_window])
+            } else {
+                let left = SingleWindow {
+                    border_width: self.border_width,
+                    window_pad: self.window_pad,
+                    active_border: self.active_border,
+                    inactive_border: self.inactive_border,
+                }
+                .position_windows(
+                    Rectangle {
+                        x: area.x,
+                        y: area.y,
+                        width: area.width / 2 + self.window_pad / 2,
+                        height: area.height,
+                    },
+                    active_window,
+                    &[master_window],
+                );
+
+                let right = self.right.position_windows(
+                    Rectangle {
+                        x: area.x + (area.width / 2 - self.window_pad / 2) as i16,
+                        y: area.y,
+                        width: area.width / 2 + self.window_pad / 2,
+                        height: area.height,
+                    },
+                    active_window,
+                    rest_windows,
+                );
+
+                let mut combined = Vec::with_capacity(left.len() + right.len());
+                combined.extend(left);
+                combined.extend(right);
+
+                combined
+            }
+        } else {
+            vec![]
+        }
     }
 }
 
 #[derive(Clone)]
-enum Layout {
-    Tall(TallLayout),
+struct VerticalStack {
+    border_width: u16,
+    window_pad: u16,
+    active_border: u32,
+    inactive_border: u32,
+}
+
+impl Layout for VerticalStack {
+    /// Arrange windows in a vertical stack
+    #[must_use]
+    fn position_windows(
+        &self,
+        area: Rectangle,
+        active_window: Option<WindowId>,
+        windows: &[WindowId],
+    ) -> Vec<PositionedWindow> {
+        let window_count = windows.len() as u16;
+
+        windows
+            .iter()
+            .enumerate()
+            .map(|(idx, &window)| {
+                let width = area.width - self.border_width * 2 - self.window_pad * 2;
+                let height = (area.height - (self.window_pad * (window_count + 1))) / window_count
+                    - self.border_width * 2;
+
+                let x = self.window_pad as i16 + area.x;
+                let y = ((height as i16 + 2 * self.border_width as i16) * idx as i16
+                    + (self.window_pad as i16 * (1 + idx as i16)))
+                    + area.y;
+
+                let border_color = if active_window == Some(window) {
+                    self.active_border
+                } else {
+                    self.inactive_border
+                };
+
+                PositionedWindow {
+                    window,
+                    position: Rectangle {
+                        x,
+                        y,
+                        width,
+                        height,
+                    },
+                    border_color,
+                    border_width: self.border_width,
+                }
+            })
+            .collect()
+    }
 }
 
 /// Abstract action type
 #[derive(Debug, Clone, Copy)]
 enum JustAction {
-    Kill,
+    KillActive,
     Term,
 }
 
@@ -115,7 +254,7 @@ impl KeyBindings {
 struct JustWindows {
     conn: X11Connection,
     managed_windows: Vec<WindowId>,
-    layout: Layout,
+    layout: Box<dyn Layout>,
     screen_width: u16,
     screen_height: u16,
     active_window: Option<WindowId>,
@@ -141,20 +280,47 @@ impl JustWindows {
 
         let key_symbols = conn.key_symbols()?;
         let mut bindings = KeyBindings::new(key_symbols);
-        bindings.bind_key_sym(conn.display_mut(), root, KeySym::q, JustAction::Kill)?;
+        bindings.bind_key_sym(conn.display_mut(), root, KeySym::q, JustAction::KillActive)?;
         bindings.bind_key_sym(conn.display_mut(), root, KeySym::Return, JustAction::Term)?;
 
         conn.flush()?;
 
+        let layout = {
+            let border_width = 3;
+            let window_pad = 10;
+            let inactive_border = 0xd0d0d0;
+            let active_border = 0x4eb4fa;
+
+            VerticalMasterSplit {
+                border_width,
+                window_pad,
+                inactive_border,
+                active_border,
+                right: Box::new(VerticalMasterSplit {
+                    border_width,
+                    window_pad,
+                    active_border,
+                    inactive_border,
+                    right: Box::new(VerticalStack {
+                        border_width,
+                        window_pad,
+                        inactive_border,
+                        active_border,
+                    }),
+                }),
+                // right: Box::new(VerticalStack {
+                //     border_width,
+                //     window_pad,
+                //     inactive_border,
+                //     active_border,
+                // }),
+            }
+        };
+
         Ok(Self {
             conn,
             managed_windows: Vec::new(),
-            layout: Layout::Tall(TallLayout {
-                border_width: 3,
-                window_pad: 10,
-                inactive_border: 0xd0d0d0,
-                active_border: 0x4eb4fa,
-            }),
+            layout: Box::new(layout),
             screen_width: screen.width_in_pixels,
             screen_height: screen.height_in_pixels,
             active_window: None,
@@ -163,57 +329,36 @@ impl JustWindows {
     }
 
     fn arrange_windows(&mut self) -> Result<(), Error> {
-        match self.layout.clone() {
-            Layout::Tall(layout) => {
-                if let Some((master_window, stack_windows)) = self
-                    .managed_windows
-                    .iter()
-                    .copied()
-                    .rev()
-                    .collect::<Vec<WindowId>>()
-                    .split_first()
-                    .map(|(l, r)| (*l, r.to_vec()))
-                {
-                    if stack_windows.is_empty() {
-                        layout.arrange_windows(
-                            self,
-                            Rectangle {
-                                x: 0,
-                                y: 0,
-                                width: self.screen_width,
-                                height: self.screen_height,
-                            },
-                            &[master_window],
-                        )?;
-                    } else {
-                        layout.arrange_windows(
-                            self,
-                            Rectangle {
-                                x: 0,
-                                y: 0,
-                                width: self.screen_width / 2 + layout.window_pad / 2,
-                                height: self.screen_height,
-                            },
-                            &[master_window],
-                        )?;
+        let windows = self
+            .managed_windows
+            .iter()
+            .copied()
+            .rev()
+            .collect::<Vec<WindowId>>();
 
-                        layout.arrange_windows(
-                            self,
-                            Rectangle {
-                                x: self.screen_width as i16 / 2 - layout.window_pad as i16 / 2,
-                                y: 0,
-                                width: self.screen_width / 2 + layout.window_pad / 2,
-                                height: self.screen_height,
-                            },
-                            &stack_windows,
-                        )?;
-                    }
-                    self.conn.flush()?;
-                };
-            }
-        }
+        let positioned = self.layout.position_windows(
+            Rectangle {
+                x: 0,
+                y: 0,
+                width: self.screen_width,
+                height: self.screen_height,
+            },
+            self.active_window,
+            &windows,
+        );
 
-        Ok(())
+        positioned.into_iter().try_for_each(|positioned| {
+            self.conn
+                .display_mut()
+                .send_request(&requests::ConfigureWindow {
+                    window: positioned.window,
+                    attributes: positioned.to_attributes(),
+                })?;
+
+            self.conn
+                .set_border_color(positioned.window, positioned.border_color)?;
+            Ok(())
+        })
     }
 
     fn find_managed_window(&self, window: WindowId) -> Option<usize> {
@@ -341,10 +486,11 @@ impl JustWindows {
             SomeEvent::KeyPress(event) => {
                 if let Some(event) = self.bindings.get_action(event.detail) {
                     match event {
-                        JustAction::Kill => {
+                        JustAction::KillActive => {
                             if let Some(active) = self.active_window {
                                 self.unmanage_window(active)?;
                                 self.conn.kill_window(active)?;
+                                self.active_window = None;
                             }
                         }
                         JustAction::Term => {
@@ -374,8 +520,9 @@ pub fn go() -> Result<(), Error> {
     let mut wm = JustWindows::setup()?;
     wm.restore_windows()?;
 
-    // std::process::Command::new("xterm").spawn()?;
-    // std::process::Command::new("xterm").spawn()?;
+    std::process::Command::new("xterm").spawn()?;
+    std::process::Command::new("xterm").spawn()?;
+    std::process::Command::new("xterm").spawn()?;
     std::process::Command::new("xterm").spawn()?;
 
     loop {
