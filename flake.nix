@@ -114,7 +114,7 @@
             pkgs.fd
             pkgs.heaptrack
             pkgs.hyperfine
-            pkgs.linuxKernel.packages.linux_5_15.perf
+            pkgs.linuxKernel.packages.linux_6_1.perf
             rustToolchain
             pkgs.xlsfonts
           ];

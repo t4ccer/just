@@ -13,6 +13,7 @@ use std::collections::HashMap;
 
 mod layout;
 
+// TODO: FocusNext, FocusPrevious
 /// Abstract action type
 #[derive(Debug, Clone, Copy)]
 enum JustAction {
