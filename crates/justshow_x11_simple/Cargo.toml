@@ -8,3 +8,6 @@ readme = "README.md"
 
 [dependencies]
 justshow_x11 = {path = "../justshow_x11"}
+
+[[bin]]
+name = "pong"

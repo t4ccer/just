@@ -41,7 +41,7 @@ Controls:
 - Restart: `r`
 
 
-[Source](./crates/justshow_x11/src/bin/pong.rs)
+[Source](./crates/justshow_x11_simple/src/bin/pong.rs)
 
 ![preview](./img/pong.png)
 
