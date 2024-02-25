@@ -1,4 +1,4 @@
-use crate::layout::{Layout, Rectangle, VerticalMasterSplit, VerticalStack};
+use crate::layout::{Layout, VerticalMasterSplit, VerticalStack};
 use justshow_x11::{
     error::Error,
     events::EventType,
@@ -6,7 +6,7 @@ use justshow_x11::{
     keysym::KeySym,
     requests::{self, ConfigureWindowAttributes, GrabMode, KeyCode, KeyModifier},
     xerror::SomeError,
-    WindowId, XDisplay,
+    Rectangle, WindowId, XDisplay,
 };
 use justshow_x11_simple::{keys::KeySymbols, X11Connection};
 use std::collections::HashMap;
@@ -137,10 +137,10 @@ impl JustWindows {
 
         let positioned = self.layout.position_windows(
             Rectangle {
-                x: 0.0,
-                y: 0.0,
-                width: self.screen_width as f32,
-                height: self.screen_height as f32,
+                x: 0,
+                y: 0,
+                width: self.screen_width,
+                height: self.screen_height,
             },
             self.active_window,
             &windows,

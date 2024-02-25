@@ -1,12 +1,4 @@
-use justshow_x11::{requests::ConfigureWindowAttributes, WindowId};
-
-#[derive(Debug, Clone, Copy)]
-pub struct Rectangle {
-    pub x: f32,
-    pub y: f32,
-    pub width: f32,
-    pub height: f32,
-}
+use justshow_x11::{requests::ConfigureWindowAttributes, Rectangle, WindowId};
 
 #[derive(Debug, Clone, Copy)]
 pub struct PositionedWindow {
@@ -58,12 +50,10 @@ impl Layout for SingleWindow {
                     self.inactive_border
                 };
 
-                let width =
-                    area.width - self.border_width as f32 * 2.0 - self.window_pad as f32 * 2.0;
-                let height =
-                    (area.height - (self.window_pad as f32 * 2.0)) - self.border_width as f32 * 2.0;
-                let x = self.window_pad as f32 + area.x;
-                let y = self.window_pad as f32 + area.y;
+                let width = area.width - self.border_width * 2 - self.window_pad * 2;
+                let height = (area.height - (self.window_pad * 2)) - self.border_width * 2;
+                let x = self.window_pad as i16 + area.x;
+                let y = self.window_pad as i16 + area.y;
 
                 PositionedWindow {
                     window,
@@ -120,7 +110,7 @@ impl Layout for VerticalMasterSplit {
                     Rectangle {
                         x: area.x,
                         y: area.y,
-                        width: area.width / 2.0 + self.window_pad as f32 / 2.0,
+                        width: area.width / 2 + self.window_pad / 2,
                         height: area.height,
                     },
                     active_window,
@@ -129,9 +119,9 @@ impl Layout for VerticalMasterSplit {
 
                 let right = self.right.position_windows(
                     Rectangle {
-                        x: area.x + (area.width / 2.0 - self.window_pad as f32 / 2.0),
+                        x: area.x + (area.width as i16 / 2 - self.window_pad as i16 / 2),
                         y: area.y,
-                        width: area.width / 2.0 + self.window_pad as f32 / 2.0,
+                        width: area.width / 2 + self.window_pad / 2,
                         height: area.height,
                     },
                     active_window,
@@ -169,39 +159,53 @@ impl Layout for VerticalStack {
     ) -> Vec<PositionedWindow> {
         let window_count = windows.len() as u16;
 
-        windows
+        let x = self.window_pad as i16 + area.x;
+        let width = area.width - self.border_width * 2 - self.window_pad * 2;
+        let height = (area.height - (self.window_pad * (window_count + 1))) / window_count
+            - self.border_width * 2;
+
+        let ret = windows
             .iter()
             .enumerate()
             .map(|(idx, &window)| {
-                let width =
-                    area.width - self.border_width as f32 * 2.0 - self.window_pad as f32 * 2.0;
-                let height = (area.height - (self.window_pad as f32 * (window_count + 1) as f32))
-                    / window_count as f32
-                    - self.border_width as f32 * 2.0;
-
-                let x = self.window_pad as f32 + area.x;
-                let y = ((height + 2.0 * self.border_width as f32) * idx as f32
-                    + (self.window_pad as f32 * (1.0 + idx as f32)))
-                    + area.y;
-
                 let border_color = if active_window == Some(window) {
                     self.active_border
                 } else {
                     self.inactive_border
                 };
 
-                PositionedWindow {
+                let y = (self.window_pad as i16 * 1 + area.y)
+                    + idx as i16
+                        * (height as i16 + 2 * self.border_width as i16 + self.window_pad as i16);
+
+                let effective_height = if idx + 1 == window_count as usize {
+                    // We lose some space due to integer division so if we're at the last (bottom)
+                    // window we override height to take all remaining space. The difference in
+                    // height is invisible (by me) until you stack more than 10 windows which
+                    // is unlikely to happan in real use scenario.
+                    (area.height as i16 - y + area.y
+                        - self.border_width as i16 * 2
+                        - self.window_pad as i16) as u16
+                } else {
+                    height
+                };
+
+                let ret = PositionedWindow {
                     window,
                     position: Rectangle {
                         x,
                         y,
                         width,
-                        height,
+                        height: effective_height,
                     },
                     border_color,
                     border_width: self.border_width,
-                }
+                };
+
+                ret
             })
-            .collect()
+            .collect();
+
+        ret
     }
 }
