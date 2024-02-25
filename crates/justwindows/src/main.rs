@@ -9,7 +9,7 @@ use justshow_x11::{
     Rectangle, WindowId, XDisplay,
 };
 use justshow_x11_simple::{keys::KeySymbols, X11Connection};
-use std::collections::HashMap;
+use std::{collections::HashMap, process};
 
 mod layout;
 
@@ -70,6 +70,11 @@ struct JustWindows {
     screen_height: u16,
     active_window: Option<WindowId>,
     bindings: KeyBindings,
+
+    /// Processes that we have spawned.
+    /// We use it to clean up zombie children as it's a bit more clean and cross-platform than
+    /// catching sigchld signal.
+    running_children: Vec<process::Child>,
 }
 
 impl JustWindows {
@@ -124,6 +129,7 @@ impl JustWindows {
             screen_height: screen.height_in_pixels,
             active_window: None,
             bindings,
+            running_children: Vec::new(),
         })
     }
 
@@ -181,6 +187,7 @@ impl JustWindows {
     }
 
     fn unmanage_window(&mut self, window: WindowId) -> Result<(), Error> {
+        self.cleanup_running_children()?;
         if let Some(destroyed_window_idx) = self.find_managed_window(window) {
             self.managed_windows.remove(destroyed_window_idx);
             self.arrange_windows()?;
@@ -228,6 +235,28 @@ impl JustWindows {
         let root_geometry = self.conn.get_window_geometry(root)?;
         self.screen_width = root_geometry.width;
         self.screen_height = root_geometry.height;
+        Ok(())
+    }
+
+    fn cleanup_running_children(&mut self) -> Result<(), Error> {
+        let mut ret = Ok(());
+        self.running_children
+            .retain_mut(|child| match child.try_wait() {
+                Ok(None) => true,
+                Ok(Some(_)) => false,
+                Err(err) => {
+                    ret = Err(err);
+                    true
+                }
+            });
+        ret?;
+        Ok(())
+    }
+
+    fn spawn(&mut self, command: &str) -> Result<(), Error> {
+        let spawned_process = std::process::Command::new(command).spawn()?;
+        self.running_children.push(spawned_process);
+
         Ok(())
     }
 
@@ -293,7 +322,7 @@ impl JustWindows {
                             }
                         }
                         JustAction::Term => {
-                            std::process::Command::new("xterm").spawn()?;
+                            self.spawn("xterm")?;
                         }
                     }
                 }
@@ -319,10 +348,10 @@ pub fn go() -> Result<(), Error> {
     let mut wm = JustWindows::setup()?;
     wm.restore_windows()?;
 
-    std::process::Command::new("xterm").spawn()?;
-    std::process::Command::new("xterm").spawn()?;
-    std::process::Command::new("xterm").spawn()?;
-    std::process::Command::new("xterm").spawn()?;
+    wm.spawn("xterm")?;
+    wm.spawn("xterm")?;
+    wm.spawn("xterm")?;
+    wm.spawn("xterm")?;
 
     loop {
         for error in wm.conn.display_mut().errors() {
