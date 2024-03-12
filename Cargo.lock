@@ -24,3 +24,10 @@ dependencies = [
  "justshow_x11",
  "justshow_x11_simple",
 ]
+
+[[package]]
+name = "xrandr"
+version = "0.1.0"
+dependencies = [
+ "justshow_x11",
+]

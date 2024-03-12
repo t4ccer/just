@@ -11,4 +11,5 @@ members = [
         "crates/justwindows",
         "crates/justshow_x11",
         "crates/justshow_x11_simple",
+        "crates/xrandr",
 ]

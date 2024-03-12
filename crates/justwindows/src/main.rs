@@ -62,45 +62,17 @@ impl KeyBindings {
     }
 }
 
-struct JustWindows {
-    conn: X11Connection,
-    managed_windows: Vec<WindowId>,
-    layout: Box<dyn Layout>,
-    screen_width: u16,
-    screen_height: u16,
-    active_window: Option<WindowId>,
-    bindings: KeyBindings,
+// struct WindowStack {
 
-    /// Processes that we have spawned.
-    /// We use it to clean up zombie children as it's a bit more clean and cross-platform than
-    /// catching sigchld signal.
-    running_children: Vec<process::Child>,
+// }
+
+struct Workspace {
+    layout: Box<dyn Layout>,
+    windows: Vec<WindowId>,
 }
 
-impl JustWindows {
-    fn setup() -> Result<Self, Error> {
-        let mut conn = X11Connection::new(XDisplay::open()?);
-
-        let screen = conn.default_screen();
-        let root = screen.root;
-
-        conn.select_input(
-            root,
-            EventType::SUBSTRUCTURE_REDIRECT
-                | EventType::SUBSTRUCTURE_NOTIFY
-                | EventType::ENTER_WINDOW
-                | EventType::LEAVE_WINDOW
-                | EventType::STRUCTURE_NOTIFY,
-        )?;
-        // conn.set_supported()?;
-
-        let key_symbols = conn.key_symbols()?;
-        let mut bindings = KeyBindings::new(key_symbols);
-        bindings.bind_key_sym(conn.display_mut(), root, KeySym::q, JustAction::KillActive)?;
-        bindings.bind_key_sym(conn.display_mut(), root, KeySym::Return, JustAction::Term)?;
-
-        conn.flush()?;
-
+impl Workspace {
+    pub fn new() -> Self {
         let layout = {
             let border_width = 3;
             let window_pad = 10;
@@ -121,49 +93,132 @@ impl JustWindows {
             }
         };
 
+        Self::with_layout(Box::new(layout))
+    }
+
+    pub fn with_layout(layout: Box<dyn Layout>) -> Self {
+        Self {
+            layout,
+            windows: Vec::new(),
+        }
+    }
+}
+
+#[derive(Debug, Clone)]
+struct WmScreen {
+    size: Rectangle,
+    workspace_idx: usize,
+    root: WindowId,
+}
+
+struct JustWindows {
+    conn: X11Connection,
+    managed_windows: Vec<WindowId>,
+    active_window: Option<WindowId>,
+    bindings: KeyBindings,
+
+    screens: Vec<WmScreen>,
+    workspaces: Vec<Workspace>,
+
+    active_workspace: usize,
+
+    /// Processes that we have spawned.
+    /// We use it to clean up zombie children as it's a bit more clean and cross-platform than
+    /// catching sigchld signal.
+    running_children: Vec<process::Child>,
+}
+
+impl JustWindows {
+    fn setup() -> Result<Self, Error> {
+        let mut conn = X11Connection::new(XDisplay::open()?);
+
+        // FIXME: Get this with randr
+        let screens = conn
+            .display()
+            .screens()
+            .iter()
+            .enumerate()
+            .map(|(idx, screen)| WmScreen {
+                size: Rectangle {
+                    x: 0,
+                    y: 0,
+                    width: screen.width_in_pixels,
+                    height: screen.height_in_pixels,
+                },
+                root: screen.root,
+                workspace_idx: idx,
+            })
+            .collect::<Vec<_>>();
+        dbg!(&screens);
+
+        let workspaces = screens.iter().map(|_| Workspace::new()).collect::<Vec<_>>();
+
+        let key_symbols = KeySymbols::new(conn.display_mut())?;
+        let mut bindings = KeyBindings::new(key_symbols);
+
+        for screen in &screens {
+            conn.select_input(
+                screen.root,
+                EventType::SUBSTRUCTURE_REDIRECT
+                    | EventType::SUBSTRUCTURE_NOTIFY
+                    | EventType::ENTER_WINDOW
+                    | EventType::LEAVE_WINDOW
+                    | EventType::STRUCTURE_NOTIFY,
+            )?;
+
+            bindings.bind_key_sym(
+                conn.display_mut(),
+                screen.root,
+                KeySym::q,
+                JustAction::KillActive,
+            )?;
+            bindings.bind_key_sym(
+                conn.display_mut(),
+                screen.root,
+                KeySym::Return,
+                JustAction::Term,
+            )?;
+        }
+
+        conn.flush()?;
+
         Ok(Self {
             conn,
             managed_windows: Vec::new(),
-            layout: Box::new(layout),
-            screen_width: screen.width_in_pixels,
-            screen_height: screen.height_in_pixels,
             active_window: None,
             bindings,
             running_children: Vec::new(),
+            screens,
+            workspaces,
+            active_workspace: 0,
         })
     }
 
     fn arrange_windows(&mut self) -> Result<(), Error> {
-        let windows = self
-            .managed_windows
-            .iter()
-            .copied()
-            .rev()
-            .collect::<Vec<WindowId>>();
+        for screen in self.screens.clone() {
+            let workspace = &self.workspaces[screen.workspace_idx];
+            let positioned = workspace.layout.position_windows(
+                screen.size,
+                self.active_window,
+                &workspace.windows,
+            );
+            dbg!(&positioned);
 
-        let positioned = self.layout.position_windows(
-            Rectangle {
-                x: 0,
-                y: 0,
-                width: self.screen_width,
-                height: self.screen_height,
-            },
-            self.active_window,
-            &windows,
-        );
+            positioned.into_iter().try_for_each(|positioned| {
+                self.conn
+                    .display_mut()
+                    .send_request(&requests::ConfigureWindow {
+                        window: positioned.window,
+                        attributes: positioned.to_attributes(),
+                    })?;
 
-        positioned.into_iter().try_for_each(|positioned| {
-            self.conn
-                .display_mut()
-                .send_request(&requests::ConfigureWindow {
-                    window: positioned.window,
-                    attributes: positioned.to_attributes(),
-                })?;
+                self.conn
+                    .set_border_color(positioned.window, positioned.border_color)?;
+                Ok::<(), Error>(())
+            })?;
+        }
 
-            self.conn
-                .set_border_color(positioned.window, positioned.border_color)?;
-            Ok(())
-        })
+        Ok(())
     }
 
     fn find_managed_window(&self, window: WindowId) -> Option<usize> {
@@ -181,6 +236,7 @@ impl JustWindows {
             );
         } else {
             self.managed_windows.push(window);
+            self.workspaces[self.active_workspace].windows.push(window);
         }
 
         Ok(())
@@ -231,10 +287,6 @@ impl JustWindows {
 
     fn rescreen(&mut self) -> Result<(), Error> {
         // TODO: Run xinerama's `getScreenInfo` when it's implemented.
-        let root = self.root_window();
-        let root_geometry = self.conn.get_window_geometry(root)?;
-        self.screen_width = root_geometry.width;
-        self.screen_height = root_geometry.height;
         Ok(())
     }
 
@@ -297,6 +349,8 @@ impl JustWindows {
                 if event.event != root {
                     self.active_window = Some(event.event);
                     self.arrange_windows()?;
+                } else {
+                    dbg!(event.event);
                 }
             }
             SomeEvent::LeaveNotify(event) => {
@@ -348,10 +402,10 @@ pub fn go() -> Result<(), Error> {
     let mut wm = JustWindows::setup()?;
     wm.restore_windows()?;
 
-    wm.spawn("xterm")?;
-    wm.spawn("xterm")?;
-    wm.spawn("xterm")?;
-    wm.spawn("xterm")?;
+    // wm.spawn("xterm")?;
+    // wm.spawn("xterm")?;
+    // wm.spawn("xterm")?;
+    // wm.spawn("xterm")?;
 
     loop {
         for error in wm.conn.display_mut().errors() {

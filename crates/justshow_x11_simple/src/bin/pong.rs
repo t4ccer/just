@@ -34,7 +34,7 @@ struct KeyBindings {
 
 impl KeyBindings {
     fn new(conn: &mut X11Connection) -> Result<Self, Error> {
-        let key_symbols = conn.key_symbols()?;
+        let key_symbols = KeySymbols::new(conn.display_mut())?;
         Ok(Self {
             bindings: HashMap::new(),
             key_symbols,

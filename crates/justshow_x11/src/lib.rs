@@ -58,6 +58,18 @@ impl ResourceId {
     }
 }
 
+impl From<u32> for ResourceId {
+    fn from(value: u32) -> Self {
+        ResourceId { value }
+    }
+}
+
+impl From<ResourceId> for u32 {
+    fn from(value: ResourceId) -> Self {
+        value.value
+    }
+}
+
 impl_resource_id!(PixmapId);
 impl_resource_id!(VisualId);
 impl_resource_id!(FontId);
@@ -72,10 +84,14 @@ pub struct OrNone<T>(T);
 
 impl<T> OrNone<T>
 where
-    T: Into<u32> + Copy,
+    T: Into<u32> + From<u32> + Copy,
 {
     pub fn new(inner: T) -> Self {
         Self(inner)
+    }
+
+    pub fn none() -> Self {
+        Self(0u32.into())
     }
 
     pub fn value(self) -> Option<T> {

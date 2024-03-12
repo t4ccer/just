@@ -1,0 +1,10 @@
+[package]
+name = "xrandr"
+version = "0.1.0"
+edition = "2021"
+authors = ["Tomasz Maciosowski <t4ccer@gmail.com>"]
+license = "AGPL-3.0"
+readme = "README.md"
+
+[dependencies]
+justshow_x11 = {path = "../justshow_x11"}

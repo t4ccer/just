@@ -1,7 +1,6 @@
 // `Default` is a bad idea.
 #![cfg_attr(feature = "cargo-clippy", allow(clippy::new_without_default))]
 
-use crate::keys::KeySymbols;
 use justshow_x11::{
     atoms::AtomId,
     bitmask,
@@ -9,8 +8,8 @@ use justshow_x11::{
     events::{self, EventType},
     replies::{self, String8},
     requests::{
-        self, ChangePropertyFormat, ChangePropertyMode, ConfigureWindowAttributes, KeyCode,
-        NoReply, WindowCreationAttributes,
+        self, ChangePropertyFormat, ChangePropertyMode, ConfigureWindowAttributes, NoReply,
+        WindowCreationAttributes,
     },
     Drawable, OrNone, PendingReply, PixmapId, ResourceId, WindowId, XDisplay,
 };
@@ -154,23 +153,6 @@ impl X11Connection {
 
     pub fn query_tree(&mut self, window: WindowId) -> Result<replies::QueryTree, Error> {
         request_blocking!(self.display, requests::QueryTree { window })
-    }
-
-    pub fn key_symbols(&mut self) -> Result<KeySymbols, Error> {
-        let min_keycode = self.display().min_keycode;
-        let max_keycode = self.display().max_keycode;
-        let reply = request_blocking!(
-            self.display,
-            requests::GetKeyboardMapping {
-                first_keycode: KeyCode::from(min_keycode),
-                count: max_keycode - min_keycode + 1,
-            }
-        )?;
-        Ok(KeySymbols {
-            min_keycode: KeyCode::from(min_keycode),
-            max_keycode: KeyCode::from(max_keycode),
-            reply,
-        })
     }
 
     pub fn get_wm_protocols(&mut self, window: WindowId) -> Result<Vec<AtomId>, Error> {

@@ -60,6 +60,7 @@ macro_rules! bitmask {
 
         #[automatically_derived]
         impl $ty {
+            pub const EMPTY_MASK: Self = Self { value: 0 };
             $($(#[$field_attr])* pub const $key: Self = Self { value: $value };)*
         }
 
@@ -92,6 +93,18 @@ macro_rules! bitmask {
             #[inline(always)]
             fn bitor_assign(&mut self, rhs: Self) {
                 self.value |= rhs.value
+            }
+        }
+
+        #[automatically_derived]
+        impl ::std::ops::BitAnd for $ty {
+            type Output = Self;
+
+            #[inline(always)]
+            fn bitand(self, rhs: Self) -> Self::Output {
+                Self {
+                    value: self.value & rhs.value,
+                }
             }
         }
 
@@ -183,6 +196,12 @@ macro_rules! impl_resource_id {
         impl From<$name> for u32 {
             fn from(value: $name) -> u32 {
                 value.0.value()
+            }
+        }
+
+        impl From<u32> for $name {
+            fn from(value: u32) -> Self {
+                Self(crate::ResourceId::from(value))
             }
         }
 

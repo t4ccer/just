@@ -21,10 +21,15 @@
 //! - `xcb_is_modifier_key` → [`KeySymbols::is_modifier_key`]
 
 use justshow_x11::{
-    events::KeyPressRelease, keysym::KeySym, replies::GetKeyboardMapping, requests::KeyCode,
+    error::Error,
+    events::KeyPressRelease,
+    keysym::KeySym,
+    replies::GetKeyboardMapping,
+    requests::{self, KeyCode},
+    XDisplay,
 };
 
-/// A [`KeySym`] conversion table. Constructed using [`crate::X11Connection::key_symbols`].
+/// A [`KeySym`] conversion table
 #[derive(Debug, Clone)]
 pub struct KeySymbols {
     pub(crate) min_keycode: KeyCode,
@@ -33,6 +38,25 @@ pub struct KeySymbols {
 }
 
 impl KeySymbols {
+    pub fn new(display: &mut XDisplay) -> Result<Self, Error> {
+        let min_keycode = display.min_keycode;
+        let max_keycode = display.max_keycode;
+
+        let request = requests::GetKeyboardMapping {
+            first_keycode: KeyCode::from(min_keycode),
+            count: max_keycode - min_keycode + 1,
+        };
+        let pending = display.send_request(&request)?;
+        display.flush()?;
+        let reply = display.await_pending_reply(pending)?;
+
+        Ok(KeySymbols {
+            min_keycode: KeyCode::from(min_keycode),
+            max_keycode: KeyCode::from(max_keycode),
+            reply,
+        })
+    }
+
     pub fn get_keysym(&self, keycode: KeyCode, mut col: usize) -> KeySym {
         let mut per = self.reply.keysyms_per_keycode;
         if (col >= per as usize && col > 3)
