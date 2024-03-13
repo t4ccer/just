@@ -2,7 +2,7 @@ use crate::{
     Filter, Gamma, Mode, ModeAction, Monitor, Name, NameKind, Output, Reflection, Relation,
     Rotation, Transform, WidthHeight, XRRModeInfo,
 };
-use justshow_x11::{extensions::randr::Fixed, OrNone};
+use justshow_x11::{extensions::render::Fixed, OrNone};
 use std::str::FromStr;
 
 #[derive(Debug)]

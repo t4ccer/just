@@ -5,7 +5,10 @@ use justshow_x11::{
     bitmask,
     connection::{DisplayVar, XConnection},
     error::Error,
-    extensions::randr::{self, Fixed},
+    extensions::{
+        randr::{self},
+        render::{self, Fixed},
+    },
     requests, OrNone, ResourceId, XDisplay,
 };
 use std::{collections::HashMap, env, process::ExitCode, str::FromStr};
@@ -118,7 +121,7 @@ impl FromStr for Gamma {
 
 #[derive(Debug)]
 struct Transform {
-    transform: randr::Transform,
+    transform: render::Transform,
     filter: Option<Filter>,
     params: Vec<Fixed>,
 }
@@ -126,7 +129,7 @@ struct Transform {
 impl Transform {
     fn new() -> Self {
         Self {
-            transform: randr::Transform {
+            transform: render::Transform {
                 matrix: [
                     [Fixed::from(1.0), Fixed::from(0.0), Fixed::from(0.0)],
                     [Fixed::from(0.0), Fixed::from(1.0), Fixed::from(0.0)],
