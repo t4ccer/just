@@ -29,6 +29,7 @@ pub struct Args {
     pub toggle_x: bool,
     pub toggle_y: bool,
     pub action_requested: bool,
+    pub modeit: bool,
     pub query: bool,
     pub query_1_2: bool,
     pub query_1: bool,
@@ -152,6 +153,7 @@ impl Args {
             list_active_monitors: false,
             monitors: Vec::new(),
             monitorit: false,
+            modeit: false,
         };
 
         loop {
@@ -187,7 +189,7 @@ impl Args {
             }
 
             match arg.as_str() {
-                "-display" | "--display" | "-d" => {
+                "--display" | "-display" | "-d" => {
                     let display_name = get_next_arg!();
                     args.display_name = Some(display_name);
                 }
@@ -512,6 +514,8 @@ impl Args {
                     };
 
                     args.modes.push(mode);
+                    args.modeit = true;
+                    args.action_requested = true;
                 }
                 "--rmmode" => {
                     let name = get_next_arg!();
@@ -524,6 +528,8 @@ impl Args {
                     };
 
                     args.modes.push(mode);
+                    args.modeit = true;
+                    args.action_requested = true;
                 }
                 "--addmode" => {
                     let output = get_next_arg!();
@@ -537,6 +543,8 @@ impl Args {
                     };
 
                     args.modes.push(mode);
+                    args.modeit = true;
+                    args.action_requested = true;
                 }
                 "--delmode" => {
                     let output = get_next_arg!();
@@ -550,6 +558,8 @@ impl Args {
                     };
 
                     args.modes.push(mode);
+                    args.modeit = true;
+                    args.action_requested = true;
                 }
                 "--listproviders" => {
                     args.list_providers = true;
@@ -663,6 +673,17 @@ impl Args {
                     args.action_requested = true;
                 }
                 _ => return Err(InvalidCliArgs::InvalidFlag(arg)),
+            }
+        }
+
+        if !args.action_requested {
+            args.query = true;
+        }
+
+        if args.verbose {
+            args.query = true;
+            if args.setit && !args.setit_1_2 {
+                args.query_1 = true;
             }
         }
 
