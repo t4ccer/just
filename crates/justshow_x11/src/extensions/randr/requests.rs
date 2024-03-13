@@ -1,7 +1,7 @@
 use crate::{
     extensions::randr::CrtcId,
     requests::{write_le_bytes, Timestamp, XExtensionRequest, XRequestBase},
-    LeBytes, WindowId,
+    ToLeBytes, WindowId,
 };
 
 mod opcodes;
@@ -38,7 +38,7 @@ pub struct QueryVersion {
     pub minor_version: u32,
 }
 
-impl LeBytes for QueryVersion {
+impl ToLeBytes for QueryVersion {
     fn to_le_bytes(&self, w: &mut impl std::io::Write) -> std::io::Result<()> {
         write_le_bytes!(w, opcodes::QUERY_VERSION);
         write_le_bytes!(w, 3u16); // request length
@@ -65,7 +65,7 @@ pub struct GetMonitors {
     pub get_active: bool,
 }
 
-impl LeBytes for GetMonitors {
+impl ToLeBytes for GetMonitors {
     fn to_le_bytes(&self, w: &mut impl std::io::Write) -> std::io::Result<()> {
         write_le_bytes!(w, opcodes::GET_MONITORS);
 
@@ -99,7 +99,7 @@ pub struct GetCrtcInfo {
     pub timestamp: Timestamp,
 }
 
-impl LeBytes for GetCrtcInfo {
+impl ToLeBytes for GetCrtcInfo {
     fn to_le_bytes(&self, w: &mut impl std::io::Write) -> std::io::Result<()> {
         write_le_bytes!(w, opcodes::GET_CRTC_INFO);
         write_le_bytes!(w, 3u16); // request length

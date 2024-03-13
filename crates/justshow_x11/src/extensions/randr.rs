@@ -6,7 +6,7 @@ use crate::{
     replies::read_vec,
     requests::write_le_bytes,
     utils::{impl_enum, impl_resource_id},
-    LeBytes,
+    ToLeBytes,
 };
 
 pub mod replies;
@@ -297,7 +297,7 @@ impl MonitorInfo {
     }
 }
 
-impl LeBytes for MonitorInfo {
+impl ToLeBytes for MonitorInfo {
     fn to_le_bytes(&self, w: &mut impl std::io::Write) -> std::io::Result<()> {
         write_le_bytes!(w, self.name);
         write_le_bytes!(w, self.primary as u8);

@@ -38,9 +38,8 @@ mod utils;
 pub mod xauth;
 pub mod xerror;
 
-// TODO: Rename to ToLeBytes
 // TODO: Add FromLeBytes
-pub trait LeBytes: Sized {
+pub trait ToLeBytes: Sized {
     fn to_le_bytes(&self, w: &mut impl Write) -> io::Result<()>;
 }
 
@@ -982,7 +981,7 @@ impl ListOfStr {
     }
 }
 
-impl LeBytes for ListOfStr {
+impl ToLeBytes for ListOfStr {
     fn to_le_bytes(&self, w: &mut impl Write) -> io::Result<()> {
         for string in &self.strings {
             let string_len = string.len();

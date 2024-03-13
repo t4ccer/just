@@ -4,8 +4,8 @@ use crate::{
     keysym::KeySym,
     replies::{ReplyType, String8},
     utils::{bitmask, impl_enum, pad},
-    ColormapId, CursorId, Drawable, FontId, GContextId, LeBytes, ListOfStr, OrNone, PixmapId,
-    Point, Rectangle, VisualId, WindowClass, WindowId, WindowVisual,
+    ColormapId, CursorId, Drawable, FontId, GContextId, ListOfStr, OrNone, PixmapId, Point,
+    Rectangle, ToLeBytes, VisualId, WindowClass, WindowId, WindowVisual,
 };
 use std::{
     fmt,
@@ -173,7 +173,7 @@ macro_rules! impl_raw_fields {
 #[derive(Debug, Clone, Copy)]
 pub struct NoReply;
 
-pub trait XRequestBase: LeBytes {
+pub trait XRequestBase: ToLeBytes {
     type Reply;
 
     fn reply_type() -> Option<ReplyType>;
@@ -288,7 +288,7 @@ impl InitializeConnection {
     }
 }
 
-impl LeBytes for InitializeConnection {
+impl ToLeBytes for InitializeConnection {
     fn to_le_bytes(&self, w: &mut impl Write) -> io::Result<()> {
         let authorization_name_len = self.authorization_protocol_name.len();
         let authorization_name_pad = pad(authorization_name_len);
@@ -422,7 +422,7 @@ pub struct CreateWindow {
     pub attributes: WindowCreationAttributes,
 }
 
-impl LeBytes for CreateWindow {
+impl ToLeBytes for CreateWindow {
     fn to_le_bytes(&self, w: &mut impl Write) -> io::Result<()> {
         let (bitmask, n) = self.attributes.values.mask_and_count();
 
@@ -465,7 +465,7 @@ pub struct ChangeWindowAttributes {
     pub attributes: WindowCreationAttributes,
 }
 
-impl LeBytes for ChangeWindowAttributes {
+impl ToLeBytes for ChangeWindowAttributes {
     fn to_le_bytes(&self, w: &mut impl Write) -> io::Result<()> {
         let (bitmask, n) = self.attributes.values.mask_and_count();
 
@@ -495,7 +495,7 @@ pub struct GetWindowAttributes {
     pub window: WindowId,
 }
 
-impl LeBytes for GetWindowAttributes {
+impl ToLeBytes for GetWindowAttributes {
     fn to_le_bytes(&self, w: &mut impl Write) -> io::Result<()> {
         write_le_bytes!(w, opcodes::GET_WINDOW_ATTRIBUTES);
         write_le_bytes!(w, 0u8); // unused
@@ -521,7 +521,7 @@ pub struct DestroyWindow {
     pub window: WindowId,
 }
 
-impl LeBytes for DestroyWindow {
+impl ToLeBytes for DestroyWindow {
     fn to_le_bytes(&self, w: &mut impl Write) -> io::Result<()> {
         write_le_bytes!(w, opcodes::DESTROY_WINDOW);
         write_le_bytes!(w, 0u8); // unused
@@ -547,7 +547,7 @@ pub struct DestroySubwindows {
     pub window: WindowId,
 }
 
-impl LeBytes for DestroySubwindows {
+impl ToLeBytes for DestroySubwindows {
     fn to_le_bytes(&self, w: &mut impl Write) -> io::Result<()> {
         write_le_bytes!(w, opcodes::DESTROY_SUBWINDOWS);
         write_le_bytes!(w, 0u8); // unused
@@ -584,7 +584,7 @@ pub struct ChangeSaveSet {
     pub window: WindowId,
 }
 
-impl LeBytes for ChangeSaveSet {
+impl ToLeBytes for ChangeSaveSet {
     fn to_le_bytes(&self, w: &mut impl Write) -> io::Result<()> {
         write_le_bytes!(w, opcodes::CHANGE_SAVE_SET);
         write_le_bytes!(w, self.mode as u8);
@@ -616,7 +616,7 @@ pub struct ReparentWindow {
     pub y: i16,
 }
 
-impl LeBytes for ReparentWindow {
+impl ToLeBytes for ReparentWindow {
     fn to_le_bytes(&self, w: &mut impl Write) -> io::Result<()> {
         write_le_bytes!(w, opcodes::REPARENT_WINDOW);
         write_le_bytes!(w, 0u8); //unused
@@ -645,7 +645,7 @@ pub struct MapWindow {
     pub window: WindowId,
 }
 
-impl LeBytes for MapWindow {
+impl ToLeBytes for MapWindow {
     fn to_le_bytes(&self, w: &mut impl Write) -> io::Result<()> {
         write_le_bytes!(w, opcodes::MAP_WINDOW);
         write_le_bytes!(w, 0u8); // unused
@@ -671,7 +671,7 @@ pub struct MapSubwindows {
     pub window: WindowId,
 }
 
-impl LeBytes for MapSubwindows {
+impl ToLeBytes for MapSubwindows {
     fn to_le_bytes(&self, w: &mut impl Write) -> io::Result<()> {
         write_le_bytes!(w, opcodes::MAP_SUBWINDOWS);
         write_le_bytes!(w, 0u8); // unused
@@ -697,7 +697,7 @@ pub struct UnmapWindow {
     pub window: WindowId,
 }
 
-impl LeBytes for UnmapWindow {
+impl ToLeBytes for UnmapWindow {
     fn to_le_bytes(&self, w: &mut impl Write) -> io::Result<()> {
         write_le_bytes!(w, opcodes::UNMAP_WINDOW);
         write_le_bytes!(w, 0u8); // unused
@@ -723,7 +723,7 @@ pub struct UnmapSubwindows {
     pub window: WindowId,
 }
 
-impl LeBytes for UnmapSubwindows {
+impl ToLeBytes for UnmapSubwindows {
     fn to_le_bytes(&self, w: &mut impl Write) -> io::Result<()> {
         write_le_bytes!(w, opcodes::UNMAP_SUBWINDOWS);
         write_le_bytes!(w, 0u8); // unused
@@ -789,7 +789,7 @@ pub struct ConfigureWindow {
     pub attributes: ConfigureWindowAttributes,
 }
 
-impl LeBytes for ConfigureWindow {
+impl ToLeBytes for ConfigureWindow {
     fn to_le_bytes(&self, w: &mut impl Write) -> io::Result<()> {
         let (bitmask, n) = self.attributes.values.mask_and_count();
 
@@ -831,7 +831,7 @@ pub struct CirculateWindow {
     pub window: WindowId,
 }
 
-impl LeBytes for CirculateWindow {
+impl ToLeBytes for CirculateWindow {
     fn to_le_bytes(&self, w: &mut impl Write) -> io::Result<()> {
         write_le_bytes!(w, opcodes::CIRCULATE_WINDOW);
         write_le_bytes!(w, self.direction as u8);
@@ -857,7 +857,7 @@ pub struct GetGeometry {
     pub drawable: Drawable,
 }
 
-impl LeBytes for GetGeometry {
+impl ToLeBytes for GetGeometry {
     fn to_le_bytes(&self, w: &mut impl Write) -> io::Result<()> {
         write_le_bytes!(w, opcodes::GET_GEOMETRY);
         write_le_bytes!(w, 0u8); // unused
@@ -883,7 +883,7 @@ pub struct QueryTree {
     pub window: WindowId,
 }
 
-impl LeBytes for QueryTree {
+impl ToLeBytes for QueryTree {
     fn to_le_bytes(&self, w: &mut impl Write) -> io::Result<()> {
         write_le_bytes!(w, opcodes::QUERY_TREE);
         write_le_bytes!(w, 0u8); // unused
@@ -913,7 +913,7 @@ pub struct InternAtom {
     pub name: String8,
 }
 
-impl LeBytes for InternAtom {
+impl ToLeBytes for InternAtom {
     fn to_le_bytes(&self, w: &mut impl Write) -> io::Result<()> {
         let n = self.name.len();
         let p = pad(n);
@@ -946,7 +946,7 @@ pub struct GetAtomName {
     pub atom: AtomId,
 }
 
-impl LeBytes for GetAtomName {
+impl ToLeBytes for GetAtomName {
     fn to_le_bytes(&self, w: &mut impl Write) -> io::Result<()> {
         write_le_bytes!(w, opcodes::GET_ATOM_NAME);
         write_le_bytes!(w, 0u8); // unused
@@ -1010,7 +1010,7 @@ pub struct ChangeProperty {
     pub data: Vec<u8>,
 }
 
-impl LeBytes for ChangeProperty {
+impl ToLeBytes for ChangeProperty {
     fn to_le_bytes(&self, w: &mut impl Write) -> io::Result<()> {
         let n = self.data.len();
         let p = pad(n);
@@ -1049,7 +1049,7 @@ pub struct DeleteProperty {
     pub property: AtomId,
 }
 
-impl LeBytes for DeleteProperty {
+impl ToLeBytes for DeleteProperty {
     fn to_le_bytes(&self, w: &mut impl Write) -> io::Result<()> {
         write_le_bytes!(w, opcodes::DELETE_PROPERTY);
         write_le_bytes!(w, 0u8); // unused
@@ -1086,7 +1086,7 @@ pub struct GetProperty {
     pub long_length: u32,
 }
 
-impl LeBytes for GetProperty {
+impl ToLeBytes for GetProperty {
     fn to_le_bytes(&self, w: &mut impl Write) -> io::Result<()> {
         write_le_bytes!(w, opcodes::GET_PROPERTY);
         write_le_bytes!(w, self.delete as u8);
@@ -1116,7 +1116,7 @@ pub struct ListProperties {
     pub window: WindowId,
 }
 
-impl LeBytes for ListProperties {
+impl ToLeBytes for ListProperties {
     fn to_le_bytes(&self, w: &mut impl Write) -> io::Result<()> {
         write_le_bytes!(w, opcodes::LIST_PROPERTIES);
         write_le_bytes!(w, 0u8); // unused
@@ -1148,7 +1148,7 @@ pub struct SetSelectionOwner {
     pub time: Timestamp,
 }
 
-impl LeBytes for SetSelectionOwner {
+impl ToLeBytes for SetSelectionOwner {
     fn to_le_bytes(&self, w: &mut impl Write) -> io::Result<()> {
         write_le_bytes!(w, opcodes::SET_SELECTION_OWNER);
         write_le_bytes!(w, 0u8); // unused
@@ -1176,7 +1176,7 @@ pub struct GetSelectionOwner {
     pub selection: AtomId,
 }
 
-impl LeBytes for GetSelectionOwner {
+impl ToLeBytes for GetSelectionOwner {
     fn to_le_bytes(&self, w: &mut impl Write) -> io::Result<()> {
         write_le_bytes!(w, opcodes::GET_SELECTION_OWNER);
         write_le_bytes!(w, 0u8); // unused
@@ -1212,7 +1212,7 @@ pub struct ConvertSelection {
     pub time: Timestamp,
 }
 
-impl LeBytes for ConvertSelection {
+impl ToLeBytes for ConvertSelection {
     fn to_le_bytes(&self, w: &mut impl Write) -> io::Result<()> {
         write_le_bytes!(w, opcodes::CONVERT_SELECTION);
         write_le_bytes!(w, 0u8); // unused
@@ -1250,7 +1250,7 @@ pub struct SendEvent {
     pub event: [u8; 32],       // TODO: type
 }
 
-impl LeBytes for SendEvent {
+impl ToLeBytes for SendEvent {
     fn to_le_bytes(&self, w: &mut impl Write) -> io::Result<()> {
         write_le_bytes!(w, opcodes::SEND_EVENT);
         write_le_bytes!(w, self.propagate as u8);
@@ -1298,7 +1298,7 @@ pub struct GrabPointer {
     pub time: Timestamp,
 }
 
-impl LeBytes for GrabPointer {
+impl ToLeBytes for GrabPointer {
     fn to_le_bytes(&self, w: &mut impl Write) -> io::Result<()> {
         write_le_bytes!(w, opcodes::GRAB_POINTER);
         write_le_bytes!(w, self.owner_events as u8);
@@ -1331,7 +1331,7 @@ pub struct UngrabPointer {
     pub time: Timestamp,
 }
 
-impl LeBytes for UngrabPointer {
+impl ToLeBytes for UngrabPointer {
     fn to_le_bytes(&self, w: &mut impl Write) -> io::Result<()> {
         write_le_bytes!(w, opcodes::UNGRAB_POINTER);
         write_le_bytes!(w, 0u8); // unused
@@ -1381,7 +1381,7 @@ pub struct GrabButton {
     pub modifiers: u16, // TODO: Type
 }
 
-impl LeBytes for GrabButton {
+impl ToLeBytes for GrabButton {
     fn to_le_bytes(&self, w: &mut impl Write) -> io::Result<()> {
         write_le_bytes!(w, opcodes::GRAB_BUTTON);
         write_le_bytes!(w, self.owner_events as u8);
@@ -1421,7 +1421,7 @@ pub struct UngrabButton {
     pub modifiers: u16, // TODO: Type
 }
 
-impl LeBytes for UngrabButton {
+impl ToLeBytes for UngrabButton {
     fn to_le_bytes(&self, w: &mut impl Write) -> io::Result<()> {
         write_le_bytes!(w, opcodes::UNGRAB_BUTTON);
         write_le_bytes!(w, self.button);
@@ -1456,7 +1456,7 @@ pub struct ChangeActivePointerGrab {
     pub event_mask: u16, // TODO: TYpe
 }
 
-impl LeBytes for ChangeActivePointerGrab {
+impl ToLeBytes for ChangeActivePointerGrab {
     fn to_le_bytes(&self, w: &mut impl Write) -> io::Result<()> {
         write_le_bytes!(w, opcodes::CHANGE_ACTIVE_POINTER_GRAB);
         write_le_bytes!(w, 0u8); // unused
@@ -1498,7 +1498,7 @@ pub struct GrabKeyboard {
     pub keyboard_mode: GrabMode,
 }
 
-impl LeBytes for GrabKeyboard {
+impl ToLeBytes for GrabKeyboard {
     fn to_le_bytes(&self, w: &mut impl Write) -> io::Result<()> {
         write_le_bytes!(w, opcodes::GRAB_KEYBOARD);
         write_le_bytes!(w, self.owner_events as u8);
@@ -1529,7 +1529,7 @@ pub struct UngrabKeyboard {
     pub time: u32,
 }
 
-impl LeBytes for UngrabKeyboard {
+impl ToLeBytes for UngrabKeyboard {
     fn to_le_bytes(&self, w: &mut impl Write) -> io::Result<()> {
         write_le_bytes!(w, opcodes::UNGRAB_KEYBOARD);
         write_le_bytes!(w, 0u8); // unused
@@ -1579,7 +1579,7 @@ pub struct GrabKey {
     pub keyboard_mode: GrabMode,
 }
 
-impl LeBytes for GrabKey {
+impl ToLeBytes for GrabKey {
     fn to_le_bytes(&self, w: &mut impl Write) -> io::Result<()> {
         write_le_bytes!(w, opcodes::GRAB_KEY);
         write_le_bytes!(w, self.owner_events as u8);
@@ -1616,7 +1616,7 @@ pub struct UngrabKey {
     pub modifiers: u16, // TODO: Tyep
 }
 
-impl LeBytes for UngrabKey {
+impl ToLeBytes for UngrabKey {
     fn to_le_bytes(&self, w: &mut impl Write) -> io::Result<()> {
         write_le_bytes!(w, opcodes::UNGRAB_KEY);
         write_le_bytes!(w, self.key);
@@ -1668,7 +1668,7 @@ pub struct AllowEvents {
     pub time: u32,
 }
 
-impl LeBytes for AllowEvents {
+impl ToLeBytes for AllowEvents {
     fn to_le_bytes(&self, w: &mut impl Write) -> io::Result<()> {
         write_le_bytes!(w, opcodes::ALLOW_EVENTS);
         write_le_bytes!(w, self.mode);
@@ -1691,7 +1691,7 @@ GrabServer
 #[derive(Debug, Clone, Copy)]
 pub struct GrabServer;
 
-impl LeBytes for GrabServer {
+impl ToLeBytes for GrabServer {
     fn to_le_bytes(&self, w: &mut impl Write) -> io::Result<()> {
         write_le_bytes!(w, opcodes::GRAB_SERVER);
         write_le_bytes!(w, 0u8); // unused
@@ -1713,7 +1713,7 @@ UngrabServer
 #[derive(Debug, Clone, Copy)]
 pub struct UngrabServer;
 
-impl LeBytes for UngrabServer {
+impl ToLeBytes for UngrabServer {
     fn to_le_bytes(&self, w: &mut impl Write) -> io::Result<()> {
         write_le_bytes!(w, opcodes::UNGRAB_SERVER);
         write_le_bytes!(w, 0u8); // unused
@@ -1738,7 +1738,7 @@ pub struct QueryPointer {
     pub window: WindowId,
 }
 
-impl LeBytes for QueryPointer {
+impl ToLeBytes for QueryPointer {
     fn to_le_bytes(&self, w: &mut impl Write) -> io::Result<()> {
         write_le_bytes!(w, opcodes::QUERY_POINTER);
         write_le_bytes!(w, 0u8); // unused
@@ -1770,7 +1770,7 @@ pub struct GetMotionEvents {
     pub stop: Timestamp,
 }
 
-impl LeBytes for GetMotionEvents {
+impl ToLeBytes for GetMotionEvents {
     fn to_le_bytes(&self, w: &mut impl Write) -> io::Result<()> {
         write_le_bytes!(w, opcodes::GET_MOTION_EVENTS);
         write_le_bytes!(w, 0u8); // unused
@@ -1804,7 +1804,7 @@ pub struct TranslateCoordinates {
     pub src_y: i16,
 }
 
-impl LeBytes for TranslateCoordinates {
+impl ToLeBytes for TranslateCoordinates {
     fn to_le_bytes(&self, w: &mut impl Write) -> io::Result<()> {
         write_le_bytes!(w, opcodes::TRANSLATE_COORDINATES);
         write_le_bytes!(w, 0u8); // unused
@@ -1849,7 +1849,7 @@ pub struct WarpPointer {
     pub dst_y: i16,
 }
 
-impl LeBytes for WarpPointer {
+impl ToLeBytes for WarpPointer {
     fn to_le_bytes(&self, w: &mut impl Write) -> io::Result<()> {
         write_le_bytes!(w, opcodes::WARP_POINTER);
         write_le_bytes!(w, 0u8); // unused
@@ -1900,7 +1900,7 @@ pub struct SetInputFocus {
     pub time: Timestamp,
 }
 
-impl LeBytes for SetInputFocus {
+impl ToLeBytes for SetInputFocus {
     fn to_le_bytes(&self, w: &mut impl Write) -> io::Result<()> {
         write_le_bytes!(w, opcodes::SET_INPUT_FOCUS);
         write_le_bytes!(w, self.revert_to);
@@ -1924,7 +1924,7 @@ GetInputFocus
 #[derive(Debug, Clone)]
 pub struct GetInputFocus;
 
-impl LeBytes for GetInputFocus {
+impl ToLeBytes for GetInputFocus {
     fn to_le_bytes(&self, w: &mut impl Write) -> io::Result<()> {
         write_le_bytes!(w, &opcodes::GET_INPUT_FOCUS);
         write_le_bytes!(w, &0u8); // unused
@@ -1946,7 +1946,7 @@ QueryKeymap
 #[derive(Debug, Clone, Copy)]
 pub struct QueryKeymap;
 
-impl LeBytes for QueryKeymap {
+impl ToLeBytes for QueryKeymap {
     fn to_le_bytes(&self, w: &mut impl Write) -> io::Result<()> {
         write_le_bytes!(w, opcodes::QUERY_KEYMAP);
         write_le_bytes!(w, 0u8); // unused
@@ -1976,7 +1976,7 @@ pub struct OpenFont {
     pub name: Vec<u8>,
 }
 
-impl LeBytes for OpenFont {
+impl ToLeBytes for OpenFont {
     fn to_le_bytes(&self, w: &mut impl Write) -> io::Result<()> {
         let n = self.name.len();
         let p = pad(n);
@@ -2010,7 +2010,7 @@ pub struct CloseFont {
     pub font: FontId,
 }
 
-impl LeBytes for CloseFont {
+impl ToLeBytes for CloseFont {
     fn to_le_bytes(&self, w: &mut impl Write) -> io::Result<()> {
         write_le_bytes!(w, opcodes::CLOSE_FONT);
         write_le_bytes!(w, 0u8); // unused
@@ -2036,7 +2036,7 @@ pub struct QueryFont {
     pub font: FontId, // TODO: Fontable
 }
 
-impl LeBytes for QueryFont {
+impl ToLeBytes for QueryFont {
     fn to_le_bytes(&self, w: &mut impl Write) -> io::Result<()> {
         write_le_bytes!(w, opcodes::QUERY_FONT);
         write_le_bytes!(w, 0u8); // unused
@@ -2065,7 +2065,7 @@ pub struct QueryTextExtents {
     pub string: Vec<u16>,
 }
 
-impl LeBytes for QueryTextExtents {
+impl ToLeBytes for QueryTextExtents {
     fn to_le_bytes(&self, w: &mut impl Write) -> io::Result<()> {
         let n = self.string.len();
         let p = pad(2 * n);
@@ -2108,7 +2108,7 @@ pub struct ListFonts {
     pub pattern: Vec<u8>,
 }
 
-impl LeBytes for ListFonts {
+impl ToLeBytes for ListFonts {
     fn to_le_bytes(&self, w: &mut impl Write) -> io::Result<()> {
         let n = self.pattern.len();
         let p = pad(n);
@@ -2145,7 +2145,7 @@ pub struct ListFontsWithInfo {
     pub pattern: Vec<u8>,
 }
 
-impl LeBytes for ListFontsWithInfo {
+impl ToLeBytes for ListFontsWithInfo {
     fn to_le_bytes(&self, w: &mut impl Write) -> io::Result<()> {
         let n = self.pattern.len();
         let p = pad(n);
@@ -2181,7 +2181,7 @@ pub struct SetFontPath {
     pub paths: ListOfStr,
 }
 
-impl LeBytes for SetFontPath {
+impl ToLeBytes for SetFontPath {
     fn to_le_bytes(&self, w: &mut impl Write) -> io::Result<()> {
         let n = self.paths.encoded_len();
         let p = pad(n);
@@ -2211,7 +2211,7 @@ GetFontPath
 #[derive(Debug, Clone, Copy)]
 pub struct GetFontPath;
 
-impl LeBytes for GetFontPath {
+impl ToLeBytes for GetFontPath {
     fn to_le_bytes(&self, w: &mut impl Write) -> io::Result<()> {
         write_le_bytes!(w, opcodes::GET_FONT_PATH);
         write_le_bytes!(w, 0u8); // unused
@@ -2243,7 +2243,7 @@ pub struct CreatePixmap {
     pub height: u16,
 }
 
-impl LeBytes for CreatePixmap {
+impl ToLeBytes for CreatePixmap {
     fn to_le_bytes(&self, w: &mut impl Write) -> io::Result<()> {
         write_le_bytes!(w, opcodes::CREATE_PIXMAP);
         write_le_bytes!(w, self.depth);
@@ -2272,7 +2272,7 @@ pub struct FreePixmap {
     pub pixmap: PixmapId,
 }
 
-impl LeBytes for FreePixmap {
+impl ToLeBytes for FreePixmap {
     fn to_le_bytes(&self, w: &mut impl Write) -> io::Result<()> {
         write_le_bytes!(w, opcodes::FREE_PIXMAP);
         write_le_bytes!(w, 0u8); // unused
@@ -2416,7 +2416,7 @@ pub struct CreateGC {
     pub values: GContextSettings,
 }
 
-impl LeBytes for CreateGC {
+impl ToLeBytes for CreateGC {
     fn to_le_bytes(&self, w: &mut impl Write) -> io::Result<()> {
         let (bitmask, n) = self.values.values.mask_and_count();
 
@@ -2452,7 +2452,7 @@ pub struct ChangeGC {
     pub values: GContextSettings,
 }
 
-impl LeBytes for ChangeGC {
+impl ToLeBytes for ChangeGC {
     fn to_le_bytes(&self, w: &mut impl Write) -> io::Result<()> {
         let (bitmask, n) = self.values.values.mask_and_count();
 
@@ -2487,7 +2487,7 @@ pub struct CopyGC {
     pub value_mask: u32,
 }
 
-impl LeBytes for CopyGC {
+impl ToLeBytes for CopyGC {
     fn to_le_bytes(&self, w: &mut impl Write) -> io::Result<()> {
         write_le_bytes!(w, opcodes::COPY_GC);
         write_le_bytes!(w, 0u8); // unused
@@ -2521,7 +2521,7 @@ pub struct SetDashes {
     pub dashes: Vec<u8>,
 }
 
-impl LeBytes for SetDashes {
+impl ToLeBytes for SetDashes {
     fn to_le_bytes(&self, w: &mut impl Write) -> io::Result<()> {
         let n = self.dashes.len();
         let p = pad(n);
@@ -2577,7 +2577,7 @@ pub struct SetClipRectangles {
     pub rectangles: Vec<Rectangle>,
 }
 
-impl LeBytes for SetClipRectangles {
+impl ToLeBytes for SetClipRectangles {
     fn to_le_bytes(&self, w: &mut impl Write) -> io::Result<()> {
         let n = self.rectangles.len();
         let request_length = 3 + 2 * n;
@@ -2611,7 +2611,7 @@ pub struct FreeGC {
     pub gc: GContextId,
 }
 
-impl LeBytes for FreeGC {
+impl ToLeBytes for FreeGC {
     fn to_le_bytes(&self, w: &mut impl Write) -> io::Result<()> {
         write_le_bytes!(w, opcodes::FREE_GC);
         write_le_bytes!(w, 0u8); // unused
@@ -2646,7 +2646,7 @@ pub struct ClearArea {
     pub height: u16,
 }
 
-impl LeBytes for ClearArea {
+impl ToLeBytes for ClearArea {
     fn to_le_bytes(&self, w: &mut impl Write) -> io::Result<()> {
         write_le_bytes!(w, opcodes::CLEAR_AREA);
         write_le_bytes!(w, self.exposures as u8);
@@ -2692,7 +2692,7 @@ pub struct CopyArea {
     pub height: u16,
 }
 
-impl LeBytes for CopyArea {
+impl ToLeBytes for CopyArea {
     fn to_le_bytes(&self, w: &mut impl Write) -> io::Result<()> {
         write_le_bytes!(w, opcodes::COPY_AREA);
         write_le_bytes!(w, 0u8); // unused
@@ -2744,7 +2744,7 @@ pub struct CopyPlane {
     pub bit_plane: u32,
 }
 
-impl LeBytes for CopyPlane {
+impl ToLeBytes for CopyPlane {
     fn to_le_bytes(&self, w: &mut impl Write) -> io::Result<()> {
         write_le_bytes!(w, opcodes::COPY_PLANE);
         write_le_bytes!(w, 0u8); // unused
@@ -2794,7 +2794,7 @@ pub struct PolyPoint {
     pub points: Vec<Point>,
 }
 
-impl LeBytes for PolyPoint {
+impl ToLeBytes for PolyPoint {
     fn to_le_bytes(&self, w: &mut impl Write) -> io::Result<()> {
         let n = self.points.len();
         let request_length = 3 + n;
@@ -2835,7 +2835,7 @@ pub struct PolyLine {
     pub points: Vec<Point>,
 }
 
-impl LeBytes for PolyLine {
+impl ToLeBytes for PolyLine {
     fn to_le_bytes(&self, w: &mut impl Write) -> io::Result<()> {
         let n = self.points.len();
         let request_length = 3 + n;
@@ -2880,7 +2880,7 @@ pub struct Segment {
     pub y2: i16,
 }
 
-impl LeBytes for Segment {
+impl ToLeBytes for Segment {
     fn to_le_bytes(&self, w: &mut impl Write) -> io::Result<()> {
         write_le_bytes!(w, self.x1);
         write_le_bytes!(w, self.y1);
@@ -2897,7 +2897,7 @@ pub struct PolySegment {
     pub segments: Vec<Segment>,
 }
 
-impl LeBytes for PolySegment {
+impl ToLeBytes for PolySegment {
     fn to_le_bytes(&self, w: &mut impl Write) -> io::Result<()> {
         let n = self.segments.len();
         let request_length = 3 + 2 * n;
@@ -2938,7 +2938,7 @@ pub struct PolyRectangle {
     pub rectangles: Vec<Rectangle>,
 }
 
-impl LeBytes for PolyRectangle {
+impl ToLeBytes for PolyRectangle {
     fn to_le_bytes(&self, w: &mut impl Write) -> io::Result<()> {
         let n = self.rectangles.len();
         let request_length = 3 + 2 * n;
@@ -2993,7 +2993,7 @@ pub struct PolyArc {
     pub arcs: Vec<Arc>,
 }
 
-impl LeBytes for PolyArc {
+impl ToLeBytes for PolyArc {
     fn to_le_bytes(&self, w: &mut impl Write) -> io::Result<()> {
         let n = self.arcs.len();
         let request_length = 3 + 3 * n;
@@ -3050,7 +3050,7 @@ pub struct FillPoly {
     pub points: Vec<Point>,
 }
 
-impl LeBytes for FillPoly {
+impl ToLeBytes for FillPoly {
     fn to_le_bytes(&self, w: &mut impl Write) -> io::Result<()> {
         let n = self.points.len();
         let request_length = 4 + n;
@@ -3091,7 +3091,7 @@ pub struct PolyFillRectangle {
     pub rectangles: Vec<Rectangle>,
 }
 
-impl LeBytes for PolyFillRectangle {
+impl ToLeBytes for PolyFillRectangle {
     fn to_le_bytes(&self, w: &mut impl Write) -> io::Result<()> {
         let n: u16 = self.rectangles.len() as u16;
         let request_length = 3 + 2 * n;
@@ -3128,7 +3128,7 @@ pub struct PolyFillArc {
     pub arcs: Vec<Arc>,
 }
 
-impl LeBytes for PolyFillArc {
+impl ToLeBytes for PolyFillArc {
     fn to_le_bytes(&self, w: &mut impl Write) -> io::Result<()> {
         let n = self.arcs.len();
         let request_length = 3 + 3 * n;
@@ -3212,7 +3212,7 @@ impl PutImageOwned {
     }
 }
 
-impl LeBytes for PutImageOwned {
+impl ToLeBytes for PutImageOwned {
     fn to_le_bytes(&self, w: &mut impl Write) -> io::Result<()> {
         self.to_shared().to_le_bytes(w)
     }
@@ -3236,7 +3236,7 @@ pub struct PutImage<'data> {
     pub data: &'data [u8],
 }
 
-impl<'data> LeBytes for PutImage<'data> {
+impl<'data> ToLeBytes for PutImage<'data> {
     fn to_le_bytes(&self, w: &mut impl Write) -> io::Result<()> {
         let n = self.data.len();
         let p = pad(n);
@@ -3305,7 +3305,7 @@ pub struct GetImage {
     pub plane_mask: u32,
 }
 
-impl LeBytes for GetImage {
+impl ToLeBytes for GetImage {
     fn to_le_bytes(&self, w: &mut impl Write) -> io::Result<()> {
         write_le_bytes!(w, opcodes::GET_IMAGE);
         write_le_bytes!(w, self.format as u8);
@@ -3354,7 +3354,7 @@ pub enum TextItem8 {
     FontShift { font_bytes: [u8; 4] },
 }
 
-impl LeBytes for TextItem8 {
+impl ToLeBytes for TextItem8 {
     fn to_le_bytes(&self, w: &mut impl Write) -> io::Result<()> {
         match self {
             TextItem8::Text { delta, string } => {
@@ -3383,7 +3383,7 @@ pub struct PolyText8 {
     pub items: Vec<TextItem8>,
 }
 
-impl LeBytes for PolyText8 {
+impl ToLeBytes for PolyText8 {
     fn to_le_bytes(&self, w: &mut impl Write) -> io::Result<()> {
         let n = self.items.len();
         let p = pad(n);
@@ -3453,7 +3453,7 @@ pub enum TextItem16 {
     FontShift { font_bytes: [u8; 4] },
 }
 
-impl LeBytes for TextItem16 {
+impl ToLeBytes for TextItem16 {
     fn to_le_bytes(&self, w: &mut impl Write) -> io::Result<()> {
         match self {
             TextItem16::Text { delta, string } => {
@@ -3476,7 +3476,7 @@ impl LeBytes for TextItem16 {
     }
 }
 
-impl LeBytes for PolyText16 {
+impl ToLeBytes for PolyText16 {
     fn to_le_bytes(&self, w: &mut impl Write) -> io::Result<()> {
         let n = self.items.len();
         let p = pad(n);
@@ -3524,7 +3524,7 @@ pub struct ImageText8 {
     pub string: Vec<u8>,
 }
 
-impl LeBytes for ImageText8 {
+impl ToLeBytes for ImageText8 {
     fn to_le_bytes(&self, w: &mut impl Write) -> io::Result<()> {
         let n = self.string.len();
         let p = pad(n);
@@ -3568,7 +3568,7 @@ pub struct ImageText16 {
     pub string: Vec<u16>,
 }
 
-impl LeBytes for ImageText16 {
+impl ToLeBytes for ImageText16 {
     fn to_le_bytes(&self, w: &mut impl Write) -> io::Result<()> {
         let n = self.string.len();
         let p = pad(2 * n);
@@ -3622,7 +3622,7 @@ pub struct CreateColormap {
     pub visual: VisualId,
 }
 
-impl LeBytes for CreateColormap {
+impl ToLeBytes for CreateColormap {
     fn to_le_bytes(&self, w: &mut impl Write) -> io::Result<()> {
         write_le_bytes!(w, opcodes::CREATE_COLORMAP);
         write_le_bytes!(w, self.alloc as u8);
@@ -3650,7 +3650,7 @@ pub struct FreeColormap {
     pub cmap: ColormapId,
 }
 
-impl LeBytes for FreeColormap {
+impl ToLeBytes for FreeColormap {
     fn to_le_bytes(&self, w: &mut impl Write) -> io::Result<()> {
         write_le_bytes!(w, opcodes::FREE_COLORMAP);
         write_le_bytes!(w, 0u8); // unused
@@ -3678,7 +3678,7 @@ pub struct CopyColormapAndFree {
     pub src_cmap: ColormapId,
 }
 
-impl LeBytes for CopyColormapAndFree {
+impl ToLeBytes for CopyColormapAndFree {
     fn to_le_bytes(&self, w: &mut impl Write) -> io::Result<()> {
         write_le_bytes!(w, opcodes::COPY_COLORMAP_AND_FREE);
         write_le_bytes!(w, 0u8); // unused
@@ -3705,7 +3705,7 @@ pub struct InstallColormap {
     pub cmap: ColormapId,
 }
 
-impl LeBytes for InstallColormap {
+impl ToLeBytes for InstallColormap {
     fn to_le_bytes(&self, w: &mut impl Write) -> io::Result<()> {
         write_le_bytes!(w, opcodes::INSTALL_COLORMAP);
         write_le_bytes!(w, 0u8); // unused
@@ -3731,7 +3731,7 @@ pub struct UninstallColormap {
     pub cmap: ColormapId,
 }
 
-impl LeBytes for UninstallColormap {
+impl ToLeBytes for UninstallColormap {
     fn to_le_bytes(&self, w: &mut impl Write) -> io::Result<()> {
         write_le_bytes!(w, opcodes::UNINSTALL_COLORMAP);
         write_le_bytes!(w, 0u8); // unused
@@ -3757,7 +3757,7 @@ pub struct ListInstalledColormaps {
     pub window: WindowId,
 }
 
-impl LeBytes for ListInstalledColormaps {
+impl ToLeBytes for ListInstalledColormaps {
     fn to_le_bytes(&self, w: &mut impl Write) -> io::Result<()> {
         write_le_bytes!(w, opcodes::LIST_INSTALLED_COLORMAPS);
         write_le_bytes!(w, 0u8); // unused
@@ -3790,7 +3790,7 @@ pub struct AllocColor {
     pub blue: u16,
 }
 
-impl LeBytes for AllocColor {
+impl ToLeBytes for AllocColor {
     fn to_le_bytes(&self, w: &mut impl Write) -> io::Result<()> {
         write_le_bytes!(w, opcodes::ALLOC_COLOR);
         write_le_bytes!(w, 0u8); // unused
@@ -3825,7 +3825,7 @@ pub struct AllocNamedColor {
     pub name: Vec<u8>,
 }
 
-impl LeBytes for AllocNamedColor {
+impl ToLeBytes for AllocNamedColor {
     fn to_le_bytes(&self, w: &mut impl Write) -> io::Result<()> {
         let n = self.name.len();
         let p = pad(n);
@@ -3864,7 +3864,7 @@ pub struct AllocColorCells {
     pub planes: u16,
 }
 
-impl LeBytes for AllocColorCells {
+impl ToLeBytes for AllocColorCells {
     fn to_le_bytes(&self, w: &mut impl Write) -> io::Result<()> {
         write_le_bytes!(w, opcodes::ALLOC_COLOR_CELLS);
         write_le_bytes!(w, self.contiguous as u8);
@@ -3901,7 +3901,7 @@ pub struct AllocColorPlanes {
     pub blues: u16,
 }
 
-impl LeBytes for AllocColorPlanes {
+impl ToLeBytes for AllocColorPlanes {
     fn to_le_bytes(&self, w: &mut impl Write) -> io::Result<()> {
         write_le_bytes!(w, opcodes::ALLOC_COLOR_PLANES);
         write_le_bytes!(w, self.contiguous as u8);
@@ -3935,7 +3935,7 @@ pub struct FreeColors {
     pub pixels: Vec<u32>,
 }
 
-impl LeBytes for FreeColors {
+impl ToLeBytes for FreeColors {
     fn to_le_bytes(&self, w: &mut impl Write) -> io::Result<()> {
         let n = self.pixels.len();
         let request_length = 3 + n;
@@ -3987,7 +3987,7 @@ pub struct ColorItem {
     pub do_blue: bool,
 }
 
-impl LeBytes for ColorItem {
+impl ToLeBytes for ColorItem {
     fn to_le_bytes(&self, w: &mut impl Write) -> io::Result<()> {
         write_le_bytes!(w, self.pixel);
         write_le_bytes!(w, self.red);
@@ -4010,7 +4010,7 @@ pub struct StoreColors {
     pub items: Vec<ColorItem>,
 }
 
-impl LeBytes for StoreColors {
+impl ToLeBytes for StoreColors {
     fn to_le_bytes(&self, w: &mut impl Write) -> io::Result<()> {
         let n = self.items.len();
         let request_length = 2 + 3 * n;
@@ -4057,7 +4057,7 @@ pub struct StoreNamedColor {
     pub name: Vec<u8>,
 }
 
-impl LeBytes for StoreNamedColor {
+impl ToLeBytes for StoreNamedColor {
     fn to_le_bytes(&self, w: &mut impl Write) -> io::Result<()> {
         let n = self.name.len();
         let p = pad(n);
@@ -4098,7 +4098,7 @@ pub struct QueryColors {
     pub pixels: Vec<u32>,
 }
 
-impl LeBytes for QueryColors {
+impl ToLeBytes for QueryColors {
     fn to_le_bytes(&self, w: &mut impl Write) -> io::Result<()> {
         let n = self.pixels.len();
         let request_length = 2 + n;
@@ -4136,7 +4136,7 @@ pub struct LookupColor {
     pub name: Vec<u8>,
 }
 
-impl LeBytes for LookupColor {
+impl ToLeBytes for LookupColor {
     fn to_le_bytes(&self, w: &mut impl Write) -> io::Result<()> {
         let n = self.name.len();
         let p = pad(n);
@@ -4191,7 +4191,7 @@ pub struct CreateCursor {
     pub y: u16,
 }
 
-impl LeBytes for CreateCursor {
+impl ToLeBytes for CreateCursor {
     fn to_le_bytes(&self, w: &mut impl Write) -> io::Result<()> {
         write_le_bytes!(w, opcodes::CREATE_CURSOR);
         write_le_bytes!(w, 0u8); // unused
@@ -4249,7 +4249,7 @@ pub struct CreateGlyphCursor {
     pub back_blue: u16,
 }
 
-impl LeBytes for CreateGlyphCursor {
+impl ToLeBytes for CreateGlyphCursor {
     fn to_le_bytes(&self, w: &mut impl Write) -> io::Result<()> {
         write_le_bytes!(w, opcodes::CREATE_GLYPH_CURSOR);
         write_le_bytes!(w, 0u8); // unused
@@ -4286,7 +4286,7 @@ pub struct FreeCursor {
     pub cursor: CursorId,
 }
 
-impl LeBytes for FreeCursor {
+impl ToLeBytes for FreeCursor {
     fn to_le_bytes(&self, w: &mut impl Write) -> io::Result<()> {
         write_le_bytes!(w, opcodes::FREE_CURSOR);
         write_le_bytes!(w, 0u8); // unused
@@ -4324,7 +4324,7 @@ pub struct RecolorCursor {
     pub back_blue: u16,
 }
 
-impl LeBytes for RecolorCursor {
+impl ToLeBytes for RecolorCursor {
     fn to_le_bytes(&self, w: &mut impl Write) -> io::Result<()> {
         write_le_bytes!(w, opcodes::RECOLOR_CURSOR);
         write_le_bytes!(w, 0u8); // unused
@@ -4373,7 +4373,7 @@ pub struct QueryBestSize {
     pub height: u16,
 }
 
-impl LeBytes for QueryBestSize {
+impl ToLeBytes for QueryBestSize {
     fn to_le_bytes(&self, w: &mut impl Write) -> io::Result<()> {
         write_le_bytes!(w, opcodes::QUERY_BEST_SIZE);
         write_le_bytes!(w, self.class);
@@ -4404,7 +4404,7 @@ pub struct QueryExtension {
     pub name: Vec<u8>,
 }
 
-impl LeBytes for QueryExtension {
+impl ToLeBytes for QueryExtension {
     fn to_le_bytes(&self, w: &mut impl Write) -> io::Result<()> {
         let n = self.name.len();
         let p = pad(n);
@@ -4434,7 +4434,7 @@ ListExtensions
 #[derive(Debug, Clone)]
 pub struct ListExtensions;
 
-impl LeBytes for ListExtensions {
+impl ToLeBytes for ListExtensions {
     fn to_le_bytes(&self, w: &mut impl Write) -> io::Result<()> {
         write_le_bytes!(w, opcodes::LIST_EXTENSIONS);
         write_le_bytes!(w, 0u8); // unused
@@ -4465,7 +4465,7 @@ pub struct ChangeKeyboardMapping {
     pub keysyms: Vec<KeySym>,
 }
 
-impl LeBytes for ChangeKeyboardMapping {
+impl ToLeBytes for ChangeKeyboardMapping {
     fn to_le_bytes(&self, w: &mut impl Write) -> io::Result<()> {
         let nm = self.keycode_count as usize * self.keysyms_per_keycode as usize;
         let request_length = 2 + nm / 4;
@@ -4502,7 +4502,7 @@ pub struct GetKeyboardMapping {
     pub count: u8,
 }
 
-impl LeBytes for GetKeyboardMapping {
+impl ToLeBytes for GetKeyboardMapping {
     fn to_le_bytes(&self, w: &mut impl Write) -> io::Result<()> {
         write_le_bytes!(w, opcodes::GET_KEYBOARD_MAPPING);
         write_le_bytes!(w, 0u8); // unused
@@ -4567,7 +4567,7 @@ pub struct ChangeKeyboardControl {
     pub values: ChangeKeyboardControlValues,
 }
 
-impl LeBytes for ChangeKeyboardControl {
+impl ToLeBytes for ChangeKeyboardControl {
     fn to_le_bytes(&self, w: &mut impl Write) -> io::Result<()> {
         let (bitmask, n) = self.values.values.mask_and_count();
         let request_length = 2 + n;
@@ -4594,7 +4594,7 @@ GetKeyboardControl
 #[derive(Debug, Clone)]
 pub struct GetKeyboardControl;
 
-impl LeBytes for GetKeyboardControl {
+impl ToLeBytes for GetKeyboardControl {
     fn to_le_bytes(&self, w: &mut impl Write) -> io::Result<()> {
         write_le_bytes!(w, opcodes::GET_KEYBOARD_CONTROL);
         write_le_bytes!(w, 0u8); // unused
@@ -4618,7 +4618,7 @@ pub struct Bell {
     pub percent: i8,
 }
 
-impl LeBytes for Bell {
+impl ToLeBytes for Bell {
     fn to_le_bytes(&self, w: &mut impl Write) -> io::Result<()> {
         write_le_bytes!(w, opcodes::BELL);
         write_le_bytes!(w, self.percent);
@@ -4651,7 +4651,7 @@ pub struct ChangePointerControl {
     pub do_threshold: bool,
 }
 
-impl LeBytes for ChangePointerControl {
+impl ToLeBytes for ChangePointerControl {
     fn to_le_bytes(&self, w: &mut impl Write) -> io::Result<()> {
         write_le_bytes!(w, opcodes::CHANGE_POINTER_CONTROL);
         write_le_bytes!(w, 0u8); // unused
@@ -4678,7 +4678,7 @@ GetPointerControl
 #[derive(Debug, Clone)]
 pub struct GetPointerControl;
 
-impl LeBytes for GetPointerControl {
+impl ToLeBytes for GetPointerControl {
     fn to_le_bytes(&self, w: &mut impl Write) -> io::Result<()> {
         write_le_bytes!(w, opcodes::GET_POINTER_CONTROL);
         write_le_bytes!(w, 0u8); // unused
@@ -4725,7 +4725,7 @@ pub struct SetScreenSaver {
     pub allow_exposures: NoYesDefault,
 }
 
-impl LeBytes for SetScreenSaver {
+impl ToLeBytes for SetScreenSaver {
     fn to_le_bytes(&self, w: &mut impl Write) -> io::Result<()> {
         write_le_bytes!(w, opcodes::SET_SCREEN_SAVER);
         write_le_bytes!(w, 0u8); // unused
@@ -4752,7 +4752,7 @@ GetScreenSaver
 #[derive(Debug, Clone)]
 pub struct GetScreenSaver;
 
-impl LeBytes for GetScreenSaver {
+impl ToLeBytes for GetScreenSaver {
     fn to_le_bytes(&self, w: &mut impl Write) -> io::Result<()> {
         write_le_bytes!(w, opcodes::GET_SCREEN_SAVER);
         write_le_bytes!(w, 0u8); // unused
@@ -4805,7 +4805,7 @@ pub struct ChangeHosts {
     pub address: Vec<u8>,
 }
 
-impl LeBytes for ChangeHosts {
+impl ToLeBytes for ChangeHosts {
     fn to_le_bytes(&self, w: &mut impl Write) -> io::Result<()> {
         let n = self.address.len();
         let p = pad(n);
@@ -4836,7 +4836,7 @@ ListHosts
 #[derive(Debug, Clone)]
 pub struct ListHosts;
 
-impl LeBytes for ListHosts {
+impl ToLeBytes for ListHosts {
     fn to_le_bytes(&self, w: &mut impl Write) -> io::Result<()> {
         write_le_bytes!(w, opcodes::LIST_HOSTS);
         write_le_bytes!(w, 0u8); // unused
@@ -4870,7 +4870,7 @@ pub struct SetAccessControl {
     pub mode: SetAccessControlMode,
 }
 
-impl LeBytes for SetAccessControl {
+impl ToLeBytes for SetAccessControl {
     fn to_le_bytes(&self, w: &mut impl Write) -> io::Result<()> {
         write_le_bytes!(w, opcodes::SET_ACCESS_CONTROL);
         write_le_bytes!(w, self.mode);
@@ -4906,7 +4906,7 @@ pub struct SetCloseDownMode {
     pub mode: SetCloseDownModeMode,
 }
 
-impl LeBytes for SetCloseDownMode {
+impl ToLeBytes for SetCloseDownMode {
     fn to_le_bytes(&self, w: &mut impl Write) -> io::Result<()> {
         write_le_bytes!(w, opcodes::SET_CLOSE_DOWN_MODE);
         write_le_bytes!(w, self.mode);
@@ -4932,7 +4932,7 @@ pub struct KillClient {
     pub resource: u32,
 }
 
-impl LeBytes for KillClient {
+impl ToLeBytes for KillClient {
     fn to_le_bytes(&self, w: &mut impl Write) -> io::Result<()> {
         write_le_bytes!(w, opcodes::KILL_CLIENT);
         write_le_bytes!(w, 0u8); // unused
@@ -4964,7 +4964,7 @@ pub struct RotateProperties {
     pub properties: Vec<AtomId>,
 }
 
-impl LeBytes for RotateProperties {
+impl ToLeBytes for RotateProperties {
     fn to_le_bytes(&self, w: &mut impl Write) -> io::Result<()> {
         let n = self.properties.len();
         let request_length = 3 + n;
@@ -5007,7 +5007,7 @@ pub struct ForceScreenSaver {
     pub mode: ForceScreenSaverMode,
 }
 
-impl LeBytes for ForceScreenSaver {
+impl ToLeBytes for ForceScreenSaver {
     fn to_le_bytes(&self, w: &mut impl Write) -> io::Result<()> {
         write_le_bytes!(w, opcodes::FORCE_SCREEN_SAVER);
         write_le_bytes!(w, self.mode);
@@ -5033,7 +5033,7 @@ pub struct SetPointerMapping {
     pub map: Vec<u8>,
 }
 
-impl LeBytes for SetPointerMapping {
+impl ToLeBytes for SetPointerMapping {
     fn to_le_bytes(&self, w: &mut impl Write) -> io::Result<()> {
         let n = self.map.len();
         let p = pad(n);
@@ -5061,7 +5061,7 @@ GetPointerMapping
 #[derive(Debug, Clone)]
 pub struct GetPointerMapping;
 
-impl LeBytes for GetPointerMapping {
+impl ToLeBytes for GetPointerMapping {
     fn to_le_bytes(&self, w: &mut impl Write) -> io::Result<()> {
         write_le_bytes!(w, opcodes::GET_POINTER_MAPPING);
         write_le_bytes!(w, 0u8); // unused
@@ -5086,7 +5086,7 @@ pub struct SetModifierMapping {
     pub keycodes: Vec<KeyCode>,
 }
 
-impl LeBytes for SetModifierMapping {
+impl ToLeBytes for SetModifierMapping {
     fn to_le_bytes(&self, w: &mut impl Write) -> io::Result<()> {
         let n = self.keycodes.len();
         let request_length = 1 + 2 * n;
@@ -5118,7 +5118,7 @@ GetModifierMapping
 #[derive(Debug, Clone)]
 pub struct GetModifierMapping;
 
-impl LeBytes for GetModifierMapping {
+impl ToLeBytes for GetModifierMapping {
     fn to_le_bytes(&self, w: &mut impl Write) -> io::Result<()> {
         write_le_bytes!(w, opcodes::GET_MODIFIER_MAPPING);
         write_le_bytes!(w, 0u8); // unused
@@ -5143,7 +5143,7 @@ pub struct NoOperation {
     pub unused: Vec<u32>,
 }
 
-impl LeBytes for NoOperation {
+impl ToLeBytes for NoOperation {
     fn to_le_bytes(&self, w: &mut impl Write) -> io::Result<()> {
         let n = self.unused.len();
         let request_length = 1 + n;
