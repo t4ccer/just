@@ -1,7 +1,10 @@
 use crate::{
     connection::XConnection,
     error::Error,
-    extensions::randr::{ConfigStatus, MonitorInfo},
+    extensions::{
+        randr::{ConfigStatus, MonitorInfo},
+        render::Subpixel,
+    },
     replies::{read_vec, XReply},
     requests::Timestamp,
     utils::impl_resource_id,
@@ -80,7 +83,7 @@ pub struct SetScreenConfig {
     pub new_timestamp: Timestamp,
     pub new_configuration_timestamp: Timestamp,
     pub root: WindowId,
-    pub subpixel_order: u16, // TODO: type
+    pub subpixel_order: Subpixel,
 }
 
 impl FromLeBytes for SetScreenConfig {
@@ -92,7 +95,8 @@ impl FromLeBytes for SetScreenConfig {
         let new_timestamp = Timestamp::from(conn.read_le_u32()?);
         let new_configuration_timestamp = Timestamp::from(conn.read_le_u32()?);
         let root = WindowId::from(conn.read_le_u32()?);
-        let subpixel_order = conn.read_le_u16()?;
+        let subpixel_order = Subpixel::try_from(conn.read_le_u16()?)
+            .map_err(|_| Error::InvalidResponse(stringify!(Subpixel)))?;
         drop(conn.drain(2 + 4 + 4)?);
 
         Ok(Self {

@@ -1,5 +1,17 @@
-// NOTE: randr calls it SUBPIXELORDER
-// TODO: Define SUBPIXEL(u16)
+use crate::utils::impl_enum;
+
+impl_enum! {
+    #[repr(u16)]
+    /// NOTE: rander extension calls it SUBPIXELORDER
+    enum Subpixel {
+        Unknown = 0,
+        HorizontalRGB = 1,
+        HorizontalBGR = 2,
+        VerticalRGB = 3,
+        VerticalBGR = 4,
+        None = 5,
+    }
+}
 
 #[derive(Debug)]
 pub struct Fixed {
