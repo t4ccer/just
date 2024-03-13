@@ -1,5 +1,5 @@
 use crate::{
-    extensions::randr::CrtcId,
+    extensions::randr::{CrtcId, Rotation, SizeId},
     requests::{write_le_bytes, Timestamp, XExtensionRequest, XRequestBase},
     ToLeBytes, WindowId,
 };
@@ -24,12 +24,16 @@ macro_rules! impl_xrequest_with_response {
 }
 
 /*
-RRQueryVersion
-    1       CARD8                   major opcode
-    1       0                       RandR opcode
-    2       3                       length
-    4       CARD32                  major version
-    4       CARD32                  minor version
+┌───
+    RRQueryVersion
+
+        1       CARD8                   major opcode
+        1       0                       RandR opcode
+        2       3                       length
+        4       CARD32                  major version
+        4       CARD32                  minor version
+     ▶
+└───
 */
 
 #[derive(Debug)]
@@ -52,37 +56,49 @@ impl ToLeBytes for QueryVersion {
 impl_xrequest_with_response!(QueryVersion);
 
 /*
-RRGetMonitors
-    1       CARD8                   major opcode
-    1       42                      RandR opcode
-    2       2                       request length
-    4       WINDOW                  window
+┌───
+    RRSetScreenConfig
+
+        1       CARD8                   major opcode
+        1       2                       RandR opcode
+        2       6                       length
+        4       WINDOW                  window on screen to be configured
+        4       TIMESTAMP               timestamp
+        4       TIMESTAMP               config timestamp
+        2       SIZEID                  size index
+        2       ROTATION                rotation/reflection
+        2       CARD16                  refresh rate (1.1 only)
+        2       CARD16                  pad
+     ▶
+└───
 */
 
 #[derive(Debug)]
-pub struct GetMonitors {
+pub struct SetScreenConfig {
     pub window: WindowId,
-    pub get_active: bool,
+    pub timestamp: Timestamp,
+    pub config_timestamp: Timestamp,
+    pub size_index: SizeId,
+    pub rotation: Rotation,
 }
 
-impl ToLeBytes for GetMonitors {
+impl ToLeBytes for SetScreenConfig {
     fn to_le_bytes(&self, w: &mut impl std::io::Write) -> std::io::Result<()> {
-        write_le_bytes!(w, opcodes::GET_MONITORS);
-
-        // The spec says 2 not 3, why? idk, probably a bug.
-        write_le_bytes!(w, 3u16); // request length
-
+        write_le_bytes!(w, opcodes::SET_SCREEN_CONFIG);
+        write_le_bytes!(w, 6u16); // request length
         write_le_bytes!(w, self.window);
-
-        // Why this is not in spec? idk.
-        write_le_bytes!(w, self.get_active as u8);
-        w.write_all(&[0u8; 3])?; // unused
+        write_le_bytes!(w, self.timestamp);
+        write_le_bytes!(w, self.config_timestamp);
+        write_le_bytes!(w, self.size_index);
+        write_le_bytes!(w, self.rotation);
+        write_le_bytes!(w, 0u16); // refresh rate (deprecated)
+        write_le_bytes!(w, 0u16); // pad
 
         Ok(())
     }
 }
 
-impl_xrequest_with_response!(GetMonitors);
+impl_xrequest_with_response!(SetScreenConfig);
 
 /*
 RRGetCrtcInfo
@@ -112,5 +128,38 @@ impl ToLeBytes for GetCrtcInfo {
 
 impl_xrequest_with_response!(GetCrtcInfo);
 
-// TODO
-pub struct SelectInput {}
+/*
+┌───
+    RRGetMonitors
+        1       CARD8                   major opcode
+        1       42                      RandR opcode
+        2       2                       request length
+        4       WINDOW                  window
+     ▶
+└───
+*/
+
+#[derive(Debug)]
+pub struct GetMonitors {
+    pub window: WindowId,
+    pub get_active: bool,
+}
+
+impl ToLeBytes for GetMonitors {
+    fn to_le_bytes(&self, w: &mut impl std::io::Write) -> std::io::Result<()> {
+        write_le_bytes!(w, opcodes::GET_MONITORS);
+
+        // The spec says 2 not 3, why? idk, probably a bug.
+        write_le_bytes!(w, 3u16); // request length
+
+        write_le_bytes!(w, self.window);
+
+        // Why this is not in spec? idk.
+        write_le_bytes!(w, self.get_active as u8);
+        w.write_all(&[0u8; 3])?; // unused
+
+        Ok(())
+    }
+}
+
+impl_xrequest_with_response!(GetMonitors);

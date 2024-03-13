@@ -1,11 +1,11 @@
 use crate::{
     connection::XConnection,
     error::Error,
-    extensions::randr::MonitorInfo,
+    extensions::randr::{ConfigStatus, MonitorInfo},
     replies::{read_vec, XReply},
     requests::Timestamp,
     utils::impl_resource_id,
-    FromLeBytes,
+    FromLeBytes, WindowId,
 };
 
 macro_rules! impl_xreply {
@@ -22,15 +22,16 @@ macro_rules! impl_xreply {
 }
 
 /*
-RRQueryVersion
-  ▶
-    1       1                       Reply
-    1                               unused
-    2       CARD16                  sequence number
-    4       0                       reply length
-    1       CARD32                  major version
-    1       CARD32                  minor version
- */
+┌───
+    RRQueryVersion
+      ▶
+        1       1                       Reply
+        1                               unused
+        2       CARD16                  sequence number
+        4       0                       reply length
+        1       CARD32                  major version
+└───
+*/
 
 #[derive(Debug, Clone)]
 pub struct QueryVersion {
@@ -54,6 +55,57 @@ impl FromLeBytes for QueryVersion {
 }
 
 impl_xreply!(QueryVersion);
+
+/*
+┌───
+    RRSetScreenConfig
+      ▶
+        1       1                       Reply
+        1       RRCONFIGSTATUS          status
+        2       CARD16                  sequence number
+        4       0                       reply length
+        4       TIMESTAMP               new timestamp
+        4       TIMESTAMP               new configuration timestamp
+        4       WINDOW                  root
+        2       SUBPIXELORDER           subpixel order defined in Render
+        2       CARD16                  pad4
+        4       CARD32                  pad5
+        4       CARD32                  pad6
+└───
+*/
+
+#[derive(Debug, Clone)]
+pub struct SetScreenConfig {
+    pub status: ConfigStatus,
+    pub new_timestamp: Timestamp,
+    pub new_configuration_timestamp: Timestamp,
+    pub root: WindowId,
+    pub subpixel_order: u16, // TODO: type
+}
+
+impl FromLeBytes for SetScreenConfig {
+    fn from_le_bytes(conn: &mut XConnection) -> Result<Self, Error> {
+        let status = ConfigStatus::try_from(conn.read_u8()?)
+            .map_err(|_| Error::InvalidResponse(stringify!(SetScreenConfig)))?;
+        let _sequence_number = conn.read_le_u16()?;
+        let _reply_length = conn.read_le_u32()?;
+        let new_timestamp = Timestamp::from(conn.read_le_u32()?);
+        let new_configuration_timestamp = Timestamp::from(conn.read_le_u32()?);
+        let root = WindowId::from(conn.read_le_u32()?);
+        let subpixel_order = conn.read_le_u16()?;
+        drop(conn.drain(2 + 4 + 4)?);
+
+        Ok(Self {
+            status,
+            new_timestamp,
+            new_configuration_timestamp,
+            root,
+            subpixel_order,
+        })
+    }
+}
+
+impl_xreply!(SetScreenConfig);
 
 /*
 RRGetCrtcInfo
@@ -179,6 +231,7 @@ pub enum SomeReply {
     QueryVersion(QueryVersion),
     GetCrtcInfo(GetCrtcInfo),
     GetMonitors(GetMonitors),
+    SetScreenConfig(SetScreenConfig),
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -186,4 +239,5 @@ pub enum ReplyType {
     QueryVersion,
     GetCrtcInfo,
     GetMonitors,
+    SetScreenConfig,
 }

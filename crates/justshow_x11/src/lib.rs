@@ -910,6 +910,9 @@ impl XDisplay {
                     randr::replies::ReplyType::QueryVersion => handle_randr_reply!(QueryVersion),
                     randr::replies::ReplyType::GetMonitors => handle_randr_reply!(GetMonitors),
                     randr::replies::ReplyType::GetCrtcInfo => handle_randr_reply!(GetCrtcInfo),
+                    randr::replies::ReplyType::SetScreenConfig => {
+                        handle_randr_reply!(SetScreenConfig)
+                    }
                 }
             }
         }

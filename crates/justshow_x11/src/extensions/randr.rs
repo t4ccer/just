@@ -22,6 +22,32 @@ pub const SUPPORTED_MINOR: u32 = 6;
 
 impl_resource_id!(CrtcId);
 
+/* SIZEID { CARD16 } */
+
+#[derive(Debug, Clone, Copy)]
+pub struct SizeId {
+    inner: u16,
+}
+
+impl SizeId {
+    #[inline(always)]
+    fn to_le_bytes(&self) -> [u8; 2] {
+        self.inner.to_le_bytes()
+    }
+}
+
+impl From<u16> for SizeId {
+    fn from(inner: u16) -> Self {
+        Self { inner }
+    }
+}
+
+impl From<SizeId> for u16 {
+    fn from(value: SizeId) -> Self {
+        value.inner
+    }
+}
+
 // A.1 Common Types
 
 /*
@@ -316,6 +342,10 @@ impl ToLeBytes for MonitorInfo {
         Ok(())
     }
 }
+
+// TODO: Move everything below to Render (NOT randr) extension
+
+// TODO: Define SUBPIXELORDER(u16)
 
 #[derive(Debug)]
 pub struct Fixed {
