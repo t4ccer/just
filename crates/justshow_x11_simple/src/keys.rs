@@ -3,11 +3,11 @@
 //! If you are familiar with XCB, this module offers the same functionality, so please
 //! refffer to following lists of differences and similarities.
 //! ### Differences
-//! - `xcb_refresh_keyboard_mapping` → Use [`crate::X11Connection::key_symbols`] again to recreate.
+//! - `xcb_refresh_keyboard_mapping` → Use [`KeySymbols::new`] again to recreate.
 //! - `xcb_key_symbols_free` → Dropped when out of scope.
 //! ### One to one
 //! - `xcb_key_symbols_t` → [`KeySymbols`]
-//! - `xcb_key_symbols_alloc` → [`crate::X11Connection::key_symbols`]
+//! - `xcb_key_symbols_alloc` → [`KeySymbols::new`]
 //! - `xcb_key_symbols_get_keysym` → [`KeySymbols::get_keysym`]
 //! - `xcb_key_symbols_get_keycode` → [`KeySymbols::get_keycodes`]
 //! - `xcb_key_press_lookup_keysym` → [`KeySymbols::key_event_lookup_keysym`]

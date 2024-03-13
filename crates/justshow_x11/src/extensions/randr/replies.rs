@@ -1,7 +1,7 @@
 use crate::{
-    atoms::AtomId,
     connection::XConnection,
     error::Error,
+    extensions::randr::MonitorInfo,
     replies::{read_vec, XReply},
     requests::Timestamp,
     utils::impl_resource_id,
@@ -20,67 +20,39 @@ macro_rules! impl_xreply {
     };
 }
 
-impl_resource_id!(CrtcId);
-
 /*
-MONITORINFO (16 + 4*n)
-    4       ATOM            name
-    1       BOOL            primary
-    1       BOOL            automatic
-    2       CARD16          ncrtcs
-    2       INT16           x
-    2       INT16           y
-    2       CARD16          width in pixels
-    2       CARD16          height in pixels
-    4       CARD32          width in millimeters
-    4       CARD32          height in millimeters
-    4*n     CRTC            crtcs
-*/
+RRQueryVersion
+  ▶
+    1       1                       Reply
+    1                               unused
+    2       CARD16                  sequence number
+    4       0                       reply length
+    1       CARD32                  major version
+    1       CARD32                  minor version
+ */
 
 #[derive(Debug, Clone)]
-pub struct MonitorInfo {
-    pub name: AtomId,
-    pub primary: bool,
-    pub automatic: bool,
-    pub ncrtcs: u16,
-    pub x: i16,
-    pub y: i16,
-    pub width_in_pixels: u16,
-    pub height_in_pixels: u16,
-    pub width_in_millimeters: u32,
-    pub height_in_millimeters: u32,
-    pub crtcs: Vec<CrtcId>,
+pub struct QueryVersion {
+    pub major_version: u32,
+    pub minor_version: u32,
 }
 
-impl MonitorInfo {
+impl QueryVersion {
     pub(crate) fn from_le_bytes(conn: &mut XConnection) -> Result<Self, Error> {
-        let name = AtomId::unchecked_from(conn.read_le_u32()?);
-        let primary = conn.read_bool()?;
-        let automatic = conn.read_bool()?;
-        let ncrtcs = conn.read_le_u16()?;
-        let x = conn.read_le_i16()?;
-        let y = conn.read_le_i16()?;
-        let width_in_pixels = conn.read_le_u16()?;
-        let height_in_pixels = conn.read_le_u16()?;
-        let width_in_millimeters = conn.read_le_u32()?;
-        let height_in_millimeters = conn.read_le_u32()?;
-        let crtcs = read_vec!(ncrtcs, CrtcId::unchecked_from(conn.read_le_u32()?));
+        let _unused = conn.read_u8()?;
+        let _sequence_nubmer = conn.read_le_u16()?;
+        let _reply_length = conn.read_le_u32()?;
+        let major_version = conn.read_le_u32()?;
+        let minor_version = conn.read_le_u32()?;
 
         Ok(Self {
-            name,
-            primary,
-            automatic,
-            ncrtcs,
-            x,
-            y,
-            width_in_pixels,
-            height_in_pixels,
-            width_in_millimeters,
-            height_in_millimeters,
-            crtcs,
+            major_version,
+            minor_version,
         })
     }
 }
+
+impl_xreply!(QueryVersion);
 
 /*
 RRGetCrtcInfo
@@ -203,12 +175,14 @@ impl_xreply!(GetMonitors);
 
 #[derive(Debug, Clone)]
 pub enum SomeReply {
+    QueryVersion(QueryVersion),
     GetCrtcInfo(GetCrtcInfo),
     GetMonitors(GetMonitors),
 }
 
 #[derive(Debug, Clone, Copy)]
 pub enum ReplyType {
+    QueryVersion,
     GetCrtcInfo,
     GetMonitors,
 }

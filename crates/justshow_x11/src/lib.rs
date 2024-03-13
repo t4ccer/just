@@ -38,6 +38,8 @@ mod utils;
 pub mod xauth;
 pub mod xerror;
 
+// TODO: Rename to ToLeBytes
+// TODO: Add FromLeBytes
 pub trait LeBytes: Sized {
     fn to_le_bytes(&self, w: &mut impl Write) -> io::Result<()>;
 }
@@ -883,6 +885,7 @@ impl XDisplay {
                 }
 
                 match randr_reply {
+                    randr::replies::ReplyType::QueryVersion => handle_randr_reply!(QueryVersion),
                     randr::replies::ReplyType::GetMonitors => handle_randr_reply!(GetMonitors),
                     randr::replies::ReplyType::GetCrtcInfo => handle_randr_reply!(GetCrtcInfo),
                 }

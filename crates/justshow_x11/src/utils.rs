@@ -41,7 +41,7 @@ macro_rules! bitmask {
         #[automatically_derived]
         impl ::std::fmt::Debug for $ty {
             fn fmt(&self, f: &mut ::std::fmt::Formatter<'_>) -> Result<(), ::std::fmt::Error> {
-                let fields = [ $( stringify!($key),)* ];
+                let fields: &[&'static str] = &[ $( stringify!($key),)* ];
 
                 write!(f, "{:#x} (", self.value)?;
                 for (idx, field) in [ $( Self::$key,)* ]
@@ -139,8 +139,8 @@ impl BytesSize for u32 {
 macro_rules! impl_enum {
     (#[repr($inner:ident)] $(#[$name_attr_post:meta])*  enum $name:ident { $( $(#[$field_attr:meta])* $key:ident = $value:literal,)* }) => {
         $(#[$name_attr_post])*
-        #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
         #[repr($inner)]
+        #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
         pub enum $name {
             $($(#[$field_attr])* $key = $value,)*
         }

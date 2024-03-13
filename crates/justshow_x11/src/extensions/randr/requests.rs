@@ -1,9 +1,8 @@
 use crate::{
+    extensions::randr::CrtcId,
     requests::{write_le_bytes, Timestamp, XExtensionRequest, XRequestBase},
     LeBytes, WindowId,
 };
-
-use super::replies::CrtcId;
 
 mod opcodes;
 
@@ -23,6 +22,34 @@ macro_rules! impl_xrequest_with_response {
         impl XExtensionRequest for $r {}
     };
 }
+
+/*
+RRQueryVersion
+    1       CARD8                   major opcode
+    1       0                       RandR opcode
+    2       3                       length
+    4       CARD32                  major version
+    4       CARD32                  minor version
+*/
+
+#[derive(Debug)]
+pub struct QueryVersion {
+    pub major_version: u32,
+    pub minor_version: u32,
+}
+
+impl LeBytes for QueryVersion {
+    fn to_le_bytes(&self, w: &mut impl std::io::Write) -> std::io::Result<()> {
+        write_le_bytes!(w, opcodes::QUERY_VERSION);
+        write_le_bytes!(w, 3u16); // request length
+        write_le_bytes!(w, self.major_version);
+        write_le_bytes!(w, self.minor_version);
+
+        Ok(())
+    }
+}
+
+impl_xrequest_with_response!(QueryVersion);
 
 /*
 RRGetMonitors
@@ -84,3 +111,6 @@ impl LeBytes for GetCrtcInfo {
 }
 
 impl_xrequest_with_response!(GetCrtcInfo);
+
+// TODO
+pub struct SelectInput {}
