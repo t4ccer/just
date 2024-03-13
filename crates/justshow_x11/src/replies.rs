@@ -2,7 +2,8 @@ use std::{fmt::Display, ops::Deref, str::FromStr};
 
 use crate::{
     atoms::AtomId, connection::XConnection, error::Error, keysym::KeySym, requests::KeyCode,
-    requests::Timestamp, utils::pad, ColormapId, ListOfStr, OrNone, ResourceId, VisualId, WindowId,
+    requests::Timestamp, utils::pad, ColormapId, FromLeBytes, ListOfStr, OrNone, ResourceId,
+    VisualId, WindowId,
 };
 
 pub trait XReply: Sized {
@@ -44,8 +45,8 @@ pub enum HostFamily {
     InternetV6 = 6,
 }
 
-impl HostFamily {
-    pub(crate) fn from_le_bytes(conn: &mut XConnection) -> Result<Self, Error> {
+impl FromLeBytes for HostFamily {
+    fn from_le_bytes(conn: &mut XConnection) -> Result<Self, Error> {
         match conn.read_u8()? {
             0 => Ok(Self::Internet),
             1 => Ok(Self::DECnet),
@@ -63,8 +64,8 @@ pub struct Host {
     pub address: Vec<u8>,
 }
 
-impl Host {
-    pub(crate) fn from_le_bytes(conn: &mut XConnection) -> Result<Self, Error> {
+impl FromLeBytes for Host {
+    fn from_le_bytes(conn: &mut XConnection) -> Result<Self, Error> {
         let family = HostFamily::from_le_bytes(conn)?;
         let _unused = conn.read_u8()?;
         let address_length = conn.read_le_u16()?;
@@ -126,8 +127,8 @@ pub struct GetWindowAttributes {
     pub do_not_propagate_mask: u16,
 }
 
-impl GetWindowAttributes {
-    pub(crate) fn from_le_bytes(conn: &mut XConnection) -> Result<Self, Error> {
+impl FromLeBytes for GetWindowAttributes {
+    fn from_le_bytes(conn: &mut XConnection) -> Result<Self, Error> {
         let backing_store = conn.read_u8()?;
         let _sequence_code = conn.read_le_u16()?;
         let _reply_length = conn.read_le_u32()?;
@@ -195,8 +196,8 @@ pub struct GetGeometry {
     pub border_width: u16,
 }
 
-impl GetGeometry {
-    pub(crate) fn from_le_bytes(conn: &mut XConnection) -> Result<Self, Error> {
+impl FromLeBytes for GetGeometry {
+    fn from_le_bytes(conn: &mut XConnection) -> Result<Self, Error> {
         let depth = conn.read_u8()?;
         let _sequence_code = conn.read_le_u16()?;
         let _reply_length = conn.read_le_u32()?;
@@ -258,8 +259,8 @@ macro_rules! read_vec {
 }
 pub(crate) use read_vec;
 
-impl QueryTree {
-    pub(crate) fn from_le_bytes(conn: &mut XConnection) -> Result<Self, Error> {
+impl FromLeBytes for QueryTree {
+    fn from_le_bytes(conn: &mut XConnection) -> Result<Self, Error> {
         let _unused = conn.read_u8()?;
         let _sequence_code = conn.read_le_u16()?;
         let _reply_length = conn.read_le_u32()?;
@@ -305,8 +306,8 @@ pub struct InternAtom {
     pub atom: AtomId, // TODO: Or none
 }
 
-impl InternAtom {
-    pub(crate) fn from_le_bytes(conn: &mut XConnection) -> Result<Self, Error> {
+impl FromLeBytes for InternAtom {
+    fn from_le_bytes(conn: &mut XConnection) -> Result<Self, Error> {
         let _unused = conn.read_u8()?;
         let _sequence_code = conn.read_le_u16()?;
         let _reply_length = conn.read_le_u32()?;
@@ -382,8 +383,8 @@ pub struct GetAtomName {
     pub name: String8,
 }
 
-impl GetAtomName {
-    pub(crate) fn from_le_bytes(conn: &mut XConnection) -> Result<Self, Error> {
+impl FromLeBytes for GetAtomName {
+    fn from_le_bytes(conn: &mut XConnection) -> Result<Self, Error> {
         let _unused = conn.read_u8()?;
         let _sequence_code = conn.read_le_u16()?;
         let _reply_length = conn.read_le_u32()?;
@@ -431,8 +432,8 @@ pub struct GetProperty {
     pub value: Vec<u8>,
 }
 
-impl GetProperty {
-    pub(crate) fn from_le_bytes(conn: &mut XConnection) -> Result<Self, Error> {
+impl FromLeBytes for GetProperty {
+    fn from_le_bytes(conn: &mut XConnection) -> Result<Self, Error> {
         let format = conn.read_u8()?;
         let _sequence_code = conn.read_le_u16()?;
         let _reply_length = conn.read_le_u32()?;
@@ -473,8 +474,8 @@ pub struct ListProperties {
     pub atoms: Vec<AtomId>,
 }
 
-impl ListProperties {
-    pub(crate) fn from_le_bytes(conn: &mut XConnection) -> Result<Self, Error> {
+impl FromLeBytes for ListProperties {
+    fn from_le_bytes(conn: &mut XConnection) -> Result<Self, Error> {
         let _unused = conn.read_u8()?;
         let _sequence_code = conn.read_le_u16()?;
         let _reply_length = conn.read_le_u32()?;
@@ -505,8 +506,8 @@ pub struct GetSelectionOwner {
     pub owner: WindowId,
 }
 
-impl GetSelectionOwner {
-    pub(crate) fn from_le_bytes(conn: &mut XConnection) -> Result<Self, Error> {
+impl FromLeBytes for GetSelectionOwner {
+    fn from_le_bytes(conn: &mut XConnection) -> Result<Self, Error> {
         let _unused = conn.read_u8()?;
         let _sequence_code = conn.read_le_u16()?;
         let _reply_length = conn.read_le_u32()?;
@@ -550,8 +551,8 @@ pub struct GrabPointer {
     pub status: GrabPointerStatus,
 }
 
-impl GrabPointer {
-    pub(crate) fn from_le_bytes(conn: &mut XConnection) -> Result<Self, Error> {
+impl FromLeBytes for GrabPointer {
+    fn from_le_bytes(conn: &mut XConnection) -> Result<Self, Error> {
         let status_code = conn.read_u8()?;
         let status = match status_code {
             0 => GrabPointerStatus::Success,
@@ -599,8 +600,8 @@ pub struct GrabKeyboard {
     pub status: GrabKeyboardStatus,
 }
 
-impl GrabKeyboard {
-    pub(crate) fn from_le_bytes(conn: &mut XConnection) -> Result<Self, Error> {
+impl FromLeBytes for GrabKeyboard {
+    fn from_le_bytes(conn: &mut XConnection) -> Result<Self, Error> {
         let status_code = conn.read_u8()?;
         let status = match status_code {
             0 => GrabKeyboardStatus::Success,
@@ -649,8 +650,8 @@ pub struct QueryPointer {
     pub mask: u16,
 }
 
-impl QueryPointer {
-    pub(crate) fn from_le_bytes(conn: &mut XConnection) -> Result<Self, Error> {
+impl FromLeBytes for QueryPointer {
+    fn from_le_bytes(conn: &mut XConnection) -> Result<Self, Error> {
         let same_screen = conn.read_bool()?;
         let _sequence_number = conn.read_le_u16()?;
         let _reply_length = conn.read_le_u32()?;
@@ -709,8 +710,8 @@ pub struct GetMotionEvents {
     pub events: Vec<TimeCoord>,
 }
 
-impl GetMotionEvents {
-    pub(crate) fn from_le_bytes(conn: &mut XConnection) -> Result<Self, Error> {
+impl FromLeBytes for GetMotionEvents {
+    fn from_le_bytes(conn: &mut XConnection) -> Result<Self, Error> {
         let _unused = conn.read_u8()?;
         let _sequence_number = conn.read_le_u16()?;
         let _reply_length = conn.read_le_u32()? as usize;
@@ -753,8 +754,8 @@ pub struct TranslateCoordinates {
     pub dst_y: i16,
 }
 
-impl TranslateCoordinates {
-    pub(crate) fn from_le_bytes(conn: &mut XConnection) -> Result<Self, Error> {
+impl FromLeBytes for TranslateCoordinates {
+    fn from_le_bytes(conn: &mut XConnection) -> Result<Self, Error> {
         let same_screen = conn.read_bool()?;
         let _sequence_number = conn.read_le_u16()?;
         let _reply_length = conn.read_le_u32()?;
@@ -812,8 +813,8 @@ pub struct GetInputFocus {
     pub focus: Focus,
 }
 
-impl GetInputFocus {
-    pub(crate) fn from_le_bytes(conn: &mut XConnection) -> Result<Self, Error> {
+impl FromLeBytes for GetInputFocus {
+    fn from_le_bytes(conn: &mut XConnection) -> Result<Self, Error> {
         let revert_to_code = conn.read_u8()?;
         let revert_to = match revert_to_code {
             0 => RevertTo::None,
@@ -852,8 +853,8 @@ pub struct QueryKeymap {
     pub keys: [u8; 32],
 }
 
-impl QueryKeymap {
-    pub(crate) fn from_le_bytes(conn: &mut XConnection) -> Result<Self, Error> {
+impl FromLeBytes for QueryKeymap {
+    fn from_le_bytes(conn: &mut XConnection) -> Result<Self, Error> {
         let _unused = conn.read_u8()?;
         let _sequence_number = conn.read_le_u16()?;
         let _reply_length = conn.read_le_u32()?;
@@ -918,8 +919,8 @@ pub struct FontProp {
     pub value: u32,
 }
 
-impl FontProp {
-    pub(crate) fn from_le_bytes(conn: &mut XConnection) -> Result<Self, Error> {
+impl FromLeBytes for FontProp {
+    fn from_le_bytes(conn: &mut XConnection) -> Result<Self, Error> {
         let name = AtomId::unchecked_from(conn.read_le_u32()?);
         let value = conn.read_le_u32()?;
         Ok(Self { name, value })
@@ -936,8 +937,8 @@ pub struct CharInfo {
     pub attributes: u16,
 }
 
-impl CharInfo {
-    pub(crate) fn from_le_bytes(conn: &mut XConnection) -> Result<Self, Error> {
+impl FromLeBytes for CharInfo {
+    fn from_le_bytes(conn: &mut XConnection) -> Result<Self, Error> {
         let left_side_bearing = conn.read_le_i16()?;
         let right_side_bearing = conn.read_le_i16()?;
         let character_width = conn.read_le_i16()?;
@@ -973,8 +974,8 @@ pub struct QueryFont {
     pub char_infos: Vec<CharInfo>,
 }
 
-impl QueryFont {
-    pub(crate) fn from_le_bytes(conn: &mut XConnection) -> Result<Self, Error> {
+impl FromLeBytes for QueryFont {
+    fn from_le_bytes(conn: &mut XConnection) -> Result<Self, Error> {
         let _unused = conn.read_u8()?;
         let _sequence_number = conn.read_le_u16()?;
         let _reply_length = conn.read_le_u32()? as usize;
@@ -1053,8 +1054,8 @@ pub struct QueryTextExtents {
     pub overall_right: i32,
 }
 
-impl QueryTextExtents {
-    pub(crate) fn from_le_bytes(conn: &mut XConnection) -> Result<Self, Error> {
+impl FromLeBytes for QueryTextExtents {
+    fn from_le_bytes(conn: &mut XConnection) -> Result<Self, Error> {
         let draw_direction_code = conn.read_u8()?;
         let draw_direction = match draw_direction_code {
             0 => DrawDirection::LeftToRight,
@@ -1105,8 +1106,8 @@ pub struct ListFonts {
     pub names: ListOfStr,
 }
 
-impl ListFonts {
-    pub(crate) fn from_le_bytes(conn: &mut XConnection) -> Result<Self, Error> {
+impl FromLeBytes for ListFonts {
+    fn from_le_bytes(conn: &mut XConnection) -> Result<Self, Error> {
         let _unused = conn.read_u8()?;
         let _sequence_number = conn.read_le_u16()?;
         let _reply_length = conn.read_le_u32()?;
@@ -1188,8 +1189,8 @@ pub enum ListFontsWithInfoPartial {
     ListFontsWithInfoEnd,
 }
 
-impl ListFontsWithInfoPartial {
-    pub(crate) fn from_le_bytes(conn: &mut XConnection) -> Result<Self, Error> {
+impl FromLeBytes for ListFontsWithInfoPartial {
+    fn from_le_bytes(conn: &mut XConnection) -> Result<Self, Error> {
         let name_length = conn.read_u8()?;
         let _sequence_number = conn.read_le_u16()?;
         let _reply_length = conn.read_le_u32()?;
@@ -1268,8 +1269,8 @@ pub struct GetFontPath {
     pub paths: ListOfStr,
 }
 
-impl GetFontPath {
-    pub(crate) fn from_le_bytes(conn: &mut XConnection) -> Result<Self, Error> {
+impl FromLeBytes for GetFontPath {
+    fn from_le_bytes(conn: &mut XConnection) -> Result<Self, Error> {
         let _unused = conn.read_u8()?;
         let _sequence_code = conn.read_le_u16()?;
         let _reply_length = conn.read_le_u32()?;
@@ -1304,8 +1305,8 @@ pub struct GetImage {
     pub data: Vec<u8>,
 }
 
-impl GetImage {
-    pub(crate) fn from_le_bytes(conn: &mut XConnection) -> Result<Self, Error> {
+impl FromLeBytes for GetImage {
+    fn from_le_bytes(conn: &mut XConnection) -> Result<Self, Error> {
         let depth = conn.read_u8()?;
         let _sequence_number = conn.read_le_u16()?;
         let reply_length = conn.read_le_u32()?;
@@ -1342,8 +1343,8 @@ pub struct ListInstalledColormaps {
     pub cmaps: Vec<ColormapId>,
 }
 
-impl ListInstalledColormaps {
-    pub(crate) fn from_le_bytes(conn: &mut XConnection) -> Result<Self, Error> {
+impl FromLeBytes for ListInstalledColormaps {
+    fn from_le_bytes(conn: &mut XConnection) -> Result<Self, Error> {
         let _unused = conn.read_u8()?;
         let _sequence_number = conn.read_le_u16()?;
         let _reply_length = conn.read_le_u32()?;
@@ -1380,8 +1381,8 @@ pub struct AllocColor {
     pub pixel: u32,
 }
 
-impl AllocColor {
-    pub(crate) fn from_le_bytes(conn: &mut XConnection) -> Result<Self, Error> {
+impl FromLeBytes for AllocColor {
+    fn from_le_bytes(conn: &mut XConnection) -> Result<Self, Error> {
         let _unused = conn.read_u8()?;
         let _sequence_number = conn.read_le_u16()?;
         let _reply_length = conn.read_le_u32()?;
@@ -1431,8 +1432,8 @@ pub struct AllocNamedColor {
     pub visual_blue: u16,
 }
 
-impl AllocNamedColor {
-    pub(crate) fn from_le_bytes(conn: &mut XConnection) -> Result<Self, Error> {
+impl FromLeBytes for AllocNamedColor {
+    fn from_le_bytes(conn: &mut XConnection) -> Result<Self, Error> {
         let _unused = conn.read_u8()?;
         let _sequence_number = conn.read_le_u16()?;
         let _reply_length = conn.read_le_u32()?;
@@ -1479,8 +1480,8 @@ pub struct AllocColorCells {
     pub masks: Vec<u32>,
 }
 
-impl AllocColorCells {
-    pub(crate) fn from_le_bytes(conn: &mut XConnection) -> Result<Self, Error> {
+impl FromLeBytes for AllocColorCells {
+    fn from_le_bytes(conn: &mut XConnection) -> Result<Self, Error> {
         let _unused = conn.read_u8()?;
         let _sequence_number = conn.read_le_u16()?;
         let _reply_length = conn.read_le_u32()?;
@@ -1520,8 +1521,8 @@ pub struct AllocColorPlanes {
     pub pixels: Vec<u32>,
 }
 
-impl AllocColorPlanes {
-    pub(crate) fn from_le_bytes(conn: &mut XConnection) -> Result<Self, Error> {
+impl FromLeBytes for AllocColorPlanes {
+    fn from_le_bytes(conn: &mut XConnection) -> Result<Self, Error> {
         let _unused = conn.read_u8()?;
         let _sequence_number = conn.read_le_u16()?;
         let _reply_length = conn.read_le_u32()?;
@@ -1569,8 +1570,8 @@ pub struct Rgb {
     pub blue: u16,
 }
 
-impl Rgb {
-    pub(crate) fn from_le_bytes(conn: &mut XConnection) -> Result<Self, Error> {
+impl FromLeBytes for Rgb {
+    fn from_le_bytes(conn: &mut XConnection) -> Result<Self, Error> {
         let red = conn.read_le_u16()?;
         let green = conn.read_le_u16()?;
         let blue = conn.read_le_u16()?;
@@ -1584,8 +1585,8 @@ pub struct QueryColors {
     pub colors: Vec<Rgb>,
 }
 
-impl QueryColors {
-    pub(crate) fn from_le_bytes(conn: &mut XConnection) -> Result<Self, Error> {
+impl FromLeBytes for QueryColors {
+    fn from_le_bytes(conn: &mut XConnection) -> Result<Self, Error> {
         let _unused = conn.read_u8()?;
         let _sequence_number = conn.read_le_u16()?;
         let _reply_length = conn.read_le_u32()? as usize;
@@ -1625,8 +1626,8 @@ pub struct LookupColor {
     pub visual_blue: u16,
 }
 
-impl LookupColor {
-    pub(crate) fn from_le_bytes(conn: &mut XConnection) -> Result<Self, Error> {
+impl FromLeBytes for LookupColor {
+    fn from_le_bytes(conn: &mut XConnection) -> Result<Self, Error> {
         let _unused = conn.read_u8()?;
         let _sequence_number = conn.read_le_u16()?;
         let _reply_length = conn.read_le_u32()?;
@@ -1669,8 +1670,8 @@ pub struct QueryBestSize {
     pub height: u16,
 }
 
-impl QueryBestSize {
-    pub(crate) fn from_le_bytes(conn: &mut XConnection) -> Result<Self, Error> {
+impl FromLeBytes for QueryBestSize {
+    fn from_le_bytes(conn: &mut XConnection) -> Result<Self, Error> {
         let _unused = conn.read_u8()?;
         let _sequence_number = conn.read_le_u16()?;
         let _reply_length = conn.read_le_u32()?;
@@ -1706,8 +1707,8 @@ pub struct QueryExtension {
     pub first_error: u8,
 }
 
-impl QueryExtension {
-    pub(crate) fn from_le_bytes(conn: &mut XConnection) -> Result<Self, Error> {
+impl FromLeBytes for QueryExtension {
+    fn from_le_bytes(conn: &mut XConnection) -> Result<Self, Error> {
         let _unused = conn.read_u8()?;
         let _sequence_number = conn.read_le_u16()?;
         let _reply_length = conn.read_le_u32()?;
@@ -1745,8 +1746,8 @@ pub struct ListExtensions {
     pub names: ListOfStr,
 }
 
-impl ListExtensions {
-    pub(crate) fn from_le_bytes(conn: &mut XConnection) -> Result<Self, Error> {
+impl FromLeBytes for ListExtensions {
+    fn from_le_bytes(conn: &mut XConnection) -> Result<Self, Error> {
         let number_of_names = conn.read_u8()?;
         let _sequence_number = conn.read_le_u16()?;
         let _reply_length = conn.read_le_u32()? as usize;
@@ -1778,8 +1779,8 @@ pub struct GetKeyboardMapping {
     pub keysyms: Vec<KeySym>,
 }
 
-impl GetKeyboardMapping {
-    pub(crate) fn from_le_bytes(conn: &mut XConnection) -> Result<Self, Error> {
+impl FromLeBytes for GetKeyboardMapping {
+    fn from_le_bytes(conn: &mut XConnection) -> Result<Self, Error> {
         let n = conn.read_u8()?;
         let _sequence_number = conn.read_le_u16()?;
         let reply_length = conn.read_le_u32()?;
@@ -1826,8 +1827,8 @@ pub struct GetKeyboardControl {
     pub auto_repeats: Vec<u8>,
 }
 
-impl GetKeyboardControl {
-    pub(crate) fn from_le_bytes(conn: &mut XConnection) -> Result<Self, Error> {
+impl FromLeBytes for GetKeyboardControl {
+    fn from_le_bytes(conn: &mut XConnection) -> Result<Self, Error> {
         let global_auto_repeat_byte = conn.read_u8()?;
         let global_auto_repeat = global_auto_repeat_byte != 0;
         let _sequence_number = conn.read_le_u16()?;
@@ -1874,8 +1875,8 @@ pub struct GetPointerControl {
     pub threshold: u16,
 }
 
-impl GetPointerControl {
-    pub(crate) fn from_le_bytes(conn: &mut XConnection) -> Result<Self, Error> {
+impl FromLeBytes for GetPointerControl {
+    fn from_le_bytes(conn: &mut XConnection) -> Result<Self, Error> {
         let _unused = conn.read_u8()?;
         let _sequence_code = conn.read_le_u16()?;
         let _reply_length = conn.read_le_u32()?;
@@ -1920,8 +1921,8 @@ pub struct GetScreenSaver {
     pub allow_exposures: bool,
 }
 
-impl GetScreenSaver {
-    pub(crate) fn from_le_bytes(conn: &mut XConnection) -> Result<Self, Error> {
+impl FromLeBytes for GetScreenSaver {
+    fn from_le_bytes(conn: &mut XConnection) -> Result<Self, Error> {
         let _unused = conn.read_u8()?;
         let _sequence_number = conn.read_le_u16()?;
         let _reply_length = conn.read_le_u32()?;
@@ -1970,8 +1971,8 @@ pub struct ListHosts {
     pub hosts: Vec<Host>,
 }
 
-impl ListHosts {
-    pub(crate) fn from_le_bytes(conn: &mut XConnection) -> Result<Self, Error> {
+impl FromLeBytes for ListHosts {
+    fn from_le_bytes(conn: &mut XConnection) -> Result<Self, Error> {
         let mode_byte = conn.read_u8()?;
         let mode = match mode_byte {
             0 => HostMode::Disabled,
@@ -2013,8 +2014,8 @@ pub struct SetPointerMapping {
     pub status: SetPointerMappingStatus,
 }
 
-impl SetPointerMapping {
-    pub(crate) fn from_le_bytes(conn: &mut XConnection) -> Result<Self, Error> {
+impl FromLeBytes for SetPointerMapping {
+    fn from_le_bytes(conn: &mut XConnection) -> Result<Self, Error> {
         let status_byte = conn.read_u8()?;
         let status = match status_byte {
             0 => SetPointerMappingStatus::Success,
@@ -2048,8 +2049,8 @@ pub struct GetPointerMapping {
     pub map: Vec<u8>,
 }
 
-impl GetPointerMapping {
-    pub(crate) fn from_le_bytes(conn: &mut XConnection) -> Result<Self, Error> {
+impl FromLeBytes for GetPointerMapping {
+    fn from_le_bytes(conn: &mut XConnection) -> Result<Self, Error> {
         let length_of_map = conn.read_u8()?;
         let _sequence_number = conn.read_le_u16()?;
         let _reply_length = conn.read_le_u32()? as usize;
@@ -2088,8 +2089,8 @@ pub struct SetModifierMapping {
     pub status: SetModifierMappingStatus,
 }
 
-impl SetModifierMapping {
-    pub(crate) fn from_le_bytes(conn: &mut XConnection) -> Result<Self, Error> {
+impl FromLeBytes for SetModifierMapping {
+    fn from_le_bytes(conn: &mut XConnection) -> Result<Self, Error> {
         let status_byte = conn.read_u8()?;
         let status = match status_byte {
             0 => SetModifierMappingStatus::Success,
@@ -2124,8 +2125,8 @@ pub struct GetModifierMapping {
     pub keycodes: Vec<[KeyCode; 8]>,
 }
 
-impl GetModifierMapping {
-    pub(crate) fn from_le_bytes(conn: &mut XConnection) -> Result<Self, Error> {
+impl FromLeBytes for GetModifierMapping {
+    fn from_le_bytes(conn: &mut XConnection) -> Result<Self, Error> {
         let keycodes_per_modifier = conn.read_u8()?;
         let _sequence_number = conn.read_le_u16()?;
         let _reply_length = conn.read_le_u32()? as usize;

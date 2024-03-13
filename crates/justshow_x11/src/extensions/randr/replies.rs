@@ -5,6 +5,7 @@ use crate::{
     replies::{read_vec, XReply},
     requests::Timestamp,
     utils::impl_resource_id,
+    FromLeBytes,
 };
 
 macro_rules! impl_xreply {
@@ -37,8 +38,8 @@ pub struct QueryVersion {
     pub minor_version: u32,
 }
 
-impl QueryVersion {
-    pub(crate) fn from_le_bytes(conn: &mut XConnection) -> Result<Self, Error> {
+impl FromLeBytes for QueryVersion {
+    fn from_le_bytes(conn: &mut XConnection) -> Result<Self, Error> {
         let _unused = conn.read_u8()?;
         let _sequence_nubmer = conn.read_le_u16()?;
         let _reply_length = conn.read_le_u32()?;
@@ -92,8 +93,8 @@ pub struct GetCrtcInfo {
     pub possible_outputs: Vec<OutputId>,
 }
 
-impl GetCrtcInfo {
-    pub(crate) fn from_le_bytes(conn: &mut XConnection) -> Result<Self, Error> {
+impl FromLeBytes for GetCrtcInfo {
+    fn from_le_bytes(conn: &mut XConnection) -> Result<Self, Error> {
         let status = conn.read_u8()?;
         let _sequence_nubmer = conn.read_le_u16()?;
         let _reply_length = conn.read_le_u32()?;
@@ -151,8 +152,8 @@ pub struct GetMonitors {
     pub monitors: Vec<MonitorInfo>,
 }
 
-impl GetMonitors {
-    pub(crate) fn from_le_bytes(conn: &mut XConnection) -> Result<Self, Error> {
+impl FromLeBytes for GetMonitors {
+    fn from_le_bytes(conn: &mut XConnection) -> Result<Self, Error> {
         let _unused = conn.read_u8()?;
         let _sequence_number = conn.read_le_u16()?;
         let _reply_length = conn.read_le_u32()?;

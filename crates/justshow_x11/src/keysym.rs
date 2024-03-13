@@ -1,6 +1,6 @@
 #![allow(non_upper_case_globals)]
 
-use crate::{connection::XConnection, error::Error};
+use crate::{connection::XConnection, error::Error, FromLeBytes};
 use std::ops::{Add, AddAssign, Sub, SubAssign};
 
 #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -15,6 +15,8 @@ impl std::fmt::Debug for KeySym {
         write!(f, "KeySym(0x{:08x})", self.inner)
     }
 }
+
+// NOTE: I don't like this but are required to make things in justshow_x11_simple::keys easier
 
 impl Add for KeySym {
     type Output = Self;
@@ -48,12 +50,14 @@ impl SubAssign for KeySym {
     }
 }
 
-impl KeySym {
-    pub(crate) fn from_le_bytes(conn: &mut XConnection) -> Result<Self, Error> {
+impl FromLeBytes for KeySym {
+    fn from_le_bytes(conn: &mut XConnection) -> Result<Self, Error> {
         let inner = conn.read_le_u32()?;
         Ok(Self { inner })
     }
+}
 
+impl KeySym {
     #[inline(always)]
     pub(crate) fn to_le_bytes(self) -> [u8; 4] {
         self.inner.to_le_bytes()

@@ -38,13 +38,36 @@ mod utils;
 pub mod xauth;
 pub mod xerror;
 
-// TODO: Add FromLeBytes
 pub trait ToLeBytes: Sized {
     fn to_le_bytes(&self, w: &mut impl Write) -> io::Result<()>;
 }
 
-pub trait XResponse: Sized {
+pub trait FromLeBytes: Sized {
     fn from_le_bytes(conn: &mut XConnection) -> Result<Self, Error>;
+}
+
+impl FromLeBytes for u8 {
+    fn from_le_bytes(conn: &mut XConnection) -> Result<Self, Error> {
+        conn.read_u8()
+    }
+}
+
+impl FromLeBytes for u16 {
+    fn from_le_bytes(conn: &mut XConnection) -> Result<Self, Error> {
+        conn.read_le_u16()
+    }
+}
+
+impl FromLeBytes for u32 {
+    fn from_le_bytes(conn: &mut XConnection) -> Result<Self, Error> {
+        conn.read_le_u32()
+    }
+}
+
+impl FromLeBytes for i32 {
+    fn from_le_bytes(conn: &mut XConnection) -> Result<Self, Error> {
+        conn.read_le_i32()
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -152,7 +175,7 @@ pub enum InitializeConnectionResponse {
     Success(InitializeConnectionResponseSuccess),
 }
 
-impl XResponse for InitializeConnectionResponse {
+impl FromLeBytes for InitializeConnectionResponse {
     fn from_le_bytes(conn: &mut XConnection) -> Result<Self, Error> {
         let response_code = conn.read_u8()?;
         match response_code {
@@ -177,7 +200,7 @@ pub struct InitializeConnectionResponseRefused {
     pub reason: Vec<u8>,
 }
 
-impl XResponse for InitializeConnectionResponseRefused {
+impl FromLeBytes for InitializeConnectionResponseRefused {
     fn from_le_bytes(conn: &mut XConnection) -> Result<Self, Error> {
         let reason_length = conn.read_u8()?;
         let protocol_major_version = conn.read_le_u16()?;
@@ -390,7 +413,7 @@ pub struct InitializeConnectionResponseSuccess {
     pub screens: Vec<Screen>,
 }
 
-impl XResponse for InitializeConnectionResponseSuccess {
+impl FromLeBytes for InitializeConnectionResponseSuccess {
     fn from_le_bytes(conn: &mut XConnection) -> Result<Self, Error> {
         let _unused = conn.read_u8()?;
         let protocol_major_version = conn.read_le_u16()?;
