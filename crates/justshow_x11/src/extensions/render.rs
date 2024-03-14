@@ -2,7 +2,7 @@ use crate::utils::impl_enum;
 
 impl_enum! {
     #[repr(u16)]
-    /// NOTE: rander extension calls it SUBPIXELORDER
+    /// NOTE: randr extension calls it SUBPIXELORDER
     enum Subpixel {
         Unknown = 0,
         HorizontalRGB = 1,

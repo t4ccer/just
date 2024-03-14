@@ -159,6 +159,16 @@ macro_rules! impl_enum {
         }
 
         #[automatically_derived]
+        impl crate::FromLeBytes for $name {
+            #[inline]
+            fn from_le_bytes(conn: &mut crate::XConnection) -> Result<Self, crate::error::Error> {
+                let inner: $inner = crate::FromLeBytes::from_le_bytes(conn)?;
+                Self::try_from(inner)
+                    .map_err(|invalid| crate::error::Error::InvalidEnum(stringify!(Self), invalid as u64))
+            }
+        }
+
+        #[automatically_derived]
         #[allow(dead_code)]
         impl $name {
             #[inline]
@@ -208,6 +218,13 @@ macro_rules! impl_resource_id {
         impl From<crate::ResourceId> for $name {
             fn from(value: crate::ResourceId) -> Self {
                 Self(value)
+            }
+        }
+
+        impl crate::FromLeBytes for $name {
+            fn from_le_bytes(conn: &mut crate::XConnection) -> Result<Self, crate::error::Error> {
+                let inner: u32 = crate::FromLeBytes::from_le_bytes(conn)?;
+                Ok(Self::from(inner))
             }
         }
 

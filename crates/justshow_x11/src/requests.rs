@@ -4,8 +4,8 @@ use crate::{
     keysym::KeySym,
     replies::{ReplyType, String8},
     utils::{bitmask, impl_enum, pad},
-    ColormapId, CursorId, Drawable, FontId, GContextId, ListOfStr, OrNone, PixmapId, Point,
-    Rectangle, ToLeBytes, VisualId, WindowClass, WindowId, WindowVisual,
+    ColormapId, CursorId, Drawable, FontId, FromLeBytes, GContextId, ListOfStr, OrNone, PixmapId,
+    Point, Rectangle, ToLeBytes, VisualId, WindowClass, WindowId, WindowVisual,
 };
 use std::{
     fmt,
@@ -37,6 +37,15 @@ impl From<Timestamp> for u32 {
             Timestamp::CurrentTime => 0,
             Timestamp::Timestamp(t) => t,
         }
+    }
+}
+
+impl FromLeBytes for Timestamp {
+    fn from_le_bytes(
+        conn: &mut crate::connection::XConnection,
+    ) -> Result<Self, crate::error::Error> {
+        let inner: u32 = FromLeBytes::from_le_bytes(conn)?;
+        Ok(Self::from(inner))
     }
 }
 

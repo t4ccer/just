@@ -14,6 +14,7 @@ pub enum Error {
     CouldNotOpenUnixSocket(String, io::Error),
     CouldNotConnectTo(String),
     UnexpectedReply,
+    InvalidEnum(&'static str, u64),
 }
 
 impl From<io::Error> for Error {
@@ -62,6 +63,11 @@ impl Display for Error {
             Error::UnexpectedReply => {
                 write!(f, "Server sent reply in different format than expected")
             }
+            Error::InvalidEnum(enum_name, invalid_value) => write!(
+                f,
+                "Server sent invalid enum '{}' value: {}",
+                enum_name, invalid_value
+            ),
         }
     }
 }

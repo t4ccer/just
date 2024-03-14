@@ -88,15 +88,13 @@ pub struct SetScreenConfig {
 
 impl FromLeBytes for SetScreenConfig {
     fn from_le_bytes(conn: &mut XConnection) -> Result<Self, Error> {
-        let status = ConfigStatus::try_from(conn.read_u8()?)
-            .map_err(|_| Error::InvalidResponse(stringify!(SetScreenConfig)))?;
+        let status = ConfigStatus::from_le_bytes(conn)?;
         let _sequence_number = conn.read_le_u16()?;
         let _reply_length = conn.read_le_u32()?;
-        let new_timestamp = Timestamp::from(conn.read_le_u32()?);
-        let new_configuration_timestamp = Timestamp::from(conn.read_le_u32()?);
-        let root = WindowId::from(conn.read_le_u32()?);
-        let subpixel_order = Subpixel::try_from(conn.read_le_u16()?)
-            .map_err(|_| Error::InvalidResponse(stringify!(Subpixel)))?;
+        let new_timestamp = Timestamp::from_le_bytes(conn)?;
+        let new_configuration_timestamp = Timestamp::from_le_bytes(conn)?;
+        let root = WindowId::from_le_bytes(conn)?;
+        let subpixel_order = Subpixel::from_le_bytes(conn)?;
         drop(conn.drain(2 + 4 + 4)?);
 
         Ok(Self {
