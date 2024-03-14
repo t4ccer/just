@@ -116,6 +116,9 @@ macro_rules! bitmask {
             }
         }
     };
+    ($($stuff:tt)*) => {
+        compile_error!("Bitmask must contain #[repr(type)] at the very top (even above doc comments)");
+    }
 }
 pub(crate) use bitmask;
 
@@ -177,8 +180,8 @@ macro_rules! impl_enum {
             }
         }
     };
-    (enum $($stuff:tt)*) => {
-        compile_error!("Enum must contain #[repr(type)] at the very top");
+    ($($stuff:tt)*) => {
+        compile_error!("Enum must contain #[repr(type)] at the very top (even above doc comments)");
     }
 }
 

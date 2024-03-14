@@ -1,5 +1,5 @@
 use crate::{
-    extensions::randr::{CrtcId, Rotation, SizeId},
+    extensions::randr::{CrtcId, Rotation, SelectMask, SizeId},
     requests::{write_le_bytes, Timestamp, XExtensionRequest, XRequestBase},
     ToLeBytes, WindowId,
 };
@@ -16,6 +16,21 @@ macro_rules! impl_xrequest_with_response {
                 Some(crate::replies::ReplyType::ExtensionRandr(
                     super::replies::ReplyType::$r,
                 ))
+            }
+        }
+
+        impl XExtensionRequest for $r {}
+    };
+}
+
+macro_rules! impl_xrequest_without_response {
+    ($r:tt) => {
+        impl XRequestBase for $r {
+            type Reply = crate::requests::NoReply;
+
+            #[inline(always)]
+            fn reply_type() -> Option<crate::replies::ReplyType> {
+                None
             }
         }
 
@@ -99,6 +114,38 @@ impl ToLeBytes for SetScreenConfig {
 }
 
 impl_xrequest_with_response!(SetScreenConfig);
+
+/*
+┌───
+    RRSelectInput
+
+        1       CARD8                   major opcode
+        1       4                       RandR opcode
+        2       3                       length
+        4       WINDOW                  window
+        2       SETofRRSELECTMASK       enable
+        2       CARD16                  pad
+└───
+*/
+
+pub struct SelectInput {
+    pub window: WindowId,
+    pub enable: SelectMask,
+}
+
+impl ToLeBytes for SelectInput {
+    fn to_le_bytes(&self, w: &mut impl std::io::Write) -> std::io::Result<()> {
+        write_le_bytes!(w, opcodes::SELECT_INPUT);
+        write_le_bytes!(w, 3u16); // request length
+        write_le_bytes!(w, self.window);
+        write_le_bytes!(w, self.enable.raw());
+        write_le_bytes!(w, 0u16); // pad
+
+        Ok(())
+    }
+}
+
+impl_xrequest_without_response!(SelectInput);
 
 /*
 RRGetCrtcInfo

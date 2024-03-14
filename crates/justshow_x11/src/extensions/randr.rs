@@ -106,7 +106,7 @@ impl_enum! {
 bitmask! {
     #[repr(u16)]
     /// Event select mask for [`requests::SelectInput`]
-    bitmask SelectInput {
+    bitmask SelectMask {
         SCREEN_CHANGE_NOTIFY_MASK = 0x0001,
         CRTC_CHANGE_NOTIFY_MASK = 0x0002,
         OUTPUT_CHANGE_NOTIFY_MASK = 0x0004,
