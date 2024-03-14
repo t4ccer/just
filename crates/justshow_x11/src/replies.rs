@@ -1,9 +1,14 @@
 use std::{fmt::Display, ops::Deref, str::FromStr};
 
 use crate::{
-    atoms::AtomId, connection::XConnection, error::Error, keysym::KeySym, requests::KeyCode,
-    requests::Timestamp, utils::pad, ColormapId, FromLeBytes, ListOfStr, OrNone, ResourceId,
-    VisualId, WindowId,
+    atoms::AtomId,
+    connection::XConnection,
+    error::Error,
+    keysym::KeySym,
+    requests::KeyCode,
+    requests::Timestamp,
+    utils::{impl_enum, pad},
+    ColormapId, FromLeBytes, ListOfStr, OrNone, ResourceId, VisualId, WindowId,
 };
 
 pub trait XReply: Sized {
@@ -36,25 +41,15 @@ macro_rules! impl_xreply {
      p                         unused, p=pad(n)
 
 */
-#[derive(Debug, Clone)]
-pub enum HostFamily {
-    Internet = 0,
-    DECnet = 1,
-    Chaos = 2,
-    ServerImplemented = 5,
-    InternetV6 = 6,
-}
 
-impl FromLeBytes for HostFamily {
-    fn from_le_bytes(conn: &mut XConnection) -> Result<Self, Error> {
-        match conn.read_u8()? {
-            0 => Ok(Self::Internet),
-            1 => Ok(Self::DECnet),
-            2 => Ok(Self::Chaos),
-            5 => Ok(Self::ServerImplemented),
-            6 => Ok(Self::InternetV6),
-            _ => Err(Error::InvalidResponse(stringify!(HostFamily))),
-        }
+impl_enum! {
+    #[repr(u8)]
+    enum HostFamily {
+        Internet = 0,
+        DECnet = 1,
+        Chaos = 2,
+        ServerImplemented = 5,
+        InternetV6 = 6,
     }
 }
 
@@ -537,13 +532,15 @@ GrabPointer
      24                                    unused
 */
 
-#[derive(Debug, Clone)]
-pub enum GrabPointerStatus {
-    Success,
-    AlreadyGrabbed,
-    InvalidTime,
-    NotViewable,
-    Frozen,
+impl_enum! {
+    #[repr(u8)]
+    enum GrabPointerStatus {
+        Success = 0,
+        AlreadyGrabbed = 1,
+        InvalidTime = 2,
+        NotViewable = 3,
+        Frozen = 4,
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -553,15 +550,7 @@ pub struct GrabPointer {
 
 impl FromLeBytes for GrabPointer {
     fn from_le_bytes(conn: &mut XConnection) -> Result<Self, Error> {
-        let status_code = conn.read_u8()?;
-        let status = match status_code {
-            0 => GrabPointerStatus::Success,
-            1 => GrabPointerStatus::AlreadyGrabbed,
-            2 => GrabPointerStatus::InvalidTime,
-            3 => GrabPointerStatus::NotViewable,
-            4 => GrabPointerStatus::Frozen,
-            _ => return Err(Error::InvalidResponse(stringify!(GrabPointerStatus))),
-        };
+        let status = GrabPointerStatus::from_le_bytes(conn)?;
         let _sequence_number = conn.read_le_u16()?;
         drop(conn.drain(4 + 24)?);
 
@@ -586,13 +575,15 @@ GrabKeyboard
      24                                    unused
 */
 
-#[derive(Debug, Clone)]
-pub enum GrabKeyboardStatus {
-    Success,
-    AlreadyGrabbed,
-    InvalidTime,
-    NotViewable,
-    Frozen,
+impl_enum! {
+    #[repr(u8)]
+    enum GrabKeyboardStatus {
+        Success = 0,
+        AlreadyGrabbed = 1,
+        InvalidTime = 2,
+        NotViewable = 3,
+        Frozen = 4,
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -602,15 +593,7 @@ pub struct GrabKeyboard {
 
 impl FromLeBytes for GrabKeyboard {
     fn from_le_bytes(conn: &mut XConnection) -> Result<Self, Error> {
-        let status_code = conn.read_u8()?;
-        let status = match status_code {
-            0 => GrabKeyboardStatus::Success,
-            1 => GrabKeyboardStatus::AlreadyGrabbed,
-            2 => GrabKeyboardStatus::InvalidTime,
-            3 => GrabKeyboardStatus::NotViewable,
-            4 => GrabKeyboardStatus::Frozen,
-            _ => return Err(Error::InvalidResponse(stringify!(GrabKeyboardStatus))),
-        };
+        let status = GrabKeyboardStatus::from_le_bytes(conn)?;
         let _sequence_number = conn.read_le_u16()?;
         drop(conn.drain(4 + 24)?);
 
@@ -800,11 +783,13 @@ pub enum Focus {
     Window(WindowId),
 }
 
-#[derive(Debug, Clone)]
-pub enum RevertTo {
-    None,
-    PointerRoot,
-    Parent,
+impl_enum! {
+    #[repr(u8)]
+    enum RevertTo {
+        None = 0,
+        PointerRoot = 1,
+        Parent = 2,
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -815,13 +800,7 @@ pub struct GetInputFocus {
 
 impl FromLeBytes for GetInputFocus {
     fn from_le_bytes(conn: &mut XConnection) -> Result<Self, Error> {
-        let revert_to_code = conn.read_u8()?;
-        let revert_to = match revert_to_code {
-            0 => RevertTo::None,
-            1 => RevertTo::PointerRoot,
-            2 => RevertTo::Parent,
-            _ => return Err(Error::InvalidResponse(stringify!(RevertTo))),
-        };
+        let revert_to = RevertTo::from_le_bytes(conn)?;
         let _sequence_number = conn.read_le_u16()?;
         let _reply_length = conn.read_le_u32()?;
         let focus_value = conn.read_le_u32()?;
@@ -907,10 +886,12 @@ QueryFont
      2     CARD16                          attributes
 */
 
-#[derive(Debug, Clone)]
-pub enum DrawDirection {
-    LeftToRight,
-    RightToLeft,
+impl_enum! {
+    #[repr(u8)]
+    enum DrawDirection {
+        LeftToRight = 0,
+        RightToLeft = 1,
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -987,12 +968,7 @@ impl FromLeBytes for QueryFont {
         let max_char_or_byte2 = conn.read_le_u16()?;
         let default_char = conn.read_le_u16()?;
         let properties_count = conn.read_le_u16()?;
-        let draw_direction_code = conn.read_u8()?;
-        let draw_direction = match draw_direction_code {
-            0 => DrawDirection::LeftToRight,
-            1 => DrawDirection::RightToLeft,
-            _ => return Err(Error::InvalidResponse(stringify!(DrawDirection))),
-        };
+        let draw_direction = DrawDirection::from_le_bytes(conn)?;
         let min_byte1 = conn.read_u8()?;
         let max_byte1 = conn.read_u8()?;
         let all_chars_exist = conn.read_bool()?;
@@ -1056,12 +1032,7 @@ pub struct QueryTextExtents {
 
 impl FromLeBytes for QueryTextExtents {
     fn from_le_bytes(conn: &mut XConnection) -> Result<Self, Error> {
-        let draw_direction_code = conn.read_u8()?;
-        let draw_direction = match draw_direction_code {
-            0 => DrawDirection::LeftToRight,
-            1 => DrawDirection::RightToLeft,
-            _ => return Err(Error::InvalidResponse(stringify!(DrawDirection))),
-        };
+        let draw_direction = DrawDirection::from_le_bytes(conn)?;
         let _sequence_number = conn.read_le_u16()?;
         let _reply_length = conn.read_le_u32()?;
         let font_ascent = conn.read_le_i16()?;
@@ -1207,12 +1178,7 @@ impl FromLeBytes for ListFontsWithInfoPartial {
             let max_char_or_byte2 = conn.read_le_u16()?;
             let default_char = conn.read_le_u16()?;
             let properties_count = conn.read_le_u16()?;
-            let draw_direction_code = conn.read_u8()?;
-            let draw_direction = match draw_direction_code {
-                0 => DrawDirection::LeftToRight,
-                1 => DrawDirection::RightToLeft,
-                _ => return Err(Error::InvalidResponse(stringify!(DrawDirection))),
-            };
+            let draw_direction = DrawDirection::from_le_bytes(conn)?;
             let min_byte1 = conn.read_u8()?;
             let max_byte1 = conn.read_u8()?;
             let all_chars_exist = conn.read_bool()?;
@@ -1959,10 +1925,12 @@ ListHosts
      n     LISTofHOST                      hosts (n always a multiple of 4)
 */
 
-#[derive(Debug, Clone)]
-pub enum HostMode {
-    Disabled,
-    Enabled,
+impl_enum! {
+    #[repr(u8)]
+    enum HostMode {
+        Disabled = 0,
+        Enabled = 1,
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -1973,12 +1941,7 @@ pub struct ListHosts {
 
 impl FromLeBytes for ListHosts {
     fn from_le_bytes(conn: &mut XConnection) -> Result<Self, Error> {
-        let mode_byte = conn.read_u8()?;
-        let mode = match mode_byte {
-            0 => HostMode::Disabled,
-            1 => HostMode::Enabled,
-            _ => return Err(Error::InvalidResponse(stringify!(HostMode))),
-        };
+        let mode = HostMode::from_le_bytes(conn)?;
         let _sequence_number = conn.read_le_u16()?;
         let _reply_length = conn.read_le_u32()? as usize;
         let num_hosts = conn.read_le_u16()? as usize;
@@ -2003,10 +1966,12 @@ SetPointerMapping
      24                                    unused
 */
 
-#[derive(Debug, Clone)]
-pub enum SetPointerMappingStatus {
-    Success,
-    Busy,
+impl_enum! {
+    #[repr(u8)]
+    enum SetPointerMappingStatus {
+        Success = 0,
+        Busy = 1,
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -2016,12 +1981,7 @@ pub struct SetPointerMapping {
 
 impl FromLeBytes for SetPointerMapping {
     fn from_le_bytes(conn: &mut XConnection) -> Result<Self, Error> {
-        let status_byte = conn.read_u8()?;
-        let status = match status_byte {
-            0 => SetPointerMappingStatus::Success,
-            1 => SetPointerMappingStatus::Busy,
-            _ => return Err(Error::InvalidResponse(stringify!(SetPointerMappingStatus))),
-        };
+        let status = SetPointerMappingStatus::from_le_bytes(conn)?;
         let _sequence_number = conn.read_le_u16()?;
         let _reply_length = conn.read_le_u32()?;
         drop(conn.drain(24)?);
@@ -2077,11 +2037,13 @@ SetModifierMapping
      24                                    unused
 */
 
-#[derive(Debug, Clone)]
-pub enum SetModifierMappingStatus {
-    Success,
-    Busy,
-    Failed,
+impl_enum! {
+    #[repr(u8)]
+    enum SetModifierMappingStatus {
+        Success = 0,
+        Busy = 1,
+        Failed = 2,
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -2091,13 +2053,7 @@ pub struct SetModifierMapping {
 
 impl FromLeBytes for SetModifierMapping {
     fn from_le_bytes(conn: &mut XConnection) -> Result<Self, Error> {
-        let status_byte = conn.read_u8()?;
-        let status = match status_byte {
-            0 => SetModifierMappingStatus::Success,
-            1 => SetModifierMappingStatus::Busy,
-            2 => SetModifierMappingStatus::Failed,
-            _ => return Err(Error::InvalidResponse(stringify!(SetModifierMappingStatus))),
-        };
+        let status = SetModifierMappingStatus::from_le_bytes(conn)?;
         let _sequence_number = conn.read_le_u16()?;
         let _reply_length = conn.read_le_u32()?;
         drop(conn.drain(24)?);

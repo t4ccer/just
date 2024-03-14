@@ -177,6 +177,9 @@ macro_rules! impl_enum {
             }
         }
     };
+    (enum $($stuff:tt)*) => {
+        compile_error!("Enum must contain #[repr(type)] at the very top");
+    }
 }
 
 pub(crate) use impl_enum;

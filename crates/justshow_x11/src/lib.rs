@@ -216,25 +216,15 @@ impl FromLeBytes for InitializeConnectionResponseRefused {
     }
 }
 
-#[derive(Debug, Clone, Copy)]
-#[repr(u8)]
-pub enum VisualClass {
-    StaticGray = 0,
-    GrayScale = 1,
-    StaticColor = 2,
-    PseudoColor = 3,
-    TrueColor = 4,
-    DirectColor = 5,
-}
-
-impl TryFrom<u8> for VisualClass {
-    type Error = u8;
-
-    fn try_from(value: u8) -> Result<Self, Self::Error> {
-        if value > 5 {
-            return Err(value);
-        }
-        Ok(unsafe { mem::transmute(value) })
+impl_enum! {
+    #[repr(u8)]
+    enum VisualClass {
+        StaticGray = 0,
+        GrayScale = 1,
+        StaticColor = 2,
+        PseudoColor = 3,
+        TrueColor = 4,
+        DirectColor = 5,
     }
 }
 
