@@ -289,7 +289,7 @@ pub struct GetCrtcInfo {
 impl FromLeBytes for GetCrtcInfo {
     fn from_le_bytes(conn: &mut XConnection) -> Result<Self, Error> {
         let status = conn.read_u8()?;
-        let _sequence_nubmer = conn.read_le_u16()?;
+        let _sequence_number = conn.read_le_u16()?;
         let _reply_length = conn.read_le_u32()?;
         let timestamp = Timestamp::from(conn.read_le_u32()?);
         let x = conn.read_le_i16()?;
