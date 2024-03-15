@@ -7,7 +7,7 @@ use crate::{
     },
     replies::{read_vec, XReply},
     requests::Timestamp,
-    utils::impl_resource_id,
+    utils::{impl_resource_id, pad},
     FromLeBytes, WindowId,
 };
 
@@ -221,7 +221,7 @@ impl FromLeBytes for GetScreenInfo {
         let current_size_index = conn.read_le_u16()?;
         let current_rotation_and_reflection = PossibleRotation::from(conn.read_le_u16()?);
         let current_rate = conn.read_le_u16()?;
-        let _no_of_rateinfo_total = conn.read_le_u16()?;
+        let no_of_rateinfo_total = conn.read_le_u16()?;
         let _pad = conn.read_le_u16()?;
 
         let screen_sizes = read_vec!(no_of_screensize, ScreenSize::from_le_bytes(conn)?);
@@ -229,8 +229,9 @@ impl FromLeBytes for GetScreenInfo {
         // no_of_screensize is correct here
         let refresh_rates = read_vec!(no_of_screensize, Refresh::from_le_bytes(conn)?);
 
-        // HACK: idk why it's needed, there are extra two bytes at the end
-        drop(conn.drain(2)?);
+        // HACK: Extra padding that's not mentioned in the spec
+        let extra_pad = pad(no_of_screensize as usize * 8 + no_of_rateinfo_total as usize * 2);
+        drop(conn.drain(extra_pad)?);
 
         Ok(Self {
             supported_rotations,
