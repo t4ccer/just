@@ -1,3 +1,8 @@
+//! RANDR extension
+//!
+//! Implementation was done and tested using 1.6 version of the extension that that is the only one
+//! that is supported
+
 use crate::{
     atoms::AtomId,
     bitmask,
@@ -24,7 +29,7 @@ impl_resource_id!(CrtcId);
 
 /* SIZEID { CARD16 } */
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct SizeId {
     inner: u16,
 }
@@ -159,7 +164,7 @@ impl_enum! {
 └───
  */
 
-#[derive(Debug)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 /// An output mode specifies the complete CRTC timings for a specific mode.
 ///
 /// The vertical and horizontal synchronization rates can be computed given the dot clock and
@@ -281,7 +286,7 @@ bitmask! {
 └───
  */
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct MonitorInfo {
     pub name: AtomId,
     pub primary: bool,

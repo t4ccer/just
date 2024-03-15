@@ -15,7 +15,7 @@ use std::{
 
 pub(crate) mod opcodes;
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Timestamp {
     CurrentTime,
     Timestamp(u32),

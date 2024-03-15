@@ -37,7 +37,7 @@ macro_rules! impl_xreply {
 └───
 */
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct QueryVersion {
     pub major_version: u32,
     pub minor_version: u32,
@@ -83,7 +83,7 @@ impl_xreply!(QueryVersion);
 └───
 */
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SetScreenConfig {
     pub status: ConfigStatus,
     pub new_timestamp: Timestamp,
@@ -145,7 +145,7 @@ impl_xreply!(SetScreenConfig);
 └───
 */
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct ScreenSize {
     pub width_in_pixels: u16,
     pub height_in_pixels: u16,
@@ -169,7 +169,7 @@ impl FromLeBytes for ScreenSize {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Refresh {
     pub rates: Vec<u16>,
 }
@@ -183,7 +183,7 @@ impl FromLeBytes for Refresh {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct GetScreenInfo {
     /// Set of rotations and reflections supported by the screen
     pub supported_rotations: PossibleRotation,
@@ -271,7 +271,7 @@ RRGetCrtcInfo
 
 impl_resource_id!(OutputId);
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct GetCrtcInfo {
     pub status: u8,
     pub timestamp: Timestamp,
@@ -339,7 +339,7 @@ RRGetMonitors
      n*24+o*4 LISTofMONITORINFO      monitors
 */
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct GetMonitors {
     pub timestamp: Timestamp,
     pub monitors: Vec<MonitorInfo>,
@@ -367,7 +367,7 @@ impl FromLeBytes for GetMonitors {
 
 impl_xreply!(GetMonitors);
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum SomeReply {
     QueryVersion(QueryVersion),
     SetScreenConfig(SetScreenConfig),
@@ -376,7 +376,7 @@ pub enum SomeReply {
     GetMonitors(GetMonitors),
 }
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ReplyType {
     QueryVersion,
     SetScreenConfig,
