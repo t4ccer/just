@@ -2,7 +2,7 @@ use crate::{
     connection::XConnection,
     error::Error,
     extensions::{
-        randr::{ConfigStatus, MonitorInfo},
+        randr::{ConfigStatus, MonitorInfo, PossibleRotation},
         render::Subpixel,
     },
     replies::{read_vec, XReply},
@@ -108,6 +108,139 @@ impl FromLeBytes for SetScreenConfig {
 }
 
 impl_xreply!(SetScreenConfig);
+
+/*
+┌───
+    RRGetScreenInfo
+      ▶
+        1       1                       Reply
+        1       CARD8                   set of Rotations
+        2       CARD16                  sequence number
+        4       0                       reply length
+        4       WINDOW                  root window
+        4       TIMESTAMP               timestamp
+        4       TIMESTAMP               config timestamp
+        2       CARD16                  number of SCREENSIZE following
+        2       SIZEID                  current size index
+        2       ROTATION                current rotation and reflection
+        2       CARD16                  current rate (added in version 1.1)
+        2       CARD16                  length of rate info (number of CARD16s)
+        2       CARD16                  pad
+
+        SCREENSIZE
+        2       CARD16                  width in pixels
+        2       CARD16                  height in pixels
+        2       CARD16                  width in millimeters
+        2       CARD16                  height in millimeters
+
+        REFRESH
+        2       CARD16                  number of rates (n)
+        2n      CARD16                  rates
+└───
+*/
+
+#[derive(Debug, Clone, Copy)]
+pub struct ScreenSize {
+    pub width_in_pixels: u16,
+    pub height_in_pixels: u16,
+    pub width_in_millimeters: u16,
+    pub height_in_millimeters: u16,
+}
+
+impl FromLeBytes for ScreenSize {
+    fn from_le_bytes(conn: &mut XConnection) -> Result<Self, Error> {
+        let width_in_pixels = conn.read_le_u16()?;
+        let height_in_pixels = conn.read_le_u16()?;
+        let width_in_millimeters = conn.read_le_u16()?;
+        let height_in_millimeters = conn.read_le_u16()?;
+
+        Ok(Self {
+            width_in_pixels,
+            height_in_pixels,
+            width_in_millimeters,
+            height_in_millimeters,
+        })
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct Refresh {
+    pub rates: Vec<u16>,
+}
+
+impl FromLeBytes for Refresh {
+    fn from_le_bytes(conn: &mut XConnection) -> Result<Self, Error> {
+        let n = conn.read_le_u16()?;
+        let rates = read_vec!(n, conn.read_le_u16()?);
+
+        Ok(Self { rates })
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct GetScreenInfo {
+    /// Set of rotations and reflections supported by the screen
+    pub supported_rotations: PossibleRotation,
+
+    /// The root window of the screen
+    pub root: WindowId,
+
+    /// indicates when the screen configuration information last changed:
+    /// requests to set the screen will fail unless the timestamp indicates that the information
+    /// the client is using is up to date, to ensure clients can be well behaved in the
+    /// face of race conditions.
+    pub timestamp: Timestamp,
+
+    /// Indicates when the configuration was last set.
+    pub config_timestamp: Timestamp,
+
+    /// Indicates which size is active
+    pub current_size: ScreenSize,
+
+    pub current_rotation_and_reflection: PossibleRotation, // TODO: Split type in two?
+    pub current_rate: u16,
+    pub screen_sizes: Vec<ScreenSize>,
+    pub refresh_rates: Vec<Refresh>,
+}
+
+impl FromLeBytes for GetScreenInfo {
+    fn from_le_bytes(conn: &mut XConnection) -> Result<Self, Error> {
+        let supported_rotations = PossibleRotation::from(conn.read_u8()? as u16);
+        let _sequence_number = conn.read_le_u16()?;
+        let _reply_length = conn.read_le_u32()?;
+        let root = WindowId::from_le_bytes(conn)?;
+        let timestamp = Timestamp::from_le_bytes(conn)?;
+        let config_timestamp = Timestamp::from_le_bytes(conn)?;
+        let no_of_screensize = conn.read_le_u16()?;
+        let current_size_index = conn.read_le_u16()?;
+        let current_rotation_and_reflection = PossibleRotation::from(conn.read_le_u16()?);
+        let current_rate = conn.read_le_u16()?;
+        let _no_of_rateinfo_total = conn.read_le_u16()?;
+        let _pad = conn.read_le_u16()?;
+
+        let screen_sizes = read_vec!(no_of_screensize, ScreenSize::from_le_bytes(conn)?);
+
+        // no_of_screensize is correct here
+        let refresh_rates = read_vec!(no_of_screensize, Refresh::from_le_bytes(conn)?);
+
+        // HACK: idk why it's needed, there are extra two bytes at the end
+        drop(conn.drain(2)?);
+
+        Ok(Self {
+            supported_rotations,
+            root,
+            timestamp,
+            config_timestamp,
+            current_size: screen_sizes[current_size_index as usize],
+            current_rotation_and_reflection,
+            current_rate,
+            screen_sizes,
+            refresh_rates,
+        })
+    }
+}
+
+impl_xreply!(GetScreenInfo);
 
 /*
 RRGetCrtcInfo
@@ -231,15 +364,17 @@ impl_xreply!(GetMonitors);
 #[derive(Debug, Clone)]
 pub enum SomeReply {
     QueryVersion(QueryVersion),
+    SetScreenConfig(SetScreenConfig),
+    GetScreenInfo(GetScreenInfo),
     GetCrtcInfo(GetCrtcInfo),
     GetMonitors(GetMonitors),
-    SetScreenConfig(SetScreenConfig),
 }
 
 #[derive(Debug, Clone, Copy)]
 pub enum ReplyType {
     QueryVersion,
+    SetScreenConfig,
+    GetScreenInfo,
     GetCrtcInfo,
     GetMonitors,
-    SetScreenConfig,
 }

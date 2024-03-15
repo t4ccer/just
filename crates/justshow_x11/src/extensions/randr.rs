@@ -64,6 +64,7 @@ impl From<SizeId> for u16 {
         selected rotations.
 */
 
+// TODO: Double check reprs
 bitmask! {
     #[repr(u16)]
     bitmask PossibleRotation {

@@ -148,6 +148,35 @@ impl ToLeBytes for SelectInput {
 impl_xrequest_without_response!(SelectInput);
 
 /*
+┌───
+    RRGetScreenInfo
+
+        1       CARD8                   major opcode
+        1       5                       RandR opcode
+        2       2                       length
+        4       WINDOW                  window
+      ▶
+└───
+*/
+
+#[derive(Debug, Clone)]
+pub struct GetScreenInfo {
+    pub window: WindowId,
+}
+
+impl ToLeBytes for GetScreenInfo {
+    fn to_le_bytes(&self, w: &mut impl std::io::Write) -> std::io::Result<()> {
+        write_le_bytes!(w, opcodes::GET_SCREEN_INFO);
+        write_le_bytes!(w, 2u16);
+        write_le_bytes!(w, self.window);
+
+        Ok(())
+    }
+}
+
+impl_xrequest_with_response!(GetScreenInfo);
+
+/*
 RRGetCrtcInfo
     1       CARD8                   major opcode
     1       20                      RandR opcode
@@ -196,7 +225,7 @@ impl ToLeBytes for GetMonitors {
     fn to_le_bytes(&self, w: &mut impl std::io::Write) -> std::io::Result<()> {
         write_le_bytes!(w, opcodes::GET_MONITORS);
 
-        // The spec says 2 not 3, why? idk, probably a bug.
+        // HACK: I know that the spec says 2 not 3 but it doesn't work otherwise
         write_le_bytes!(w, 3u16); // request length
 
         write_le_bytes!(w, self.window);

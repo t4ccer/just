@@ -898,11 +898,12 @@ impl XDisplay {
 
                 match randr_reply {
                     randr::replies::ReplyType::QueryVersion => handle_randr_reply!(QueryVersion),
-                    randr::replies::ReplyType::GetMonitors => handle_randr_reply!(GetMonitors),
-                    randr::replies::ReplyType::GetCrtcInfo => handle_randr_reply!(GetCrtcInfo),
                     randr::replies::ReplyType::SetScreenConfig => {
                         handle_randr_reply!(SetScreenConfig)
                     }
+                    randr::replies::ReplyType::GetScreenInfo => handle_randr_reply!(GetScreenInfo),
+                    randr::replies::ReplyType::GetCrtcInfo => handle_randr_reply!(GetCrtcInfo),
+                    randr::replies::ReplyType::GetMonitors => handle_randr_reply!(GetMonitors),
                 }
             }
         }

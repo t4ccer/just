@@ -115,6 +115,23 @@ macro_rules! bitmask {
                 val.value
             }
         }
+
+        #[automatically_derived]
+        impl ::std::convert::From<$inner> for $ty {
+            #[inline(always)]
+            fn from(value: $inner) -> Self {
+                Self { value }
+            }
+        }
+
+        #[automatically_derived]
+        impl $crate::FromLeBytes for $ty {
+            #[inline]
+            fn from_le_bytes(conn: &mut $crate::connection::XConnection) -> Result<Self, $crate::error::Error> {
+                let value: $inner = $crate::FromLeBytes::from_le_bytes(conn)?;
+                Ok(Self {value})
+            }
+        }
     };
     ($($stuff:tt)*) => {
         compile_error!("Bitmask must contain #[repr(type)] at the very top (even above doc comments)");
