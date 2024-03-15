@@ -26,10 +26,10 @@ macro_rules! impl_xrequest_with_response {
 macro_rules! impl_xrequest_without_response {
     ($r:tt) => {
         impl XRequestBase for $r {
-            type Reply = crate::requests::NoReply;
+            type Reply = $crate::requests::NoReply;
 
             #[inline(always)]
-            fn reply_type() -> Option<crate::replies::ReplyType> {
+            fn reply_type() -> Option<$crate::replies::ReplyType> {
                 None
             }
         }

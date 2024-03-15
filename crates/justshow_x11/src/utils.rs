@@ -179,12 +179,12 @@ macro_rules! impl_enum {
         }
 
         #[automatically_derived]
-        impl crate::FromLeBytes for $name {
+        impl $crate::FromLeBytes for $name {
             #[inline]
-            fn from_le_bytes(conn: &mut crate::XConnection) -> Result<Self, crate::error::Error> {
-                let inner: $inner = crate::FromLeBytes::from_le_bytes(conn)?;
+            fn from_le_bytes(conn: &mut $crate::XConnection) -> Result<Self, $crate::error::Error> {
+                let inner: $inner = $crate::FromLeBytes::from_le_bytes(conn)?;
                 Self::try_from(inner)
-                    .map_err(|invalid| crate::error::Error::InvalidEnum(stringify!(Self), invalid as u64))
+                    .map_err(|invalid| $crate::error::Error::InvalidEnum(stringify!(Self), invalid as u64))
             }
         }
 
@@ -192,7 +192,7 @@ macro_rules! impl_enum {
         #[allow(dead_code)]
         impl $name {
             #[inline]
-            fn to_le_bytes(self) -> [u8; <$inner as crate::utils::BytesSize>::SIZE] {
+            fn to_le_bytes(self) -> [u8; <$inner as $crate::utils::BytesSize>::SIZE] {
                 (self as $inner).to_le_bytes()
             }
         }
@@ -208,11 +208,11 @@ macro_rules! impl_resource_id {
     ($name:ident) => {
         #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
         #[repr(transparent)]
-        pub struct $name(crate::ResourceId);
+        pub struct $name($crate::ResourceId);
 
         #[allow(dead_code)]
         impl $name {
-            pub fn id(self) -> crate::ResourceId {
+            pub fn id(self) -> $crate::ResourceId {
                 self.0
             }
 
@@ -222,7 +222,7 @@ macro_rules! impl_resource_id {
             }
 
             pub fn unchecked_from(value: u32) -> Self {
-                Self(crate::ResourceId { value })
+                Self($crate::ResourceId { value })
             }
         }
 
@@ -234,24 +234,24 @@ macro_rules! impl_resource_id {
 
         impl From<u32> for $name {
             fn from(value: u32) -> Self {
-                Self(crate::ResourceId::from(value))
+                Self($crate::ResourceId::from(value))
             }
         }
 
-        impl From<crate::ResourceId> for $name {
-            fn from(value: crate::ResourceId) -> Self {
+        impl From<$crate::ResourceId> for $name {
+            fn from(value: $crate::ResourceId) -> Self {
                 Self(value)
             }
         }
 
-        impl crate::FromLeBytes for $name {
-            fn from_le_bytes(conn: &mut crate::XConnection) -> Result<Self, crate::error::Error> {
-                let inner: u32 = crate::FromLeBytes::from_le_bytes(conn)?;
+        impl $crate::FromLeBytes for $name {
+            fn from_le_bytes(conn: &mut $crate::XConnection) -> Result<Self, $crate::error::Error> {
+                let inner: u32 = $crate::FromLeBytes::from_le_bytes(conn)?;
                 Ok(Self::from(inner))
             }
         }
 
-        crate::requests::impl_value!($name into);
+        $crate::requests::impl_value!($name into);
     };
 }
 

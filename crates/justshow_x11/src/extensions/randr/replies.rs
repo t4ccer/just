@@ -14,9 +14,9 @@ use crate::{
 macro_rules! impl_xreply {
     ($t:tt) => {
         impl XReply for $t {
-            fn from_reply(reply: crate::replies::SomeReply) -> Option<Self> {
+            fn from_reply(reply: $crate::replies::SomeReply) -> Option<Self> {
                 match reply {
-                    crate::replies::SomeReply::ExtensionRandr(SomeReply::$t(r)) => Some(r),
+                    $crate::replies::SomeReply::ExtensionRandr(SomeReply::$t(r)) => Some(r),
                     _ => None,
                 }
             }

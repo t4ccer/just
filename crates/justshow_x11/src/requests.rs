@@ -93,7 +93,7 @@ impl From<KeyCode> for u32 {
 macro_rules! impl_value {
     ($ty:ident as) => {
         #[automatically_derived]
-        impl crate::requests::Value for $ty {
+        impl $crate::requests::Value for $ty {
             fn to_raw_value(self) -> u32 {
                 self as u32
             }
@@ -102,7 +102,7 @@ macro_rules! impl_value {
 
     ($ty:ident into) => {
         #[automatically_derived]
-        impl crate::requests::Value for $ty {
+        impl $crate::requests::Value for $ty {
             fn to_raw_value(self) -> u32 {
                 self.into()
             }
@@ -194,31 +194,31 @@ pub trait XExtensionRequest: XRequestBase {}
 
 macro_rules! impl_xrequest_with_response {
     ($r:tt) => {
-        impl crate::requests::XRequestBase for $r {
-            type Reply = crate::replies::$r;
+        impl $crate::requests::XRequestBase for $r {
+            type Reply = $crate::replies::$r;
 
             #[inline(always)]
-            fn reply_type() -> Option<crate::replies::ReplyType> {
-                Some(crate::replies::ReplyType::$r)
+            fn reply_type() -> Option<$crate::replies::ReplyType> {
+                Some($crate::replies::ReplyType::$r)
             }
         }
 
-        impl crate::requests::XRequest for $r {}
+        impl $crate::requests::XRequest for $r {}
     };
 }
 
 macro_rules! impl_xrequest_without_response {
     ($r:tt) => {
-        impl crate::requests::XRequestBase for $r {
-            type Reply = crate::requests::NoReply;
+        impl $crate::requests::XRequestBase for $r {
+            type Reply = $crate::requests::NoReply;
 
             #[inline(always)]
-            fn reply_type() -> Option<crate::replies::ReplyType> {
+            fn reply_type() -> Option<$crate::replies::ReplyType> {
                 None
             }
         }
 
-        impl crate::requests::XRequest for $r {}
+        impl $crate::requests::XRequest for $r {}
     };
 }
 
