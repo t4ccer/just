@@ -33,6 +33,7 @@ macro_rules! impl_xreply {
         2       CARD16                  sequence number
         4       0                       reply length
         1       CARD32                  major version
+        1       CARD32                  minor version
 └───
 */
 
@@ -45,10 +46,15 @@ pub struct QueryVersion {
 impl FromLeBytes for QueryVersion {
     fn from_le_bytes(conn: &mut XConnection) -> Result<Self, Error> {
         let _unused = conn.read_u8()?;
-        let _sequence_nubmer = conn.read_le_u16()?;
+        let _sequence_number = conn.read_le_u16()?;
         let _reply_length = conn.read_le_u32()?;
         let major_version = conn.read_le_u32()?;
         let minor_version = conn.read_le_u32()?;
+
+        // HACK: One may ask why are we doing this here. I don't know.
+        // Spec doesn't say to do it but we get 16 zero bytes at the end of the response
+        // so we're dropping it here
+        drop(conn.drain(16)?);
 
         Ok(Self {
             major_version,
