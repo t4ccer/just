@@ -51,7 +51,7 @@ macro_rules! impl_xrequest_without_response {
 └───
 */
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct QueryVersion {
     pub major_version: u32,
     pub minor_version: u32,
@@ -88,7 +88,7 @@ impl_xrequest_with_response!(QueryVersion);
 └───
 */
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct SetScreenConfig {
     pub window: WindowId,
     pub timestamp: Timestamp,
@@ -128,6 +128,7 @@ impl_xrequest_with_response!(SetScreenConfig);
 └───
 */
 
+#[derive(Debug, Clone)]
 pub struct SelectInput {
     pub window: WindowId,
     pub enable: SelectMask,
@@ -185,7 +186,7 @@ RRGetCrtcInfo
     4       TIMESTAMP               config-timestamp
 */
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct GetCrtcInfo {
     pub crtc: CrtcId,
     pub timestamp: Timestamp,
@@ -215,7 +216,7 @@ impl_xrequest_with_response!(GetCrtcInfo);
 └───
 */
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct GetMonitors {
     pub window: WindowId,
     pub get_active: bool,
