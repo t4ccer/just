@@ -109,7 +109,7 @@ impl X11Connection {
             return Ok(atom_name.clone());
         }
 
-        let r = request_blocking!(self.display, requests::GetAtomName { atom })?;
+        let r = request_blocking!(self.display, requests::GetAtomName { atom })?.unwrap();
 
         self.insert_atom(r.name.clone(), atom);
         Ok(r.name)
@@ -126,7 +126,8 @@ impl X11Connection {
                 only_if_exists: false,
                 name: atom_name.clone()
             }
-        )?;
+        )?
+        .unwrap();
 
         self.insert_atom(atom_name, r.atom);
         Ok(r.atom)
@@ -143,16 +144,17 @@ impl X11Connection {
     }
 
     pub fn get_window_geometry(&mut self, window: WindowId) -> Result<replies::GetGeometry, Error> {
-        request_blocking!(
+        Ok(request_blocking!(
             self.display,
             requests::GetGeometry {
                 drawable: Drawable::Window(window)
             }
-        )
+        )?
+        .unwrap())
     }
 
     pub fn query_tree(&mut self, window: WindowId) -> Result<replies::QueryTree, Error> {
-        request_blocking!(self.display, requests::QueryTree { window })
+        Ok(request_blocking!(self.display, requests::QueryTree { window })?.unwrap())
     }
 
     pub fn get_wm_protocols(&mut self, window: WindowId) -> Result<Vec<AtomId>, Error> {
@@ -167,7 +169,8 @@ impl X11Connection {
                 long_offset: 0, // Xlib uses these magic values
                 long_length: 1000000,
             }
-        )?;
+        )?
+        .unwrap();
 
         if props.format != 32 || props.type_ != AtomId::ATOM {
             return Ok(Vec::new());
@@ -235,7 +238,8 @@ impl X11Connection {
                 long_offset: 0,
                 long_length: NUM_PROP_WMHINTS_ELEMENTS as u32,
             }
-        )?;
+        )?
+        .unwrap();
 
         if reply.type_ != AtomId::WM_HINTS {
             return Ok(None);

@@ -125,7 +125,8 @@ pub fn go() -> Result<(), Error> {
     conn.flush()?;
     let window_geometry = conn
         .display_mut()
-        .await_pending_reply(window_geometry_pending)?;
+        .await_pending_reply(window_geometry_pending)?
+        .unwrap();
 
     let mut window_size = V2 {
         x: window_geometry.width,

@@ -388,14 +388,14 @@ fn run(args: Args) -> Result<(), Error> {
         0
     };
 
-    let root = display.screens()[screen as usize].root;
+    let _root = display.screens()[screen as usize].root;
 
     let randr_query = {
         let randr_query_pending = display.send_request(&requests::QueryExtension {
             name: randr::EXTENSION_NAME.to_vec(),
         })?;
         display.flush()?;
-        display.await_pending_reply(randr_query_pending)?
+        display.await_pending_reply(randr_query_pending)?.unwrap()
     };
     if !randr_query.present {
         eprintln!("RandR extension missing\n");
@@ -411,7 +411,7 @@ fn run(args: Args) -> Result<(), Error> {
             randr_query.major_opcode,
         )?;
         display.flush()?;
-        display.await_pending_reply(randr_version_pending)?
+        display.await_pending_reply(randr_version_pending)?.unwrap()
     };
 
     if args.version {
@@ -421,16 +421,16 @@ fn run(args: Args) -> Result<(), Error> {
         );
     }
 
-    let has_1_2 = randr_version.major_version > 1
-        || (randr_version.major_version == 1 && randr_version.minor_version >= 2);
-    let has_1_3 = randr_version.major_version > 1
-        || (randr_version.major_version == 1 && randr_version.minor_version >= 3);
-    let has_1_4 = randr_version.major_version > 1
-        || (randr_version.major_version == 1 && randr_version.minor_version >= 4);
-    let has_1_5 = randr_version.major_version > 1
-        || (randr_version.major_version == 1 && randr_version.minor_version >= 5);
+    // let has_1_2 = randr_version.major_version > 1
+    //     || (randr_version.major_version == 1 && randr_version.minor_version >= 2);
+    // let has_1_3 = randr_version.major_version > 1
+    //     || (randr_version.major_version == 1 && randr_version.minor_version >= 3);
+    // let has_1_4 = randr_version.major_version > 1
+    //     || (randr_version.major_version == 1 && randr_version.minor_version >= 4);
+    // let has_1_5 = randr_version.major_version > 1
+    //     || (randr_version.major_version == 1 && randr_version.minor_version >= 5);
 
-    if has_1_2 && args.modeit {}
+    // if has_1_2 && args.modeit {}
 
     Ok(())
 }

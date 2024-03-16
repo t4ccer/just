@@ -52,6 +52,29 @@ impl SomeError {
             invalid => Err(Error::UnknownErrorCode(invalid)),
         }
     }
+
+    pub fn sequence_number(&self) -> SequenceNumber {
+        match self {
+            SomeError::IdChoice(err) => err.sequence_number(),
+            SomeError::Request(err) => err.sequence_number(),
+            SomeError::Value(err) => err.sequence_number(),
+            SomeError::Window(err) => err.sequence_number(),
+            SomeError::Pixmap(err) => err.sequence_number(),
+            SomeError::Atom(err) => err.sequence_number(),
+            SomeError::Cursor(err) => err.sequence_number(),
+            SomeError::Font(err) => err.sequence_number(),
+            SomeError::Match(err) => err.sequence_number(),
+            SomeError::Drawable(err) => err.sequence_number(),
+            SomeError::Access(err) => err.sequence_number(),
+            SomeError::Alloc(err) => err.sequence_number(),
+            SomeError::Colormap(err) => err.sequence_number(),
+            SomeError::GContext(err) => err.sequence_number(),
+            SomeError::IDChoice(err) => err.sequence_number(),
+            SomeError::Name(err) => err.sequence_number(),
+            SomeError::Length(err) => err.sequence_number(),
+            SomeError::Implementation(err) => err.sequence_number(),
+        }
+    }
 }
 
 #[derive(Debug, Clone, Copy)]

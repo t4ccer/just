@@ -48,7 +48,7 @@ impl KeySymbols {
         };
         let pending = display.send_request(&request)?;
         display.flush()?;
-        let reply = display.await_pending_reply(pending)?;
+        let reply = display.await_pending_reply(pending)?.unwrap();
 
         Ok(KeySymbols {
             min_keycode: KeyCode::from(min_keycode),

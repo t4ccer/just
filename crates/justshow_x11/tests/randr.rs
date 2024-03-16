@@ -33,7 +33,7 @@ fn init(display: &mut XDisplay) -> Result<replies::QueryExtension, Error> {
             })
             .unwrap();
         display.flush().unwrap();
-        display.await_pending_reply(pending).unwrap()
+        display.await_pending_reply(pending).unwrap().unwrap()
     };
 
     let pending_init = display.send_extension_request(
@@ -43,7 +43,7 @@ fn init(display: &mut XDisplay) -> Result<replies::QueryExtension, Error> {
         },
         extension.major_opcode,
     )?;
-    let init = display.await_pending_reply(pending_init)?;
+    let init = display.await_pending_reply(pending_init)?.unwrap();
 
     assert_eq!(init.major_version, randr::SUPPORTED_MAJOR);
     assert_eq!(init.minor_version, randr::SUPPORTED_MINOR);

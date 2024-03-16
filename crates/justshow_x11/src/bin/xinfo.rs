@@ -26,7 +26,8 @@ fn lsfonts(display: &mut XDisplay) -> Result<(), Error> {
             max_names: u16::MAX,
             pattern: b"*".to_vec(),
         }
-    );
+    )
+    .unwrap();
     reply.replies.sort_by(|lhs, rhs| lhs.name.cmp(&rhs.name));
 
     println!("DIR  MIN  MAX EXIST DFLT PROP ASC DESC NAME");
@@ -66,7 +67,7 @@ fn lsfonts(display: &mut XDisplay) -> Result<(), Error> {
 }
 
 fn lsextensions(display: &mut XDisplay) -> Result<(), Error> {
-    let extensions_list = request_blocking!(display, requests::ListExtensions);
+    let extensions_list = request_blocking!(display, requests::ListExtensions).unwrap();
     for raw_name in extensions_list.names.strings {
         match std::str::from_utf8(&raw_name) {
             Ok(name) => {
@@ -75,7 +76,8 @@ fn lsextensions(display: &mut XDisplay) -> Result<(), Error> {
                     requests::QueryExtension {
                         name: raw_name.clone()
                     }
-                );
+                )
+                .unwrap();
                 println!(
                     "{} => major opcode: {}, first event: {}, first error: {}",
                     name,
@@ -103,7 +105,7 @@ fn lsmonitors(display: &mut XDisplay) -> Result<(), Error> {
         let pending = display.send_request(&request)?;
         display.flush()?;
 
-        let reply = display.await_pending_reply(pending)?;
+        let reply = display.await_pending_reply(pending)?.unwrap();
         reply.major_opcode
     };
 
@@ -116,7 +118,7 @@ fn lsmonitors(display: &mut XDisplay) -> Result<(), Error> {
         let pending = display.send_extension_request(&request, randr_major_opcode)?;
         display.flush()?;
 
-        display.await_pending_reply(pending)?
+        display.await_pending_reply(pending)?.unwrap()
     };
 
     for monitor in &monitors_reply.monitors {
@@ -124,7 +126,7 @@ fn lsmonitors(display: &mut XDisplay) -> Result<(), Error> {
             let monitor_name_pending =
                 display.send_request(&requests::GetAtomName { atom: monitor.name })?;
             display.flush()?;
-            let monitor_name_reply = display.await_pending_reply(monitor_name_pending)?;
+            let monitor_name_reply = display.await_pending_reply(monitor_name_pending)?.unwrap();
             monitor_name_reply.name
         };
         dbg!(&name);

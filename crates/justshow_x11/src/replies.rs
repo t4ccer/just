@@ -8,21 +8,33 @@ use crate::{
     requests::KeyCode,
     requests::Timestamp,
     utils::{impl_enum, pad},
+    xerror::SomeError,
     ColormapId, FromLeBytes, ListOfStr, OrNone, ResourceId, VisualId, WindowId,
 };
 
 pub trait XReply: Sized {
+    type Error;
+
     fn from_reply(reply: SomeReply) -> Option<Self>;
+    fn from_error(error: SomeError) -> Option<Self::Error>;
 }
 
 macro_rules! impl_xreply {
     ($t:tt) => {
         impl XReply for $t {
+            type Error = $crate::xerror::SomeError;
+
+            #[inline(always)]
             fn from_reply(reply: SomeReply) -> Option<Self> {
                 match reply {
                     SomeReply::$t(r) => Some(r),
                     _ => None,
                 }
+            }
+
+            #[inline(always)]
+            fn from_error(error: SomeError) -> Option<Self::Error> {
+                Some(error)
             }
         }
     };
@@ -2202,7 +2214,7 @@ pub enum ReplyType {
 #[derive(Debug, Clone)]
 pub(crate) struct ReceivedReply {
     pub(crate) reply_type: ReplyType,
-    pub(crate) reply: SomeReply,
+    pub(crate) reply: Result<SomeReply, ()>,
     pub(crate) done_receiving: bool,
 }
 
@@ -2213,7 +2225,7 @@ impl ReceivedReply {
         }
 
         match &mut self.reply {
-            SomeReply::ListFontsWithInfo(list_fonts) => match reply {
+            Ok(SomeReply::ListFontsWithInfo(list_fonts)) => match reply {
                 SomeReply::ListFontsWithInfoPartial(
                     ListFontsWithInfoPartial::ListFontsWithInfoEnd,
                 ) => {

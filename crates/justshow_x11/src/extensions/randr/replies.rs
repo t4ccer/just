@@ -8,17 +8,26 @@ use crate::{
     replies::{read_vec, XReply},
     requests::Timestamp,
     utils::{impl_resource_id, pad},
+    xerror::SomeError,
     FromLeBytes, WindowId,
 };
 
 macro_rules! impl_xreply {
     ($t:tt) => {
         impl XReply for $t {
+            type Error = SomeError;
+
+            #[inline(always)]
             fn from_reply(reply: $crate::replies::SomeReply) -> Option<Self> {
                 match reply {
                     $crate::replies::SomeReply::ExtensionRandr(SomeReply::$t(r)) => Some(r),
                     _ => None,
                 }
+            }
+
+            #[inline(always)]
+            fn from_error(error: SomeError) -> Option<Self::Error> {
+                Some(error)
             }
         }
     };
@@ -397,9 +406,7 @@ impl FromLeBytes for GetMonitors {
         let _unused = conn.read_u8()?;
         let _sequence_number = conn.read_le_u16()?;
         let _reply_length = conn.read_le_u32()?;
-        let timestamp = conn.read_le_u32()?;
-        eprintln!("{:#08x}", timestamp);
-        let timestamp = Timestamp::from(timestamp);
+        let timestamp = Timestamp::from_le_bytes(conn)?;
         let nmonitors = conn.read_le_u32()?;
         let _noutputs = conn.read_le_u32()?;
         drop(conn.drain(12)?);

@@ -646,6 +646,9 @@ impl XDisplay {
         self.wrap_reply::<Request>(sequence_number)
     }
 
+    /// Like [`Self::send_request`] but for X11 extensions requests.
+    ///
+    /// `major_opcode` can be obtained from [`replies::QueryExtension`]
     pub fn send_extension_request<Request: XExtensionRequest>(
         &mut self,
         request: &Request,
@@ -666,7 +669,7 @@ impl XDisplay {
     pub fn await_pending_reply<Reply>(
         &mut self,
         mut pending: PendingReply<Reply>,
-    ) -> Result<Reply, Error>
+    ) -> Result<Result<Reply, ()>, Error>
     where
         Reply: XReply,
     {
@@ -687,7 +690,7 @@ impl XDisplay {
     pub fn try_get_pending_reply<Reply>(
         &mut self,
         pending: PendingReply<Reply>,
-    ) -> Result<Result<Reply, PendingReply<Reply>>, Error>
+    ) -> Result<Result<Result<Reply, ()>, PendingReply<Reply>>, Error>
     where
         Reply: XReply,
     {
@@ -702,11 +705,13 @@ impl XDisplay {
                 Ok(Err(pending))
             }
             AwaitingReply::Discarded(_) => unreachable!("Tried to get discarded reply"),
-            AwaitingReply::Received(reply) if reply.done_receiving => {
-                Reply::from_reply(reply.reply)
+            AwaitingReply::Received(reply) if reply.done_receiving => match reply.reply {
+                Ok(reply) => Reply::from_reply(reply)
                     .ok_or(Error::UnexpectedReply)
                     .map(Ok)
-            }
+                    .map(Ok),
+                Err(err) => Ok(Ok(Err(err))),
+            },
             reply @ AwaitingReply::Received(_) => {
                 self.awaiting_replies.insert(awaited, reply);
                 Ok(Err(pending))
@@ -750,7 +755,27 @@ impl XDisplay {
             0 => {
                 let error_code: u8 = self.connection.read_u8()?;
                 let error = SomeError::from_le_bytes(&mut self.connection, error_code)?;
-                self.error_queue.push_back(error);
+
+                let awaiting = self
+                    .awaiting_replies
+                    .remove(&error.sequence_number())
+                    .expect("Error without awaiting reply");
+                match awaiting {
+                    AwaitingReply::NotReceived(reply_type) => {
+                        self.awaiting_replies.insert(
+                            error.sequence_number(),
+                            AwaitingReply::Received(ReceivedReply {
+                                reply_type,
+                                reply: Err(()),
+                                done_receiving: true,
+                            }),
+                        );
+                    }
+                    AwaitingReply::Discarded(_) => { /* do nothing */ }
+                    AwaitingReply::Received(_) => unreachable!("Error for received reply"),
+                }
+
+                // self.error_queue.push_back(error);
             }
             1 => {
                 self.handle_reply_blocking()?;
@@ -783,9 +808,9 @@ impl XDisplay {
                 let received = match reply {
                     reply @ SomeReply::ListFontsWithInfoPartial(_) => {
                         let mut received = ReceivedReply {
-                            reply: SomeReply::ListFontsWithInfo(replies::ListFontsWithInfo {
+                            reply: Ok(SomeReply::ListFontsWithInfo(replies::ListFontsWithInfo {
                                 replies: vec![],
-                            }),
+                            })),
                             reply_type,
                             done_receiving: false,
                         };
@@ -796,7 +821,7 @@ impl XDisplay {
                         received
                     }
                     reply => ReceivedReply {
-                        reply,
+                        reply: Ok(reply),
                         reply_type,
                         done_receiving: true,
                     },
