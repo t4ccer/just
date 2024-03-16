@@ -1,7 +1,7 @@
 use crate::{connection::XConnection, error::Error, SequenceNumber};
 use std::{fmt, mem};
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum SomeError {
     IdChoice(XIdChoiceError),
     Request(XRequestError),
@@ -77,7 +77,7 @@ impl SomeError {
     }
 }
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 #[repr(C)]
 struct XGenericError {
     error: u8,
@@ -97,7 +97,7 @@ impl XGenericError {
 
 macro_rules! impl_x_error_base {
     ($name:ident, $($rest:tt)*) => {
-        #[derive(Clone, Copy)]
+        #[derive(Clone, Copy, PartialEq, Eq)]
         #[repr(transparent)]
         pub struct $name {
             generic: XGenericError,

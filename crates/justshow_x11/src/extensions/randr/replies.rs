@@ -8,26 +8,18 @@ use crate::{
     replies::{read_vec, XReply},
     requests::Timestamp,
     utils::{impl_resource_id, pad},
-    xerror::SomeError,
     FromLeBytes, WindowId,
 };
 
 macro_rules! impl_xreply {
     ($t:tt) => {
         impl XReply for $t {
-            type Error = SomeError;
-
             #[inline(always)]
             fn from_reply(reply: $crate::replies::SomeReply) -> Option<Self> {
                 match reply {
                     $crate::replies::SomeReply::ExtensionRandr(SomeReply::$t(r)) => Some(r),
                     _ => None,
                 }
-            }
-
-            #[inline(always)]
-            fn from_error(error: SomeError) -> Option<Self::Error> {
-                Some(error)
             }
         }
     };

@@ -13,28 +13,18 @@ use crate::{
 };
 
 pub trait XReply: Sized {
-    type Error;
-
     fn from_reply(reply: SomeReply) -> Option<Self>;
-    fn from_error(error: SomeError) -> Option<Self::Error>;
 }
 
 macro_rules! impl_xreply {
     ($t:tt) => {
         impl XReply for $t {
-            type Error = $crate::xerror::SomeError;
-
             #[inline(always)]
             fn from_reply(reply: SomeReply) -> Option<Self> {
                 match reply {
                     SomeReply::$t(r) => Some(r),
                     _ => None,
                 }
-            }
-
-            #[inline(always)]
-            fn from_error(error: SomeError) -> Option<Self::Error> {
-                Some(error)
             }
         }
     };
@@ -385,7 +375,7 @@ impl Deref for String8 {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct GetAtomName {
     pub name: String8,
 }
@@ -2214,7 +2204,7 @@ pub enum ReplyType {
 #[derive(Debug, Clone)]
 pub(crate) struct ReceivedReply {
     pub(crate) reply_type: ReplyType,
-    pub(crate) reply: Result<SomeReply, ()>,
+    pub(crate) reply: Result<SomeReply, SomeError>,
     pub(crate) done_receiving: bool,
 }
 

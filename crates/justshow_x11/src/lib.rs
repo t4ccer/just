@@ -279,23 +279,12 @@ impl Depth {
     }
 }
 
-#[derive(Debug, Clone)]
-#[repr(u8)]
-pub enum BackingStore {
-    NotUseful = 0,
-    WhenMapped = 1,
-    Always = 2,
-}
-
-impl TryFrom<u8> for BackingStore {
-    type Error = u8;
-
-    fn try_from(value: u8) -> Result<Self, Self::Error> {
-        if value > 2 {
-            return Err(value);
-        }
-
-        Ok(unsafe { mem::transmute(value) })
+impl_enum! {
+    #[repr(u8)]
+    enum BackingStore {
+        NotUseful = 0,
+        WhenMapped = 1,
+        Always = 2,
     }
 }
 
@@ -335,8 +324,7 @@ impl Screen {
         let min_installed_maps = conn.read_le_u16()?;
         let max_installed_maps = conn.read_le_u16()?;
         let root_visual = conn.read_le_u32()?;
-        let backing_stores = BackingStore::try_from(conn.read_u8()?)
-            .map_err(|_| Error::InvalidResponse("BackingStore"))?;
+        let backing_stores = BackingStore::from_le_bytes(conn)?;
         let save_unders = conn.read_u8()? == 1;
         let root_depth = conn.read_u8()?;
         let allowed_depths_lenght = conn.read_u8()?;
@@ -669,7 +657,7 @@ impl XDisplay {
     pub fn await_pending_reply<Reply>(
         &mut self,
         mut pending: PendingReply<Reply>,
-    ) -> Result<Result<Reply, ()>, Error>
+    ) -> Result<Result<Reply, SomeError>, Error>
     where
         Reply: XReply,
     {
@@ -690,7 +678,7 @@ impl XDisplay {
     pub fn try_get_pending_reply<Reply>(
         &mut self,
         pending: PendingReply<Reply>,
-    ) -> Result<Result<Result<Reply, ()>, PendingReply<Reply>>, Error>
+    ) -> Result<Result<Result<Reply, SomeError>, PendingReply<Reply>>, Error>
     where
         Reply: XReply,
     {
@@ -756,26 +744,21 @@ impl XDisplay {
                 let error_code: u8 = self.connection.read_u8()?;
                 let error = SomeError::from_le_bytes(&mut self.connection, error_code)?;
 
-                let awaiting = self
-                    .awaiting_replies
-                    .remove(&error.sequence_number())
-                    .expect("Error without awaiting reply");
-                match awaiting {
-                    AwaitingReply::NotReceived(reply_type) => {
+                match self.awaiting_replies.remove(&error.sequence_number()) {
+                    Some(AwaitingReply::NotReceived(reply_type)) => {
                         self.awaiting_replies.insert(
                             error.sequence_number(),
                             AwaitingReply::Received(ReceivedReply {
                                 reply_type,
-                                reply: Err(()),
+                                reply: Err(error),
                                 done_receiving: true,
                             }),
                         );
                     }
-                    AwaitingReply::Discarded(_) => { /* do nothing */ }
-                    AwaitingReply::Received(_) => unreachable!("Error for received reply"),
+                    Some(AwaitingReply::Discarded(_)) => { /* do nothing */ }
+                    Some(AwaitingReply::Received(_)) => Err(Error::UnexpectedReply)?,
+                    None => self.error_queue.push_back(error),
                 }
-
-                // self.error_queue.push_back(error);
             }
             1 => {
                 self.handle_reply_blocking()?;
@@ -965,7 +948,8 @@ impl XDisplay {
         Ok(self.event_queue.drain(..))
     }
 
-    /// Drain all errors from queue
+    /// Drain all errors from queue. Queue contains only errors for requests without replies.
+    /// If error is associated with a reply will be returned in [`Self::await_pending_reply`]
     pub fn errors(&mut self) -> Drain<'_, SomeError> {
         self.error_queue.drain(..)
     }
