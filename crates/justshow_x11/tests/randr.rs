@@ -78,3 +78,12 @@ fn get_monitors() {
         get_active: false,
     });
 }
+
+#[test]
+fn get_get_screen_size_range() {
+    randr_double_request!(
+        |display: &mut XDisplay| randr::requests::GetScreenSizeRange {
+            window: display.screens()[0].root,
+        }
+    );
+}

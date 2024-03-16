@@ -178,6 +178,34 @@ impl ToLeBytes for GetScreenInfo {
 impl_xrequest_with_response!(GetScreenInfo);
 
 /*
+┌───
+    RRGetScreenSizeRange
+        1       CARD8                   major opcode
+        1       6                       RandR opcode
+        2       2                       length
+        4       WINDOW                  window
+      ▶
+└───
+*/
+
+#[derive(Debug, Clone)]
+pub struct GetScreenSizeRange {
+    pub window: WindowId,
+}
+
+impl ToLeBytes for GetScreenSizeRange {
+    fn to_le_bytes(&self, w: &mut impl std::io::Write) -> std::io::Result<()> {
+        write_le_bytes!(w, opcodes::GET_SCREEN_SIZE_RANGE);
+        write_le_bytes!(w, 2u16); // request length
+        write_le_bytes!(w, self.window);
+
+        Ok(())
+    }
+}
+
+impl_xrequest_with_response!(GetScreenSizeRange);
+
+/*
 RRGetCrtcInfo
     1       CARD8                   major opcode
     1       20                      RandR opcode

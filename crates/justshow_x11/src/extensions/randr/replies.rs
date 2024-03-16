@@ -250,6 +250,52 @@ impl FromLeBytes for GetScreenInfo {
 impl_xreply!(GetScreenInfo);
 
 /*
+┌───
+    RRGetScreenSizeRange
+      ▶
+        1       1                       Reply
+        1                               unused
+        2       CARD16                  sequence number
+        4       0                       reply length
+        2       CARD16                  minWidth
+        2       CARD16                  minHeight
+        2       CARD16                  maxWidth
+        2       CARD16                  maxHeight
+        16                              unused
+└───
+*/
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct GetScreenSizeRange {
+    pub min_width: u16,
+    pub min_height: u16,
+    pub max_width: u16,
+    pub max_height: u16,
+}
+
+impl FromLeBytes for GetScreenSizeRange {
+    fn from_le_bytes(conn: &mut XConnection) -> Result<Self, Error> {
+        let _unused = conn.read_u8()?;
+        let _sequence_number = conn.read_le_u16()?;
+        let _reply_length = conn.read_le_u32()?;
+        let min_width = conn.read_le_u16()?;
+        let min_height = conn.read_le_u16()?;
+        let max_width = conn.read_le_u16()?;
+        let max_height = conn.read_le_u16()?;
+        drop(conn.drain(16)?);
+
+        Ok(Self {
+            min_width,
+            min_height,
+            max_width,
+            max_height,
+        })
+    }
+}
+
+impl_xreply!(GetScreenSizeRange);
+
+/*
 RRGetCrtcInfo
   ▶
     1       1                       Reply
@@ -373,6 +419,7 @@ pub enum SomeReply {
     QueryVersion(QueryVersion),
     SetScreenConfig(SetScreenConfig),
     GetScreenInfo(GetScreenInfo),
+    GetScreenSizeRange(GetScreenSizeRange),
     GetCrtcInfo(GetCrtcInfo),
     GetMonitors(GetMonitors),
 }
@@ -382,6 +429,7 @@ pub enum ReplyType {
     QueryVersion,
     SetScreenConfig,
     GetScreenInfo,
+    GetScreenSizeRange,
     GetCrtcInfo,
     GetMonitors,
 }
