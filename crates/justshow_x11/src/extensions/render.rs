@@ -13,7 +13,7 @@ impl_enum! {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct Fixed {
     inner: u32,
 }
@@ -32,7 +32,7 @@ impl From<Fixed> for f32 {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct Transform {
     pub matrix: [[Fixed; 3]; 3],
 }

@@ -206,12 +206,15 @@ impl ToLeBytes for GetScreenSizeRange {
 impl_xrequest_with_response!(GetScreenSizeRange);
 
 /*
-RRGetCrtcInfo
-    1       CARD8                   major opcode
-    1       20                      RandR opcode
-    2       3                       length
-    4       CRTC                    crtc
-    4       TIMESTAMP               config-timestamp
+┌───
+    RRGetCrtcInfo
+        1       CARD8                   major opcode
+        1       20                      RandR opcode
+        2       3                       length
+        4       CRTC                    crtc
+        4       TIMESTAMP               config-timestamp
+      ▶
+└───
 */
 
 #[derive(Debug, Clone)]
@@ -232,6 +235,34 @@ impl ToLeBytes for GetCrtcInfo {
 }
 
 impl_xrequest_with_response!(GetCrtcInfo);
+
+/*
+┌───
+    RRGetScreenResourcesCurrent
+        1       CARD8                   major opcode
+        1       25                      RandR opcode
+        2       2                       length
+        4       WINDOW                  window
+      ▶
+└───
+*/
+
+#[derive(Debug, Clone)]
+pub struct GetScreenResourcesCurrent {
+    pub window: WindowId,
+}
+
+impl ToLeBytes for GetScreenResourcesCurrent {
+    fn to_le_bytes(&self, w: &mut impl std::io::Write) -> std::io::Result<()> {
+        write_le_bytes!(w, opcodes::GET_SCREEN_RESOURCES_CURRENT);
+        write_le_bytes!(w, 2u16); // request length
+        write_le_bytes!(w, self.window);
+
+        Ok(())
+    }
+}
+
+impl_xrequest_with_response!(GetScreenResourcesCurrent);
 
 /*
 ┌───

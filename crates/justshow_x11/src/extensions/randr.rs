@@ -11,7 +11,7 @@ use crate::{
     replies::read_vec,
     requests::write_le_bytes,
     utils::{impl_enum, impl_resource_id},
-    ToLeBytes,
+    FromLeBytes, ToLeBytes,
 };
 
 pub mod replies;
@@ -186,6 +186,40 @@ pub struct ModeInfo {
     pub v_total: u16,
     pub name_length: u16,
     pub mode_flags: ModeFlag,
+}
+
+impl FromLeBytes for ModeInfo {
+    fn from_le_bytes(conn: &mut XConnection) -> Result<Self, Error> {
+        let id = conn.read_le_u32()?;
+        let width_in_pixels = conn.read_le_u16()?;
+        let height_in_pixels = conn.read_le_u16()?;
+        let dot_closk = conn.read_le_u32()?;
+        let h_sync_start = conn.read_le_u16()?;
+        let h_sync_end = conn.read_le_u16()?;
+        let h_total = conn.read_le_u16()?;
+        let h_skew = conn.read_le_u16()?;
+        let v_sync_start = conn.read_le_u16()?;
+        let v_sync_end = conn.read_le_u16()?;
+        let v_total = conn.read_le_u16()?;
+        let name_length = conn.read_le_u16()?;
+        let mode_flags = ModeFlag::from_le_bytes(conn)?;
+
+        Ok(Self {
+            id,
+            width_in_pixels,
+            height_in_pixels,
+            dot_closk,
+            h_sync_start,
+            h_sync_end,
+            h_total,
+            h_skew,
+            v_sync_start,
+            v_sync_end,
+            v_total,
+            name_length,
+            mode_flags,
+        })
+    }
 }
 
 /*

@@ -914,6 +914,9 @@ impl XDisplay {
                         handle_randr_reply!(GetScreenSizeRange)
                     }
                     randr::replies::ReplyType::GetCrtcInfo => handle_randr_reply!(GetCrtcInfo),
+                    randr::replies::ReplyType::GetScreenResourcesCurrent => {
+                        handle_randr_reply!(GetScreenResourcesCurrent)
+                    }
                     randr::replies::ReplyType::GetMonitors => handle_randr_reply!(GetMonitors),
                 }
             }

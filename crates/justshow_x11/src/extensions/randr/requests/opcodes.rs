@@ -6,4 +6,5 @@ pub const SELECT_INPUT: u8 = 4;
 pub const GET_SCREEN_INFO: u8 = 5;
 pub const GET_SCREEN_SIZE_RANGE: u8 = 6;
 pub const GET_CRTC_INFO: u8 = 20;
+pub const GET_SCREEN_RESOURCES_CURRENT: u8 = 25;
 pub const GET_MONITORS: u8 = 42;

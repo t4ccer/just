@@ -11,6 +11,8 @@ use crate::{
     FromLeBytes, WindowId,
 };
 
+use super::{CrtcId, ModeInfo};
+
 macro_rules! impl_xreply {
     ($t:tt) => {
         impl XReply for $t {
@@ -297,24 +299,26 @@ impl FromLeBytes for GetScreenSizeRange {
 impl_xreply!(GetScreenSizeRange);
 
 /*
-RRGetCrtcInfo
-  ▶
-    1       1                       Reply
-    1       RRCONFIGSTATUS          status
-    2       CARD16                  sequence number
-    4       o+p                     reply length
-    4       TIMESTAMP               timestamp
-    2       INT16                   x
-    2       INT16                   y
-    2       CARD16                  width
-    2       CARD16                  height
-    4       MODE                    mode
-    2       ROTATION                current rotation and reflection
-    2       ROTATION                set of possible rotations
-    2       o                       number of outputs
-    2       p                       number of possible outputs
-    4o      LISTofOUTPUT            outputs
-    4p      LISTofOUTPUT            possible outputs
+┌───
+    RRGetCrtcInfo
+      ▶
+        1       1                       Reply
+        1       RRCONFIGSTATUS          status
+        2       CARD16                  sequence number
+        4       o+p                     reply length
+        4       TIMESTAMP               timestamp
+        2       INT16                   x
+        2       INT16                   y
+        2       CARD16                  width
+        2       CARD16                  height
+        4       MODE                    mode
+        2       ROTATION                current rotation and reflection
+        2       ROTATION                set of possible rotations
+        2       o                       number of outputs
+        2       p                       number of possible outputs
+        4o      LISTofOUTPUT            outputs
+        4p      LISTofOUTPUT            possible outputs
+└───
 */
 
 impl_resource_id!(OutputId);
@@ -373,18 +377,88 @@ impl FromLeBytes for GetCrtcInfo {
 
 impl_xreply!(GetCrtcInfo);
 
+// A.2.2 Protocol Requests added with version 1.3
+
 /*
-RRGetMonitors
-▶
-     1       1                       Reply
-     1                               unused
-     2       CARD16                  sequence number
-     4       6*n + o                 reply length
-     4       TIMESTAMP               timestamp
-     4       n                       nmonitors
-     4       o                       noutputs
-     12                              unused
-     n*24+o*4 LISTofMONITORINFO      monitors
+┌───
+    RRGetScreenResourcesCurrent
+      ▶
+        1       1                       Reply
+        1                               unused
+        2       CARD16                  sequence number
+        4       c+o+8m+(b+p)/4          reply length
+        4       TIMESTAMP               timestamp
+        4       TIMESTAMP               config-timestamp
+        2       c                       number of CRTCs
+        2       o                       number of outputs
+        2       m                       number of modeinfos
+        2       b                       total bytes in mode names
+        8                               unused
+        4c      LISTofCRTC              crtcs
+        4o      LISTofOUTPUT            outputs
+        32m     LISTofMODEINFO          modeinfos
+        b       STRING8                 mode names
+        p                               unused, p=pad(b)
+└───
+ */
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct GetScreenResourcesCurrent {
+    pub timestamp: Timestamp,
+    pub config_timestamp: Timestamp,
+    pub crtcs: Vec<CrtcId>,
+    pub outputs: Vec<OutputId>,
+    pub modeinfos: Vec<ModeInfo>,
+    pub mode_names: Vec<u8>,
+}
+
+impl FromLeBytes for GetScreenResourcesCurrent {
+    fn from_le_bytes(conn: &mut XConnection) -> Result<Self, Error> {
+        let _unused = conn.read_u8()?;
+        let _sequence_number = conn.read_le_u16()?;
+        let _reply_length = conn.read_le_u32()?;
+        let timestamp = Timestamp::from(conn.read_le_u32()?);
+        let config_timestamp = Timestamp::from(conn.read_le_u32()?);
+        let c = conn.read_le_u16()?;
+        let o = conn.read_le_u16()?;
+        let m = conn.read_le_u16()?;
+        let b = conn.read_le_u16()?;
+        drop(conn.drain(8)?);
+        let crtcs = read_vec!(c, CrtcId::from_le_bytes(conn)?);
+        let outputs = read_vec!(o, OutputId::from_le_bytes(conn)?);
+        let modeinfos = read_vec!(m, ModeInfo::from_le_bytes(conn)?);
+        let mode_names = conn.read_n_bytes(b as usize)?;
+        drop(conn.drain(pad(b as usize))?);
+
+        Ok(Self {
+            timestamp,
+            config_timestamp,
+            crtcs,
+            outputs,
+            modeinfos,
+            mode_names,
+        })
+    }
+}
+
+impl_xreply!(GetScreenResourcesCurrent);
+
+// A.2.4 Protocol Requests added with version 1.5
+
+/*
+┌───
+    RRGetMonitors
+     ▶
+        1       1                       Reply
+        1                               unused
+        2       CARD16                  sequence number
+        4       6*n + o                 reply length
+        4       TIMESTAMP               timestamp
+        4       n                       nmonitors
+        4       o                       noutputs
+        12                              unused
+        n*24+o*4 LISTofMONITORINFO      monitors
+└───
 */
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -420,6 +494,7 @@ pub enum SomeReply {
     GetScreenInfo(GetScreenInfo),
     GetScreenSizeRange(GetScreenSizeRange),
     GetCrtcInfo(GetCrtcInfo),
+    GetScreenResourcesCurrent(GetScreenResourcesCurrent),
     GetMonitors(GetMonitors),
 }
 
@@ -430,5 +505,6 @@ pub enum ReplyType {
     GetScreenInfo,
     GetScreenSizeRange,
     GetCrtcInfo,
+    GetScreenResourcesCurrent,
     GetMonitors,
 }
