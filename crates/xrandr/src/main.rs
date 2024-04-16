@@ -15,7 +15,7 @@ use std::{collections::HashMap, env, process::ExitCode, str::FromStr};
 
 mod arguments;
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 struct Monitor {
     name: String,
     set: bool,
@@ -46,7 +46,7 @@ impl Monitor {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone, Copy)]
 enum Filter {
     Bilinear,
     Nearest,
@@ -64,7 +64,7 @@ impl FromStr for Filter {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone, Copy)]
 struct WidthHeight<T> {
     width: T,
     height: T,
@@ -84,7 +84,7 @@ where
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone, Copy)]
 struct Gamma {
     red: f32,
     green: f32,
@@ -119,7 +119,7 @@ impl FromStr for Gamma {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 struct Transform {
     transform: render::Transform,
     filter: Option<Filter>,
@@ -142,7 +142,7 @@ impl Transform {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 struct Output {
     refresh: Option<f32>,
     output: Name,
@@ -185,7 +185,7 @@ impl Output {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone, Copy)]
 enum Reflection {
     Normal,
     X,
@@ -207,7 +207,7 @@ impl FromStr for Reflection {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone, Copy)]
 enum Rotation {
     Normal,
     Inverted,
@@ -239,7 +239,7 @@ bitmask! {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 struct Name {
     kind: NameKind,
     string: String,
@@ -298,7 +298,7 @@ impl Name {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 enum Relation {
     LeftOf(String),
     RightOf(String),
@@ -307,7 +307,7 @@ enum Relation {
     SameAs(String),
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone, Copy)]
 enum ModeAction {
     Create,
     Destroy,
@@ -315,7 +315,7 @@ enum ModeAction {
     Delete,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 struct XRRModeInfo {
     id: OrNone<ResourceId>,
     width: u32,
@@ -352,7 +352,7 @@ impl XRRModeInfo {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 struct Mode {
     name: Name,
     output: Name,
@@ -388,7 +388,7 @@ fn run(args: Args) -> Result<(), Error> {
         0
     };
 
-    let _root = display.screens()[screen as usize].root;
+    let root = display.screens()[screen as usize].root;
 
     let randr_query = {
         let randr_query_pending = display.send_request(&requests::QueryExtension {
@@ -402,17 +402,17 @@ fn run(args: Args) -> Result<(), Error> {
         panic!();
     }
 
-    let randr_version = {
-        let randr_version_pending = display.send_extension_request(
-            &randr::requests::QueryVersion {
-                major_version: randr::SUPPORTED_MAJOR,
-                minor_version: randr::SUPPORTED_MINOR,
-            },
-            randr_query.major_opcode,
-        )?;
-        display.flush()?;
-        display.await_pending_reply(randr_version_pending)?.unwrap()
-    };
+    macro_rules! send_randr_request {
+        ($request:expr) => {{
+            let pending = display.send_extension_request($request, randr_query.major_opcode)?;
+            display.await_pending_reply(pending)?.unwrap()
+        }};
+    }
+
+    let randr_version = send_randr_request!(&randr::requests::QueryVersion {
+        major_version: randr::SUPPORTED_MAJOR,
+        minor_version: randr::SUPPORTED_MINOR,
+    });
 
     if args.version {
         println!(
@@ -421,16 +421,35 @@ fn run(args: Args) -> Result<(), Error> {
         );
     }
 
-    // let has_1_2 = randr_version.major_version > 1
-    //     || (randr_version.major_version == 1 && randr_version.minor_version >= 2);
-    // let has_1_3 = randr_version.major_version > 1
-    //     || (randr_version.major_version == 1 && randr_version.minor_version >= 3);
-    // let has_1_4 = randr_version.major_version > 1
-    //     || (randr_version.major_version == 1 && randr_version.minor_version >= 4);
-    // let has_1_5 = randr_version.major_version > 1
-    //     || (randr_version.major_version == 1 && randr_version.minor_version >= 5);
+    let has_1_5 = randr_version.major_version > 1
+        || (randr_version.major_version == 1 && randr_version.minor_version >= 5);
+    assert!(has_1_5, "RandR version below 1.5 not supported"); // TODO: Add support
 
-    // if has_1_2 && args.modeit {}
+    // TODO: has_1_2 check
+    if args.modeit || true {
+        let _screen_size_range =
+            send_randr_request!(&randr::requests::GetScreenSizeRange { window: root });
+
+        let _screen_resources =
+            send_randr_request!(&randr::requests::GetScreenResourcesCurrent { window: root });
+
+        // for crtc in screen_resources.crtcs.iter().copied() {
+        //     let crtc_info = send_randr_request!(&randr::requests::GetCrtcInfo {
+        //         crtc,
+        //         timestamp: screen_resources.config_timestamp,
+        //     });
+        //     dbg!(crtc_info);
+        // }
+
+        for mode in &args.modes {
+            match mode.action {
+                ModeAction::Create => todo!(),
+                ModeAction::Destroy => todo!(),
+                ModeAction::Add => todo!(),
+                ModeAction::Delete => todo!(),
+            }
+        }
+    }
 
     Ok(())
 }

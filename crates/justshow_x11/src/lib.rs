@@ -797,10 +797,8 @@ impl XDisplay {
                             reply_type,
                             done_receiving: false,
                         };
-                        debug_assert!(
-                            received.append_reply(reply),
-                            "Could not merge with empty reply"
-                        );
+                        let merged = received.append_reply(reply);
+                        debug_assert!(merged, "Could not merge with empty reply");
                         received
                     }
                     reply => ReceivedReply {
@@ -866,13 +864,12 @@ impl XDisplay {
             ReplyType::QueryFont => handle_reply!(QueryFont),
             ReplyType::QueryTextExtents => handle_reply!(QueryTextExtents),
             ReplyType::ListFonts => handle_reply!(ListFonts),
-            ReplyType::ListFontsWithInfo => {
-                // ListFontsWithInfo request may result in multiple replies so we need to handle it
-                // specially here. We cannot use `handle_reply!` here as reply type is
-                // `ListFontsWithInfo` because it is what client wants to receive at the end.
-                let reply = replies::ListFontsWithInfoPartial::from_le_bytes(&mut self.connection)?;
-                Ok(SomeReply::ListFontsWithInfoPartial(reply))
-            }
+
+            // ListFontsWithInfo request may result in multiple replies so we need to handle it
+            // specially here. We cannot use `handle_reply!` here as reply type is
+            // `ListFontsWithInfo` because it is what client wants to receive at the end.
+            ReplyType::ListFontsWithInfo => handle_reply!(ListFontsWithInfoPartial),
+
             ReplyType::GetFontPath => handle_reply!(GetFontPath),
             ReplyType::GetImage => handle_reply!(GetImage),
             ReplyType::ListInstalledColormaps => handle_reply!(ListInstalledColormaps),
@@ -904,20 +901,17 @@ impl XDisplay {
                     }};
                 }
 
+                use randr::replies::ReplyType;
                 match randr_reply {
-                    randr::replies::ReplyType::QueryVersion => handle_randr_reply!(QueryVersion),
-                    randr::replies::ReplyType::SetScreenConfig => {
-                        handle_randr_reply!(SetScreenConfig)
-                    }
-                    randr::replies::ReplyType::GetScreenInfo => handle_randr_reply!(GetScreenInfo),
-                    randr::replies::ReplyType::GetScreenSizeRange => {
-                        handle_randr_reply!(GetScreenSizeRange)
-                    }
-                    randr::replies::ReplyType::GetCrtcInfo => handle_randr_reply!(GetCrtcInfo),
-                    randr::replies::ReplyType::GetScreenResourcesCurrent => {
+                    ReplyType::QueryVersion => handle_randr_reply!(QueryVersion),
+                    ReplyType::SetScreenConfig => handle_randr_reply!(SetScreenConfig),
+                    ReplyType::GetScreenInfo => handle_randr_reply!(GetScreenInfo),
+                    ReplyType::GetScreenSizeRange => handle_randr_reply!(GetScreenSizeRange),
+                    ReplyType::GetCrtcInfo => handle_randr_reply!(GetCrtcInfo),
+                    ReplyType::GetScreenResourcesCurrent => {
                         handle_randr_reply!(GetScreenResourcesCurrent)
                     }
-                    randr::replies::ReplyType::GetMonitors => handle_randr_reply!(GetMonitors),
+                    ReplyType::GetMonitors => handle_randr_reply!(GetMonitors),
                 }
             }
         }
