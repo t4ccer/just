@@ -2154,6 +2154,7 @@ pub enum SomeReply {
     SetModifierMapping(SetModifierMapping),
     GetModifierMapping(GetModifierMapping),
     ExtensionRandr(crate::extensions::randr::replies::SomeReply),
+    ExtensionMitShm(crate::extensions::mit_shm::replies::SomeReply),
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -2199,6 +2200,7 @@ pub enum ReplyType {
     SetModifierMapping,
     GetModifierMapping,
     ExtensionRandr(crate::extensions::randr::replies::ReplyType),
+    ExtensionMitShm(crate::extensions::mit_shm::replies::ReplyType),
 }
 
 #[derive(Debug, Clone)]

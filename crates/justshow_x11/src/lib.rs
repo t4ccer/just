@@ -11,7 +11,7 @@ use crate::{
     connection::{ConnectionKind, XConnection},
     error::Error,
     events::SomeEvent,
-    extensions::randr,
+    extensions::{mit_shm, randr},
     replies::{AwaitingReply, ReceivedReply, ReplyType, SomeReply, XReply},
     requests::{InitializeConnection, XProtocolVersion, XRequest},
     utils::*,
@@ -912,6 +912,23 @@ impl XDisplay {
                         handle_randr_reply!(GetScreenResourcesCurrent)
                     }
                     ReplyType::GetMonitors => handle_randr_reply!(GetMonitors),
+                }
+            }
+            ReplyType::ExtensionMitShm(mit_shm_reply) => {
+                macro_rules! handle_mit_shm_reply {
+                    ($t:tt) => {{
+                        let reply = mit_shm::replies::$t::from_le_bytes(&mut self.connection)?;
+                        Ok(SomeReply::ExtensionMitShm(mit_shm::replies::SomeReply::$t(
+                            reply,
+                        )))
+                    }};
+                }
+
+                use mit_shm::replies::ReplyType;
+                match mit_shm_reply {
+                    ReplyType::QueryVersion => handle_mit_shm_reply!(QueryVersion),
+                    ReplyType::GetImage => handle_mit_shm_reply!(GetImage),
+                    ReplyType::CreateSegment => handle_mit_shm_reply!(CreateSegment),
                 }
             }
         }
