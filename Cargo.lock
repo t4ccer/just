@@ -26,6 +26,10 @@ dependencies = [
 ]
 
 [[package]]
+name = "shared_memory"
+version = "0.1.0"
+
+[[package]]
 name = "xrandr"
 version = "0.1.0"
 dependencies = [

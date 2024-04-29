@@ -1,0 +1,8 @@
+[package]
+name = "shared_memory"
+version = "0.1.0"
+edition = "2021"
+authors = ["Tomasz Maciosowski <t4ccer@gmail.com>"]
+license = "AGPL-3.0"
+readme = "README.md"
+description = "System V shared memory utilities"
