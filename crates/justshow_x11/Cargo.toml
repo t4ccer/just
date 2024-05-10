@@ -6,5 +6,11 @@ authors = ["Tomasz Maciosowski <t4ccer@gmail.com>"]
 license = "AGPL-3.0"
 readme = "README.md"
 
+[dependencies]
+shared_memory = {path = "../shared_memory"}
+
 [[bin]]
 name = "xinfo"
+
+[[bin]]
+name = "screenshot_shm"

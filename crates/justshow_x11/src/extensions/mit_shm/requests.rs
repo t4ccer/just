@@ -145,7 +145,7 @@ pub struct GetImage {
     pub y: i16,
     pub width: u16,
     pub height: u16,
-    pub plane_mask: u32,
+    pub plane_mask: i32,
     pub format: u8,
     pub shmseg: ShmSegId,
     pub offset: u32,
@@ -155,7 +155,7 @@ impl ToLeBytes for GetImage {
     fn to_le_bytes(&self, w: &mut impl std::io::Write) -> std::io::Result<()> {
         write_le_bytes!(w, opcodes::GET_IMAGE);
         write_le_bytes!(w, 8u16); // request length
-        write_le_bytes!(w, self.drawable);
+        write_le_bytes!(w, self.drawable.value());
         write_le_bytes!(w, self.x);
         write_le_bytes!(w, self.y);
         write_le_bytes!(w, self.width);

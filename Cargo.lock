@@ -9,6 +9,9 @@ version = "0.0.1"
 [[package]]
 name = "justshow_x11"
 version = "0.1.0"
+dependencies = [
+ "shared_memory",
+]
 
 [[package]]
 name = "justshow_x11_simple"

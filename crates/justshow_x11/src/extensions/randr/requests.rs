@@ -1,6 +1,6 @@
 use crate::{
     extensions::randr::{CrtcId, Rotation, SelectMask, SizeId},
-    requests::{write_le_bytes, Timestamp, XExtensionRequest, XRequestBase},
+    requests::{write_le_bytes, Timestamp},
     ToLeBytes, WindowId,
 };
 
@@ -8,7 +8,7 @@ mod opcodes;
 
 macro_rules! impl_xrequest_with_response {
     ($r:tt) => {
-        impl XRequestBase for $r {
+        impl $crate::requests::XRequestBase for $r {
             type Reply = super::replies::$r;
 
             #[inline(always)]
@@ -19,13 +19,13 @@ macro_rules! impl_xrequest_with_response {
             }
         }
 
-        impl XExtensionRequest for $r {}
+        impl $crate::requests::XExtensionRequest for $r {}
     };
 }
 
 macro_rules! impl_xrequest_without_response {
     ($r:tt) => {
-        impl XRequestBase for $r {
+        impl $crate::requests::XRequestBase for $r {
             type Reply = $crate::requests::NoReply;
 
             #[inline(always)]
@@ -34,7 +34,7 @@ macro_rules! impl_xrequest_without_response {
             }
         }
 
-        impl XExtensionRequest for $r {}
+        impl $crate::requests::XExtensionRequest for $r {}
     };
 }
 
