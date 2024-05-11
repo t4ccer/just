@@ -1,7 +1,7 @@
 #![allow(dead_code)] // FIXME: Remove
 
 use crate::arguments::Args;
-use justshow_x11::{
+use just_x11::{
     bitmask,
     connection::{DisplayVar, XConnection},
     error::Error,

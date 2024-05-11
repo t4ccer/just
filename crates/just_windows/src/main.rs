@@ -1,5 +1,5 @@
 use crate::layout::{Layout, VerticalMasterSplit, VerticalStack};
-use justshow_x11::{
+use just_x11::{
     error::Error,
     events::EventType,
     events::SomeEvent,
@@ -8,7 +8,7 @@ use justshow_x11::{
     xerror::SomeError,
     Rectangle, WindowId, XDisplay,
 };
-use justshow_x11_simple::{keys::KeySymbols, X11Connection};
+use just_x11_simple::{keys::KeySymbols, X11Connection};
 use std::{collections::HashMap, process};
 
 mod layout;

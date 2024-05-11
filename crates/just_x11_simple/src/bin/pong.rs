@@ -1,4 +1,4 @@
-use justshow_x11::{
+use just_x11::{
     error::Error,
     events::EventType,
     events::SomeEvent,
@@ -9,7 +9,7 @@ use justshow_x11::{
     },
     Drawable, GContextId, WindowClass, WindowId, WindowVisual, XDisplay,
 };
-use justshow_x11_simple::{keys::KeySymbols, X11Connection};
+use just_x11_simple::{keys::KeySymbols, X11Connection};
 use std::{
     collections::HashMap,
     time::{Duration, SystemTime},

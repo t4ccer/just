@@ -1,4 +1,4 @@
-use justshow_x11::{
+use just_x11::{
     error::Error,
     extensions::randr,
     replies,

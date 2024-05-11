@@ -1,4 +1,4 @@
-use justshow_x11::{requests::ConfigureWindowAttributes, Rectangle, WindowId};
+use just_x11::{requests::ConfigureWindowAttributes, Rectangle, WindowId};
 
 #[derive(Debug, Clone, Copy)]
 pub struct PositionedWindow {

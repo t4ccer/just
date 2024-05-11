@@ -20,7 +20,7 @@
 //! - `xcb_is_misc_function_key` → [`KeySymbols::is_misc_function_key`]
 //! - `xcb_is_modifier_key` → [`KeySymbols::is_modifier_key`]
 
-use justshow_x11::{
+use just_x11::{
     error::Error,
     events::KeyPressRelease,
     keysym::KeySym,

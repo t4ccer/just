@@ -3,38 +3,38 @@
 version = 3
 
 [[package]]
-name = "justshow"
+name = "just"
 version = "0.0.1"
 
 [[package]]
-name = "justshow_x11"
+name = "just_shared_memory"
+version = "0.1.0"
+
+[[package]]
+name = "just_windows"
 version = "0.1.0"
 dependencies = [
- "shared_memory",
+ "just_x11",
+ "just_x11_simple",
 ]
 
 [[package]]
-name = "justshow_x11_simple"
+name = "just_x11"
 version = "0.1.0"
 dependencies = [
- "justshow_x11",
+ "just_shared_memory",
 ]
 
 [[package]]
-name = "justwindows"
+name = "just_x11_simple"
 version = "0.1.0"
 dependencies = [
- "justshow_x11",
- "justshow_x11_simple",
+ "just_x11",
 ]
 
 [[package]]
-name = "shared_memory"
-version = "0.1.0"
-
-[[package]]
-name = "xrandr"
+name = "just_xrandr"
 version = "0.1.0"
 dependencies = [
- "justshow_x11",
+ "just_x11",
 ]

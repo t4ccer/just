@@ -1,5 +1,5 @@
 [package]
-name = "justshow"
+name = "just"
 version = "0.0.1"
 edition = "2021"
 authors = ["Tomasz Maciosowski <t4ccer@gmail.com>"]
@@ -8,9 +8,9 @@ readme = "README.md"
 
 [workspace]
 members = [
-        "crates/justwindows",
-        "crates/justshow_x11",
-        "crates/justshow_x11_simple",
-        "crates/xrandr",
-        "crates/shared_memory",
+        "crates/just_windows",
+        "crates/just_x11",
+        "crates/just_x11_simple",
+        "crates/just_xrandr",
+        "crates/just_shared_memory",
 ]

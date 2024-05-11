@@ -1,7 +1,7 @@
 // `Default` is a bad idea.
 #![cfg_attr(feature = "cargo-clippy", allow(clippy::new_without_default))]
 
-use justshow_x11::{
+use just_x11::{
     atoms::AtomId,
     bitmask,
     error::Error,
@@ -73,7 +73,7 @@ impl X11Connection {
             })
     }
 
-    pub fn default_screen(&self) -> justshow_x11::Screen {
+    pub fn default_screen(&self) -> just_x11::Screen {
         self.display.screens()[0].clone()
     }
 
