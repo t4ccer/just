@@ -47,6 +47,11 @@ impl SharedMemory {
         self.id
     }
 
+    #[inline]
+    pub fn size(&self) -> u32 {
+        self.size
+    }
+
     /// Get underlying data
     /// # SAFETY
     /// - Shared memory was not free before
