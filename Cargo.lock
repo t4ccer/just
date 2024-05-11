@@ -7,6 +7,15 @@ name = "just"
 version = "0.0.1"
 
 [[package]]
+name = "just_immui"
+version = "0.1.0"
+dependencies = [
+ "just_shared_memory",
+ "just_x11",
+ "just_x11_simple",
+]
+
+[[package]]
 name = "just_shared_memory"
 version = "0.1.0"
 
