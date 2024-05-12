@@ -224,7 +224,7 @@ macro_rules! impl_xrequest_without_response {
 
 macro_rules! write_le_bytes {
     ($w:expr, $content:expr) => {
-        $w.write_all(&(($content).to_le_bytes()))?;
+        $w.write_all(&(($content).to_le_bytes()))?
     };
 }
 pub(crate) use write_le_bytes;
@@ -926,11 +926,11 @@ impl ToLeBytes for InternAtom {
     fn to_le_bytes(&self, w: &mut impl Write) -> io::Result<()> {
         let n = self.name.len();
         let p = pad(n);
-        let request_len = (2 + (n + p) / 4) as u16;
+        let request_len = 2 + (n + p) / 4;
 
         write_le_bytes!(w, opcodes::INTERN_ATOM);
         write_le_bytes!(w, self.only_if_exists as u8);
-        write_le_bytes!(w, request_len);
+        write_le_bytes!(w, request_len as u16);
         write_le_bytes!(w, n as u16);
         write_le_bytes!(w, 0u16); // unused
         w.write_all(&self.name)?;
@@ -1027,13 +1027,17 @@ impl ToLeBytes for ChangeProperty {
 
         write_le_bytes!(w, opcodes::CHANGE_PROPERTY);
         write_le_bytes!(w, self.mode);
-        write_le_bytes!(w, request_len);
+        write_le_bytes!(w, request_len as u16);
         write_le_bytes!(w, self.window);
         write_le_bytes!(w, self.property);
         write_le_bytes!(w, self.type_);
         write_le_bytes!(w, self.format);
         w.write_all(&[0u8; 3])?; // unused
-        write_le_bytes!(w, (n as u64) / (self.format as u64 / 8));
+        match self.format {
+            ChangePropertyFormat::Format8 => write_le_bytes!(w, n as u32),
+            ChangePropertyFormat::Format16 => write_le_bytes!(w, (n / 2) as u32),
+            ChangePropertyFormat::Format32 => write_le_bytes!(w, (n / 4) as u32),
+        }
         w.write_all(&self.data)?;
         w.write_all(&vec![0u8; p])?;
 
@@ -3107,7 +3111,7 @@ impl ToLeBytes for PolyFillRectangle {
 
         write_le_bytes!(w, opcodes::POLY_FILL_RECTANGLE);
         write_le_bytes!(w, 0u8); // unused
-        write_le_bytes!(w, request_length);
+        write_le_bytes!(w, request_length as u16);
         write_le_bytes!(w, self.drawable.value());
         write_le_bytes!(w, self.gc);
         for rectangle in &self.rectangles {
@@ -4583,7 +4587,7 @@ impl ToLeBytes for ChangeKeyboardControl {
 
         write_le_bytes!(w, opcodes::CHANGE_KEYBOARD_CONTROL);
         write_le_bytes!(w, 0u8); // unused
-        write_le_bytes!(w, request_length);
+        write_le_bytes!(w, request_length as u16);
         write_le_bytes!(w, bitmask);
         self.values.values.to_le_bytes_if_set(w)?;
 

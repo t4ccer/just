@@ -342,7 +342,7 @@ impl Display for String8 {
 
 impl String8 {
     #[inline(always)]
-    fn from_bytes(bytes: Vec<u8>) -> Option<Self> {
+    pub fn from_bytes(bytes: Vec<u8>) -> Option<Self> {
         // TODO: Proper ISO Latin-1 decoding
         String::from_utf8(bytes).map_or(None, |s| Some(Self(s)))
     }
