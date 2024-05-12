@@ -316,7 +316,7 @@ pub fn text_bdf<'a>(
 }
 
 #[inline]
-pub fn text_bdf_len<'a>(font: impl Fn(char) -> &'a Glyph, size: u32, text: &str) -> u32 {
+pub fn text_bdf_width<'a>(font: impl Fn(char) -> &'a Glyph, size: u32, text: &str) -> u32 {
     let mut x = 0;
     for glyph in text.chars().map(font) {
         x += size * glyph.bounding_box.width + size * 2;
@@ -328,7 +328,11 @@ fn glyph_bdf(ui: &mut Context, x: u32, y: u32, size: u32, glyph: &Glyph) {
     let padded_width = ((glyph.bounding_box.width + 7) / 8) * 8;
     let padded_height = ((glyph.bounding_box.height + 7) / 8) * 8;
 
-    let y_off = padded_height - glyph.bounding_box.height;
+    let x_off = padded_width as i32;
+    let y_off = (padded_height - glyph.bounding_box.height) as i32;
+
+    let total_x_offset = x as i32 + (x_off - glyph.bounding_box.x_off) * size as i32;
+    let total_y_offset = y as i32 + (y_off - glyph.bounding_box.y_off) * size as i32;
 
     for gy in 0u32..glyph.bounding_box.height {
         for gx in 0u32..padded_width {
@@ -338,11 +342,8 @@ fn glyph_bdf(ui: &mut Context, x: u32, y: u32, size: u32, glyph: &Glyph) {
             if has_pixel {
                 rectangle(
                     ui,
-                    ((x as i32 + padded_width as i32 * size as i32)
-                        - ((gx as i32 + glyph.bounding_box.x_off) * size as i32))
-                        as u32,
-                    (y as i32 + (gy as i32 + y_off as i32 - glyph.bounding_box.y_off) * size as i32)
-                        as u32,
+                    (total_x_offset - (gx as i32 * size as i32)) as u32,
+                    (total_y_offset + (gy as i32 * size as i32)) as u32,
                     size,
                     size,
                     Color::from_raw(0xdddddd),

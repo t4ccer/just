@@ -1,6 +1,7 @@
 use just_bdf::{Font, Glyph};
 use just_immui::{
-    background, invisible_button, rectangle, text_bdf, text_bdf_len, Button, Color, Context, Result,
+    background, invisible_button, rectangle, text_bdf, text_bdf_width, Button, Color, Context,
+    Result,
 };
 use std::collections::HashMap;
 
@@ -9,7 +10,7 @@ fn draw(ui: &mut Context, state: &mut State) {
     let get_char = |c| state.char_map.get(c);
 
     background(ui, Color::from_raw(0x222222));
-    text_bdf(ui, get_char, 50, 30, 2, "Hello, World!");
+    text_bdf(ui, get_char, 50, 30, 3, "Hello, World!");
     counter_button(ui, 50, 100, &mut state.count_left, &get_char);
 
     let right_button = counter_button(ui, 200, 100, &mut state.count_right, &get_char);
@@ -22,6 +23,7 @@ fn draw(ui: &mut Context, state: &mut State) {
 fn ui() -> Result<()> {
     // load font compile time
     let font = just_bdf::parse(include_str!("ib8x8u.bdf")).unwrap();
+
     let char_map = BdfCharMap::new(font);
 
     let mut state = State {
@@ -60,6 +62,8 @@ fn counter_button<'a>(
 
     let width = 120;
     let height = 40;
+    let font_size = 2;
+    let font_height = 8;
 
     let button = invisible_button(ui, x, y, width, height);
     if button.clicked || button.pressed {
@@ -74,8 +78,15 @@ fn counter_button<'a>(
         *state += 1;
     }
     let txt = format!("{}", *state);
-    let len = text_bdf_len(&font, 2, &txt);
-    text_bdf(ui, &font, x + (width / 2 - len / 2), width - 8, 2, &txt);
+    let text_width = text_bdf_width(&font, 2, &txt);
+    text_bdf(
+        ui,
+        &font,
+        x + (width / 2 - text_width / 2),
+        y + (height / 2 - (font_size * font_height) / 2),
+        font_size,
+        &txt,
+    );
 
     button
 }
