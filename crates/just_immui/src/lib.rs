@@ -1,4 +1,5 @@
 use crate::backend::{x11_mit_shm::X11MitShmBackend, Backend};
+use just_bdf::Glyph;
 use std::{fmt::Debug, time::Duration};
 
 mod backend;
@@ -23,22 +24,27 @@ struct BitArray<const SIZE: usize> {
 
 impl<const SIZE: usize> BitArray<SIZE> {
     #[inline]
-    fn new() -> Self {
-        Self { array: [0; SIZE] }
+    fn new(array: [u8; SIZE]) -> Self {
+        Self { array }
     }
 
     #[inline]
-    fn set(&mut self, key: u8) {
+    fn zeroed() -> Self {
+        Self::new([0; SIZE])
+    }
+
+    #[inline]
+    fn set(&mut self, key: usize) {
         self.array[(key / 8) as usize] |= 1 << (key % 8);
     }
 
     #[inline]
-    fn clear(&mut self, key: u8) {
+    fn clear(&mut self, key: usize) {
         self.array[(key / 8) as usize] &= !(1 << (key % 8));
     }
 
     #[inline]
-    fn get(&self, key: u8) -> bool {
+    fn get(&self, key: usize) -> bool {
         (self.array[(key / 8) as usize] & (1 << (key % 8))) != 0
     }
 }
@@ -59,23 +65,23 @@ impl Pointer {
         Self {
             x: 0,
             y: 0,
-            pressed_mask: ButtonMask::new(),
+            pressed_mask: ButtonMask::zeroed(),
         }
     }
 
     #[inline]
     fn set_pressed(&mut self, key: u8) {
-        self.pressed_mask.set(key);
+        self.pressed_mask.set(key as usize);
     }
 
     #[inline]
     fn set_released(&mut self, key: u8) {
-        self.pressed_mask.clear(key);
+        self.pressed_mask.clear(key as usize);
     }
 
     #[inline]
     pub fn is_pressed(&self, key: u8) -> bool {
-        self.pressed_mask.get(key)
+        self.pressed_mask.get(key as usize)
     }
 }
 
@@ -171,8 +177,8 @@ impl Context {
             // NOTE: During quick clicks pressed and released event may come in one frame
             // thus we keep track of these and release after rendering so the user code
             // can detect the click. This assumes that release event will come after press
-            let mut pressed_this_frame = ButtonMask::new();
-            let mut clicked_this_frame = ButtonMask::new();
+            let mut pressed_this_frame = ButtonMask::zeroed();
+            let mut clicked_this_frame = ButtonMask::zeroed();
 
             for event in self.backend.events()? {
                 match event {
@@ -183,12 +189,12 @@ impl Context {
                         self.backend.resize(new_width, new_height)?;
                     }
                     Event::ButtonPress { button } => {
-                        pressed_this_frame.set(button);
+                        pressed_this_frame.set(button as usize);
                         self.pointer.set_pressed(button);
                     }
                     Event::ButtonRelease { button } => {
-                        if pressed_this_frame.get(button) {
-                            clicked_this_frame.set(button);
+                        if pressed_this_frame.get(button as usize) {
+                            clicked_this_frame.set(button as usize);
                         } else {
                             self.pointer.set_released(button);
                         }
@@ -204,7 +210,7 @@ impl Context {
             self.flush()?;
 
             for n in 0..u8::MAX {
-                if clicked_this_frame.get(n) {
+                if clicked_this_frame.get(n as usize) {
                     self.pointer.set_released(n);
                 }
             }
@@ -224,23 +230,6 @@ impl Context {
     #[inline]
     pub fn size(&self) -> (u32, u32) {
         self.backend.size()
-    }
-
-    #[inline]
-    pub fn background(&mut self, color: Color) {
-        let (width, height) = self.size();
-        self.rectangle(0, 0, width, height, color)
-    }
-
-    #[inline]
-    pub fn rectangle(&mut self, x: u32, y: u32, width: u32, height: u32, color: Color) {
-        let (window_width, window_height) = self.size();
-
-        for cy in y..(y + height).clamp(0, window_height) {
-            for cx in x..(x + width).clamp(0, window_width) {
-                self.backend.draw_pixel(cx, cy, color);
-            }
-        }
     }
 
     pub fn flush(&mut self) -> Result<()> {
@@ -275,5 +264,137 @@ impl Color {
     pub fn from_raw(raw: u32) -> Self {
         let [a, r, g, b] = raw.to_be_bytes();
         Self { a, r, g, b }
+    }
+}
+
+#[inline]
+pub fn background(ui: &mut Context, color: Color) {
+    let (width, height) = ui.size();
+    rectangle(ui, 0, 0, width, height, color)
+}
+
+#[inline]
+pub fn rectangle(ui: &mut Context, x: u32, y: u32, width: u32, height: u32, color: Color) {
+    let (window_width, window_height) = ui.size();
+
+    for cy in y..(y + height).clamp(0, window_height) {
+        for cx in x..(x + width).clamp(0, window_width) {
+            ui.backend.draw_pixel(cx, cy, color);
+        }
+    }
+}
+
+// TODO: Colour
+
+#[inline]
+pub fn text_bdf<'a>(
+    ui: &mut Context,
+    font: impl Fn(char) -> &'a Glyph,
+    mut x: u32,
+    y: u32,
+    size: u32,
+    text: &str,
+) {
+    for glyph in text.chars().map(font) {
+        glyph_bdf(ui, x, y, size, glyph);
+        x += size * glyph.bounding_box.width + size * 2;
+    }
+}
+
+#[inline]
+pub fn text_bdf_len<'a>(font: impl Fn(char) -> &'a Glyph, size: u32, text: &str) -> u32 {
+    let mut x = 0;
+    for glyph in text.chars().map(font) {
+        x += size * glyph.bounding_box.width + size * 2;
+    }
+    x
+}
+
+fn glyph_bdf(ui: &mut Context, x: u32, y: u32, size: u32, glyph: &Glyph) {
+    let padded_width = ((glyph.bounding_box.width + 7) / 8) * 8;
+    let padded_height = ((glyph.bounding_box.height + 7) / 8) * 8;
+
+    let y_off = padded_height - glyph.bounding_box.height;
+
+    for gy in 0u32..glyph.bounding_box.height {
+        for gx in 0u32..padded_width {
+            let n = gy * padded_width + gx;
+            let has_pixel = (glyph.bitmap[(n / 8) as usize] & (1 << (n % 8))) != 0;
+
+            if has_pixel {
+                rectangle(
+                    ui,
+                    ((x as i32 + padded_width as i32 * size as i32)
+                        - ((gx as i32 + glyph.bounding_box.x_off) * size as i32))
+                        as u32,
+                    (y as i32 + (gy as i32 + y_off as i32 - glyph.bounding_box.y_off) * size as i32)
+                        as u32,
+                    size,
+                    size,
+                    Color::from_raw(0xdddddd),
+                );
+            }
+        }
+    }
+}
+
+pub struct Button {
+    pub clicked: bool,
+    pub pressed: bool,
+    pub active: bool,
+}
+
+pub fn invisible_button(ui: &mut Context, x: u32, y: u32, width: u32, height: u32) -> Button {
+    let button_id = ui.next_id();
+
+    if ui.pointer().x >= x
+        && ui.pointer().x <= width + x
+        && ui.pointer().y >= y
+        && ui.pointer().y <= height + y
+    {
+        if !ui.pointer().is_pressed(1) {
+            ui.make_hot(button_id);
+        }
+
+        if ui.is_active(button_id) {
+            if !ui.pointer().is_pressed(1) {
+                ui.make_inactive(button_id);
+
+                Button {
+                    clicked: true,
+                    pressed: false,
+                    active: true,
+                }
+            } else {
+                Button {
+                    clicked: false,
+                    pressed: true,
+                    active: true,
+                }
+            }
+        } else if ui.is_hot(button_id) {
+            if ui.pointer().is_pressed(1) {
+                ui.make_active(button_id);
+            }
+
+            Button {
+                clicked: false,
+                pressed: false,
+                active: true,
+            }
+        } else {
+            Button {
+                clicked: false,
+                pressed: false,
+                active: false,
+            }
+        }
+    } else {
+        ui.make_inactive(button_id);
+        Button {
+            clicked: false,
+            pressed: false,
+            active: false,
+        }
     }
 }
