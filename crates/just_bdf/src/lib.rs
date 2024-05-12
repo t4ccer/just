@@ -107,3 +107,47 @@ pub fn parse(input: &str) -> Result<Font, ParserError> {
     let parser = parser::Parser::new(lexer);
     parser.parse()
 }
+
+#[test]
+fn wikipedia_example() {
+    // From https://en.wikipedia.org/wiki/Glyph_Bitmap_Distribution_Format#Example
+    let unparsed_font = r#"
+STARTFONT 2.1
+FONT -gnu-unifont-medium-r-normal--16-160-75-75-c-80-iso10646-1
+SIZE 16 75 75
+FONTBOUNDINGBOX 16 16 0 -2
+STARTPROPERTIES 2
+FONT_ASCENT 14
+FONT_DESCENT 2
+ENDPROPERTIES
+CHARS 1
+STARTCHAR U+0041
+ENCODING 65
+SWIDTH 500 0
+DWIDTH 8 0
+BBX 8 16 0 -2
+BITMAP
+00
+00
+00
+00
+18
+24
+24
+42
+42
+7E
+42
+42
+42
+42
+00
+00
+ENDCHAR
+ENDFONT
+"#;
+
+    let font = parse(unparsed_font).expect("Could not parse font file");
+    assert_eq!(font.version, Number::Float(2.1));
+    assert_eq!(font.glyphs.len(), 1);
+}
