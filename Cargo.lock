@@ -7,6 +7,10 @@ name = "just"
 version = "0.0.1"
 
 [[package]]
+name = "just_bdf"
+version = "0.1.0"
+
+[[package]]
 name = "just_immui"
 version = "0.1.0"
 dependencies = [

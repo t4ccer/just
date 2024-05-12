@@ -8,6 +8,7 @@ readme = "README.md"
 
 [workspace]
 members = [
+        "crates/just_bdf",
         "crates/just_immui",
         "crates/just_shared_memory",
         "crates/just_windows",
