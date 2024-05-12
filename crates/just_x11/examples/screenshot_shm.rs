@@ -96,7 +96,7 @@ fn go() -> Result<(), Error> {
 
     // NOTE: This is not 100% correct, should compute bytes per scanline using pixmap_format
     let size = geometry.width as u32 * geometry.height as u32 * (bits_per_pixel(depth) as u32 / 8);
-    let shm = just_shared_memory::SharedMemory::zeroed(dbg!(size));
+    let shm = just_shared_memory::SharedMemory::zeroed(size);
 
     let shmseg = ShmSegId::from(display.id_allocator().allocate_id());
 
