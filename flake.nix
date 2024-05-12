@@ -84,7 +84,7 @@
             name = "justwindows";
 
             src = builtins.filterSource (path: type: !(lib.hasSuffix ".nix" path)) ./.;
-            buildAndTestSubdir = "crates/justwindows";
+            buildAndTestSubdir = "crates/just_windows";
 
             cargoLock.lockFile = ./Cargo.lock;
           };
