@@ -257,6 +257,15 @@ where
                     self.bitmap_mode = true;
                 }
 
+                if ident == "COMMENT" {
+                    while let Some(c) = self.next_char() {
+                        if c.value == '\n' {
+                            break;
+                        }
+                    }
+                    return self.next();
+                }
+
                 Some(Spanned {
                     span: Span {
                         start: start.location,
