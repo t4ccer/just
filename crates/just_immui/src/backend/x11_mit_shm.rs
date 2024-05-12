@@ -1,4 +1,4 @@
-use crate::{backend::Backend, Color, Event, Result};
+use crate::{backend::Backend, Event, Result, BYTES_PER_PIXEL};
 use just_shared_memory::SharedMemory;
 use just_x11::{
     events::EventType,
@@ -13,8 +13,6 @@ struct MitShmCanvas {
     height: u32,
     shmseg: ShmSegId,
 }
-
-const BYTES_PER_PIXEL: u32 = 4;
 
 impl MitShmCanvas {
     fn new(width: u32, height: u32, shmseg: ShmSegId) -> Self {
@@ -108,14 +106,6 @@ impl Backend for X11MitShmBackend {
             window,
             gc,
         })
-    }
-
-    fn draw_pixel(&mut self, x: u32, y: u32, color: Color) {
-        let offset = (self.canvas.width * y + x) as usize * BYTES_PER_PIXEL as usize;
-        let buf = self.canvas.mem_mut();
-        buf[offset + 0] = color.b;
-        buf[offset + 1] = color.g;
-        buf[offset + 2] = color.r;
     }
 
     fn flush_window(&mut self) -> Result<()> {
@@ -250,6 +240,10 @@ impl Backend for X11MitShmBackend {
 
     fn size(&self) -> (u32, u32) {
         (self.canvas.width, self.canvas.height)
+    }
+
+    fn buf_mut(&mut self) -> &mut [u8] {
+        self.canvas.mem_mut()
     }
 }
 

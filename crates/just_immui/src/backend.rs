@@ -1,4 +1,4 @@
-use crate::{Color, Event, Result};
+use crate::{Event, Result};
 
 pub(crate) mod x11_mit_shm;
 
@@ -7,8 +7,6 @@ pub(crate) trait Backend {
     where
         Self: Sized;
 
-    fn draw_pixel(&mut self, x: u32, y: u32, color: Color);
-
     fn flush_window(&mut self) -> Result<()>;
 
     fn events(&mut self) -> Result<Vec<Event>>;
@@ -16,4 +14,6 @@ pub(crate) trait Backend {
     fn resize(&mut self, new_width: u32, new_height: u32) -> Result<()>;
 
     fn size(&self) -> (u32, u32);
+
+    fn buf_mut(&mut self) -> &mut [u8];
 }

@@ -4,6 +4,8 @@ use std::{fmt::Debug, time::Duration};
 
 mod backend;
 
+const BYTES_PER_PIXEL: u32 = 4;
+
 #[derive(Debug)]
 pub enum ImmUiError {
     X11ProtocolError(just_x11::error::Error),
@@ -97,6 +99,7 @@ pub struct Context {
 }
 
 impl Context {
+    #[inline]
     pub fn new(title: &str) -> Result<Self> {
         let backend = X11MitShmBackend::new(title)?;
         Ok(Self {
@@ -109,12 +112,14 @@ impl Context {
     }
 
     // TODO: Remove. This will break in conditional rendering
+    #[inline]
     pub fn next_id(&mut self) -> UiId {
         let res = self.next_id;
         self.next_id += 1;
         UiId(res)
     }
 
+    #[inline]
     pub fn make_inactive(&mut self, id: UiId) {
         match self.hot {
             Some(hot) if hot == id => {
@@ -131,6 +136,7 @@ impl Context {
         }
     }
 
+    #[inline]
     pub fn make_hot(&mut self, id: UiId) {
         match self.hot {
             None => {
@@ -140,6 +146,7 @@ impl Context {
         }
     }
 
+    #[inline]
     pub fn make_active(&mut self, id: UiId) {
         match self.hot {
             Some(hot) if hot == id => {
@@ -149,14 +156,17 @@ impl Context {
         }
     }
 
+    #[inline]
     pub fn is_hot(&self, id: UiId) -> bool {
         self.hot.is_some_and(|hot| hot == id)
     }
 
+    #[inline]
     pub fn is_active(&self, id: UiId) -> bool {
         self.active.is_some_and(|active| active == id)
     }
 
+    #[inline]
     fn should_close_window(&self) -> bool {
         false
     }
@@ -166,7 +176,6 @@ impl Context {
         &self.pointer
     }
 
-    #[inline]
     pub fn fps_limited_loop<F>(&mut self, fps: u64, mut draw: F) -> Result<()>
     where
         F: FnMut(&mut Self),
@@ -232,6 +241,7 @@ impl Context {
         self.backend.size()
     }
 
+    #[inline]
     pub fn flush(&mut self) -> Result<()> {
         self.backend.flush_window()
     }
@@ -276,10 +286,14 @@ pub fn background(ui: &mut Context, color: Color) {
 #[inline]
 pub fn rectangle(ui: &mut Context, x: u32, y: u32, width: u32, height: u32, color: Color) {
     let (window_width, window_height) = ui.size();
+    let buf = ui.backend.buf_mut();
 
     for cy in y..(y + height).clamp(0, window_height) {
         for cx in x..(x + width).clamp(0, window_width) {
-            ui.backend.draw_pixel(cx, cy, color);
+            let offset = (window_width * cy + cx) as usize * BYTES_PER_PIXEL as usize;
+            buf[offset + 0] = color.b;
+            buf[offset + 1] = color.g;
+            buf[offset + 2] = color.r;
         }
     }
 }
