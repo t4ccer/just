@@ -1,8 +1,10 @@
 use crate::{backend::Backend, Event, Result, BYTES_PER_PIXEL};
 use just_shared_memory::SharedMemory;
 use just_x11::{
+    atoms::AtomId,
     events::EventType,
     extensions::mit_shm::{self, ShmSegId},
+    replies::String8,
     requests::{GContextSettings, WindowCreationAttributes},
     Drawable, GContextId, WindowClass, WindowId, WindowVisual, XDisplay,
 };
@@ -37,6 +39,7 @@ pub(crate) struct X11MitShmBackend {
     canvas: MitShmCanvas,
     window: WindowId,
     gc: GContextId,
+    wm_delete_window: AtomId,
 }
 
 impl Backend for X11MitShmBackend {
@@ -99,12 +102,42 @@ impl Backend for X11MitShmBackend {
         display.send_request(&requests::MapWindow { window })?;
         display.flush()?;
 
+        let wm_protocols = {
+            let pending = display.send_request(&requests::InternAtom {
+                only_if_exists: false,
+                name: String8::from_bytes(b"WM_PROTOCOLS".to_vec()).unwrap(),
+            })?;
+            display.flush()?;
+            display.await_pending_reply(pending)?.unwrap().atom
+        };
+
+        let wm_delete_window = {
+            let pending = display.send_request(&requests::InternAtom {
+                only_if_exists: false,
+                name: String8::from_bytes(b"WM_DELETE_WINDOW".to_vec()).unwrap(),
+            })?;
+            display.flush()?;
+            display.await_pending_reply(pending)?.unwrap().atom
+        };
+
+        display.send_request(&requests::ChangeProperty {
+            mode: requests::ChangePropertyMode::Replace,
+            window,
+            property: wm_protocols,
+            type_: AtomId::ATOM,
+            format: requests::ChangePropertyFormat::Format32,
+            data: wm_delete_window.to_le_bytes().to_vec(),
+        })?;
+
+        display.flush()?;
+
         Ok(Self {
             display,
             mit_shm_major_opcode,
             canvas,
             window,
             gc,
+            wm_delete_window,
         })
     }
 
@@ -204,6 +237,17 @@ impl Backend for X11MitShmBackend {
                         });
                     }
                 }
+                SomeEvent::ClientMessage(event) => {
+                    let val = u32::from_le_bytes([
+                        event.data[0],
+                        event.data[1],
+                        event.data[2],
+                        event.data[3],
+                    ]);
+                    if val == self.wm_delete_window.into() {
+                        events.push(Event::Shutdown);
+                    }
+                }
                 _event => {}
             }
         }
@@ -267,5 +311,3 @@ impl X11MitShmBackend {
         Ok(new_canvas)
     }
 }
-
-// TODO: Detect closing by WM

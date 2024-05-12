@@ -167,11 +167,6 @@ impl Context {
     }
 
     #[inline]
-    fn should_close_window(&self) -> bool {
-        false
-    }
-
-    #[inline]
     pub fn pointer(&self) -> &Pointer {
         &self.pointer
     }
@@ -180,7 +175,8 @@ impl Context {
     where
         F: FnMut(&mut Self),
     {
-        while !self.should_close_window() {
+        let mut should_close = false;
+        while !should_close {
             let frame_start = std::time::Instant::now();
 
             // NOTE: During quick clicks pressed and released event may come in one frame
@@ -211,6 +207,9 @@ impl Context {
                     Event::PointerMotion { x, y } => {
                         self.pointer.x = x;
                         self.pointer.y = y;
+                    }
+                    Event::Shutdown => {
+                        should_close = true;
                     }
                 }
             }
@@ -255,6 +254,7 @@ pub(crate) enum Event {
     ButtonPress { button: u8 },
     ButtonRelease { button: u8 },
     PointerMotion { x: u32, y: u32 },
+    Shutdown,
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -314,6 +314,8 @@ pub fn text_bdf<'a>(
         x += size * glyph.bounding_box.width + size * 2;
     }
 }
+
+// TODO: text_bdf_bounding_box
 
 #[inline]
 pub fn text_bdf_width<'a>(font: impl Fn(char) -> &'a Glyph, size: u32, text: &str) -> u32 {
