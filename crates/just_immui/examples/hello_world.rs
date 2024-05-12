@@ -83,20 +83,29 @@ fn counter_button<'a>(
 // ad-hoc font handling, will be moved _somewhere_
 
 struct BdfCharMap {
-    map: HashMap<u32, Glyph>,
-    default: Glyph,
+    glyphs: Vec<Glyph>,
+    ascii: [usize; 128],
+    map: HashMap<u32, usize>,
+    default: usize,
 }
 
 impl BdfCharMap {
     pub fn new(font: Font) -> Self {
+        let default = font.glyphs.len() - 1;
         let mut char_map = BdfCharMap {
+            glyphs: font.glyphs,
             map: HashMap::new(),
-            default: font.glyphs.last().unwrap().clone(),
+            ascii: [default; 128],
+            default,
         };
-        for g in font.glyphs {
+
+        for (idx, g) in char_map.glyphs.iter().enumerate() {
             match g.encoding {
                 just_bdf::Encoding::AdobeStandard(enc) => {
-                    char_map.map.insert(enc, g);
+                    if enc < 128 {
+                        char_map.ascii[enc as usize] = idx;
+                    }
+                    char_map.map.insert(enc, idx);
                 }
                 _ => {}
             }
@@ -105,6 +114,12 @@ impl BdfCharMap {
     }
 
     pub fn get(&self, c: char) -> &Glyph {
-        self.map.get(&(c as u32)).unwrap_or(&self.default)
+        let k = c as u32;
+        if k < 128 {
+            &self.glyphs[self.ascii[k as usize]]
+        } else {
+            let idx = self.map.get(&k).unwrap_or(&self.default);
+            &self.glyphs[*idx]
+        }
     }
 }
