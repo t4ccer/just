@@ -8,3 +8,7 @@ just_x11 = {path = "../just_x11"}
 just_x11_simple = {path = "../just_x11_simple"}
 just_shared_memory = {path = "../just_shared_memory"}
 just_bdf = {path="../just_bdf"}
+
+[[example]]
+name = "hello_world"
+path = "examples/hello_world.rs"
