@@ -9,6 +9,8 @@ use just_x11::{
     Drawable, GContextId, WindowClass, WindowId, WindowVisual, XDisplay,
 };
 
+// TODO: This should use double buffering
+
 struct MitShmCanvas {
     mem: SharedMemory,
     width: u32,
@@ -43,7 +45,9 @@ pub(crate) struct X11MitShmBackend {
 }
 
 impl Backend for X11MitShmBackend {
-    fn new(_title: &str) -> Result<Self> {
+    fn new(title: &str) -> Result<Self> {
+        // TODO: Handle title, see XStoreName
+
         use just_x11::requests;
 
         let mut display = XDisplay::open()?;

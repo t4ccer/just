@@ -1,8 +1,8 @@
 use crate::backend::{x11_mit_shm::X11MitShmBackend, Backend};
-use just_bdf::Glyph;
 use std::{fmt::Debug, time::Duration};
 
 mod backend;
+pub mod draw;
 
 const BYTES_PER_PIXEL: u32 = 4;
 
@@ -91,7 +91,7 @@ impl Pointer {
 pub struct UiId(u32);
 
 pub struct Context {
-    backend: Box<dyn Backend>,
+    pub(crate) backend: Box<dyn Backend>,
     pointer: Pointer,
     next_id: u32,
     hot: Option<UiId>,
@@ -236,7 +236,7 @@ impl Context {
     }
 
     #[inline]
-    pub fn size(&self) -> (u32, u32) {
+    pub fn window_size(&self) -> (u32, u32) {
         self.backend.size()
     }
 
@@ -266,152 +266,13 @@ pub struct Color {
 }
 
 impl Color {
-    pub fn from_components(a: u8, r: u8, g: u8, b: u8) -> Self {
+    pub const fn from_components(a: u8, r: u8, g: u8, b: u8) -> Self {
         Self { a, r, g, b }
     }
 
     /// AARRGGBB
-    pub fn from_raw(raw: u32) -> Self {
+    pub const fn from_raw(raw: u32) -> Self {
         let [a, r, g, b] = raw.to_be_bytes();
         Self { a, r, g, b }
-    }
-}
-
-#[inline]
-pub fn background(ui: &mut Context, color: Color) {
-    let (width, height) = ui.size();
-    rectangle(ui, 0, 0, width, height, color)
-}
-
-#[inline]
-pub fn rectangle(ui: &mut Context, x: u32, y: u32, width: u32, height: u32, color: Color) {
-    let (window_width, window_height) = ui.size();
-    let buf = ui.backend.buf_mut();
-
-    for cy in y..(y + height).clamp(0, window_height) {
-        for cx in x..(x + width).clamp(0, window_width) {
-            let offset = (window_width * cy + cx) as usize * BYTES_PER_PIXEL as usize;
-            buf[offset + 0] = color.b;
-            buf[offset + 1] = color.g;
-            buf[offset + 2] = color.r;
-        }
-    }
-}
-
-// TODO: Colour
-
-#[inline]
-pub fn text_bdf<'a>(
-    ui: &mut Context,
-    font: impl Fn(char) -> &'a Glyph,
-    mut x: u32,
-    y: u32,
-    size: u32,
-    text: &str,
-) {
-    for glyph in text.chars().map(font) {
-        glyph_bdf(ui, x, y, size, glyph);
-        x += size * glyph.bounding_box.width + size * 2;
-    }
-}
-
-// TODO: text_bdf_bounding_box
-
-#[inline]
-pub fn text_bdf_width<'a>(font: impl Fn(char) -> &'a Glyph, size: u32, text: &str) -> u32 {
-    let mut x = 0;
-    for glyph in text.chars().map(font) {
-        x += size * glyph.bounding_box.width + size * 2;
-    }
-    x
-}
-
-fn glyph_bdf(ui: &mut Context, x: u32, y: u32, size: u32, glyph: &Glyph) {
-    let padded_width = ((glyph.bounding_box.width + 7) / 8) * 8;
-    let padded_height = ((glyph.bounding_box.height + 7) / 8) * 8;
-
-    let x_off = padded_width as i32;
-    let y_off = (padded_height - glyph.bounding_box.height) as i32;
-
-    let total_x_offset = x as i32 + (x_off - glyph.bounding_box.x_off) * size as i32;
-    let total_y_offset = y as i32 + (y_off - glyph.bounding_box.y_off) * size as i32;
-
-    for gy in 0u32..glyph.bounding_box.height {
-        for gx in 0u32..padded_width {
-            let n = gy * padded_width + gx;
-            let has_pixel = (glyph.bitmap[(n / 8) as usize] & (1 << (n % 8))) != 0;
-
-            if has_pixel {
-                rectangle(
-                    ui,
-                    (total_x_offset - (gx as i32 * size as i32)) as u32,
-                    (total_y_offset + (gy as i32 * size as i32)) as u32,
-                    size,
-                    size,
-                    Color::from_raw(0xdddddd),
-                );
-            }
-        }
-    }
-}
-
-pub struct Button {
-    pub clicked: bool,
-    pub pressed: bool,
-    pub active: bool,
-}
-
-pub fn invisible_button(ui: &mut Context, x: u32, y: u32, width: u32, height: u32) -> Button {
-    let button_id = ui.next_id();
-
-    if ui.pointer().x >= x
-        && ui.pointer().x <= width + x
-        && ui.pointer().y >= y
-        && ui.pointer().y <= height + y
-    {
-        if !ui.pointer().is_pressed(1) {
-            ui.make_hot(button_id);
-        }
-
-        if ui.is_active(button_id) {
-            if !ui.pointer().is_pressed(1) {
-                ui.make_inactive(button_id);
-
-                Button {
-                    clicked: true,
-                    pressed: false,
-                    active: true,
-                }
-            } else {
-                Button {
-                    clicked: false,
-                    pressed: true,
-                    active: true,
-                }
-            }
-        } else if ui.is_hot(button_id) {
-            if ui.pointer().is_pressed(1) {
-                ui.make_active(button_id);
-            }
-
-            Button {
-                clicked: false,
-                pressed: false,
-                active: true,
-            }
-        } else {
-            Button {
-                clicked: false,
-                pressed: false,
-                active: false,
-            }
-        }
-    } else {
-        ui.make_inactive(button_id);
-        Button {
-            clicked: false,
-            pressed: false,
-            active: false,
-        }
     }
 }
