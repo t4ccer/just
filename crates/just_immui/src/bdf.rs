@@ -25,14 +25,11 @@ impl BdfCharMap {
         };
 
         for (idx, g) in char_map.glyphs.iter().enumerate() {
-            match g.encoding {
-                just_bdf::Encoding::AdobeStandard(enc) => {
-                    if enc < 128 {
-                        char_map.ascii[enc as usize] = idx;
-                    }
-                    char_map.map.insert(enc, idx);
+            if let just_bdf::Encoding::AdobeStandard(enc) = g.encoding {
+                if enc < 128 {
+                    char_map.ascii[enc as usize] = idx;
                 }
-                _ => {}
+                char_map.map.insert(enc, idx);
             }
         }
         char_map

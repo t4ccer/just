@@ -1,3 +1,10 @@
+// CLIPPY CONFIG
+#![allow(
+    clippy::new_without_default,
+    clippy::unnecessary_cast,
+    clippy::identity_op
+)]
+
 use just_canvas::{draw::inside_rectangle, Color, Result, Vector2};
 use just_immui::{invisible_button, Button, Ui, UiId};
 
@@ -61,7 +68,7 @@ fn main() {
 }
 
 /// Button with click counter - custom widget composed from simpler ones
-fn counter_button<'a>(ui: &mut Ui, id: UiId, position: Vector2<u32>, state: &mut u32) -> Button {
+fn counter_button(ui: &mut Ui, id: UiId, position: Vector2<u32>, state: &mut u32) -> Button {
     let inactive_color = Color::from_raw(0xf92672);
     let hot_color = Color::from_raw(0x4eb4fa);
     let active_color = Color::from_raw(0xa7e22e);

@@ -1,3 +1,10 @@
+// CLIPPY CONFIG
+#![allow(
+    clippy::new_without_default,
+    clippy::unnecessary_cast,
+    clippy::identity_op
+)]
+
 use bdf::BdfCharMap;
 use just_canvas::{draw, Canvas, Color, Pointer, Result, Vector2};
 use std::{cmp, time::Duration};
@@ -424,12 +431,10 @@ pub fn invisible_draggable(
                 false
             }
         }
+    } else if ui.is_active(id) && is_mouse_pressed {
+        true
     } else {
-        if ui.is_active(id) && is_mouse_pressed {
-            true
-        } else {
-            ui.make_inactive(id);
-            false
-        }
+        ui.make_inactive(id);
+        false
     }
 }
