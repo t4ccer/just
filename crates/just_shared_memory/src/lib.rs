@@ -1,3 +1,10 @@
+// CLIPPY CONFIG
+#![allow(
+    clippy::new_without_default,
+    clippy::unnecessary_cast,
+    clippy::identity_op
+)]
+//
 #![no_std]
 use core::slice;
 
@@ -34,11 +41,11 @@ impl SharedMemory {
             let id = shmutils_create(size);
             let data = shmutils_get_ptr(id);
             data.write_bytes(0, size as usize);
-            return Self {
+            Self {
                 size,
                 id: SharedMemoryId(id),
                 data,
-            };
+            }
         }
     }
 
@@ -53,7 +60,8 @@ impl SharedMemory {
     }
 
     /// Get underlying data
-    /// # SAFETY
+    ///
+    /// # Safety
     /// - Shared memory was not free before
     #[inline(always)]
     pub unsafe fn data(&self) -> &[u8] {
@@ -61,7 +69,8 @@ impl SharedMemory {
     }
 
     /// Get underlying data
-    /// # SAFETY
+    ///
+    /// # Safety
     /// - Shared memory was not free before
     #[inline(always)]
     pub unsafe fn data_mut(&mut self) -> &mut [u8] {
@@ -75,7 +84,8 @@ impl SharedMemory {
     }
 
     /// Free shared memory
-    /// # SAFETY
+    ///
+    /// # Safety
     /// - Shared memory was not free before
     /// - No one else is reading shared memory
     #[inline(always)]
