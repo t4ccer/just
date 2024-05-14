@@ -1,8 +1,9 @@
-use crate::{Color, Context, UiId, Vector2, BYTES_PER_PIXEL};
+use crate::{Ui, UiId};
 use just_bdf::Glyph;
+use just_canvas::{Canvas, Color, Vector2, BYTES_PER_PIXEL};
 
 #[inline]
-pub fn background(ui: &mut Context, color: Color) {
+pub fn background(ui: &mut Canvas, color: Color) {
     let window_size = ui.window_size();
     rectangle(ui, Vector2 { x: 0, y: 0 }, window_size, color)
 }
@@ -27,9 +28,9 @@ pub fn set_pixel(buf: &mut [u8], window_size: Vector2<u32>, x: u32, y: u32, colo
 }
 
 #[inline]
-pub fn rectangle(ui: &mut Context, position: Vector2<u32>, size: Vector2<u32>, color: Color) {
+pub fn rectangle(ui: &mut Canvas, position: Vector2<u32>, size: Vector2<u32>, color: Color) {
     let window_size = ui.window_size();
-    let buf = ui.backend.buf_mut();
+    let buf = ui.raw_buf();
 
     for cy in position.y..(position.y + size.y).clamp(0, window_size.y) {
         for cx in position.x..(position.x + size.x).clamp(0, window_size.x) {
@@ -59,9 +60,9 @@ pub fn inside_rectangle(position: Vector2<u32>, size: Vector2<u32>, point: Vecto
 }
 
 #[inline]
-pub fn circle(ui: &mut Context, center: Vector2<u32>, r: u32, color: Color) {
+pub fn circle(ui: &mut Canvas, center: Vector2<u32>, r: u32, color: Color) {
     let window_size = ui.window_size();
-    let buf = ui.backend.buf_mut();
+    let buf = ui.raw_buf();
 
     let x = center.x.saturating_sub(r);
     let y = center.y.saturating_sub(r);
@@ -165,9 +166,9 @@ impl Iterator for LineIter {
 }
 
 #[inline]
-pub fn thin_line(ui: &mut Context, start: Vector2<u32>, end: Vector2<u32>, color: Color) {
+pub fn thin_line(ui: &mut Canvas, start: Vector2<u32>, end: Vector2<u32>, color: Color) {
     let window_size = ui.window_size();
-    let buf = ui.backend.buf_mut();
+    let buf = ui.raw_buf();
 
     for (x, y) in LineIter::new(start, end) {
         if y >= window_size.y || x >= window_size.x {
@@ -179,9 +180,9 @@ pub fn thin_line(ui: &mut Context, start: Vector2<u32>, end: Vector2<u32>, color
 }
 
 #[inline]
-pub fn thin_dashed_line(ui: &mut Context, start: Vector2<u32>, end: Vector2<u32>, color: Color) {
+pub fn thin_dashed_line(ui: &mut Canvas, start: Vector2<u32>, end: Vector2<u32>, color: Color) {
     let window_size = ui.window_size();
-    let buf = ui.backend.buf_mut();
+    let buf = ui.raw_buf();
 
     // chosen arbitrarily
     let dash_length: u32 = 10;
@@ -207,7 +208,7 @@ pub fn thin_dashed_line(ui: &mut Context, start: Vector2<u32>, end: Vector2<u32>
 
 #[inline]
 pub fn text_bdf<'a>(
-    ui: &mut Context,
+    ui: &mut Canvas,
     font: impl Fn(char) -> &'a Glyph,
     mut position: Vector2<u32>,
     size: u32,
@@ -230,7 +231,7 @@ pub fn text_bdf_width<'a>(font: impl Fn(char) -> &'a Glyph, size: u32, text: &st
     x
 }
 
-fn glyph_bdf(ui: &mut Context, position: Vector2<u32>, size: u32, glyph: &Glyph) {
+fn glyph_bdf(ui: &mut Canvas, position: Vector2<u32>, size: u32, glyph: &Glyph) {
     let padded_width = ((glyph.bounding_box.width + 7) / 8) * 8;
     let padded_height = ((glyph.bounding_box.height + 7) / 8) * 8;
 
@@ -267,7 +268,7 @@ pub struct Button {
 }
 
 pub fn invisible_button(
-    ui: &mut Context,
+    ui: &mut Ui,
     button_id: UiId,
     in_bounds: impl FnOnce(Vector2<u32>) -> bool,
 ) -> Button {
@@ -320,7 +321,7 @@ pub fn invisible_button(
 }
 
 pub fn invisible_draggable(
-    ui: &mut Context,
+    ui: &mut Ui,
     draggable_id: UiId,
     in_bounds: impl FnOnce(Vector2<u32>) -> bool,
 ) -> bool {

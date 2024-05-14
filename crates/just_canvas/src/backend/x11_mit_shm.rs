@@ -1,4 +1,5 @@
-use crate::{backend::Backend, Event, Result, BYTES_PER_PIXEL};
+use crate::{backend::Backend, Event, Result, Vector2, BYTES_PER_PIXEL};
+use core::cmp;
 use just_shared_memory::SharedMemory;
 use just_x11::{
     atoms::AtomId,
@@ -13,23 +14,19 @@ use just_x11::{
 
 struct MitShmCanvas {
     mem: SharedMemory,
-    width: u32,
-    height: u32,
+    size: Vector2<u32>,
     shmseg: ShmSegId,
 }
 
 impl MitShmCanvas {
-    fn new(width: u32, height: u32, shmseg: ShmSegId) -> Self {
-        let mem = SharedMemory::zeroed(width * height * BYTES_PER_PIXEL);
+    #[inline]
+    fn new(size: Vector2<u32>, shmseg: ShmSegId) -> Self {
+        let mem = SharedMemory::zeroed(size.x * size.y * BYTES_PER_PIXEL);
 
-        Self {
-            mem,
-            width,
-            height,
-            shmseg,
-        }
+        Self { mem, size, shmseg }
     }
 
+    #[inline]
     fn mem_mut(&mut self) -> &mut [u8] {
         unsafe { self.mem.data_mut() }
     }
@@ -64,7 +61,8 @@ impl X11MitShmBackend {
 
         let mit_shm_major_opcode = mit_shm.major_opcode;
 
-        let canvas = Self::attach_new_shm_seg(&mut display, mit_shm_major_opcode, 800, 600)?;
+        let canvas_size = Vector2 { x: 800, y: 600 };
+        let canvas = Self::attach_new_shm_seg(&mut display, mit_shm_major_opcode, canvas_size)?;
 
         let window = {
             let window_id = WindowId::from(display.id_allocator().allocate_id());
@@ -152,12 +150,12 @@ impl Backend for X11MitShmBackend {
             &mit_shm::requests::PutImage {
                 drawable: Drawable::Window(self.window),
                 gc: self.gc,
-                total_width: self.canvas.width as u16,
-                total_height: self.canvas.height as u16,
+                total_width: self.canvas.size.x as u16,
+                total_height: self.canvas.size.y as u16,
                 src_x: 0,
                 src_y: 0,
-                src_width: self.canvas.width as u16,
-                src_height: self.canvas.height as u16,
+                src_width: self.canvas.size.x as u16,
+                src_height: self.canvas.size.y as u16,
                 dst_x: 0,
                 dst_y: 0,
                 depth: 24,
@@ -183,8 +181,8 @@ impl Backend for X11MitShmBackend {
                     0
                 } else {
                     let res = $original as u32;
-                    if res > self.canvas.width {
-                        self.canvas.width
+                    if res > self.canvas.size.x {
+                        self.canvas.size.x
                     } else {
                         res
                     }
@@ -198,8 +196,8 @@ impl Backend for X11MitShmBackend {
                     0
                 } else {
                     let res = $original as u32;
-                    if res > self.canvas.height {
-                        self.canvas.height
+                    if res > self.canvas.size.y {
+                        self.canvas.size.y
                     } else {
                         res
                     }
@@ -215,8 +213,10 @@ impl Backend for X11MitShmBackend {
                 SomeEvent::ConfigureNotify(event) => {
                     if event.event == self.window {
                         events.push(Event::Resize {
-                            new_width: event.width as u32,
-                            new_height: event.height as u32,
+                            new_size: Vector2 {
+                                x: event.width as u32,
+                                y: event.height as u32,
+                            },
                         });
                     }
                 }
@@ -238,8 +238,10 @@ impl Backend for X11MitShmBackend {
                 SomeEvent::MotionNotify(event) => {
                     if event.event == self.window {
                         events.push(Event::PointerMotion {
-                            x: x_to_u32!(event.event_x),
-                            y: y_to_u32!(event.event_y),
+                            position: Vector2 {
+                                x: x_to_u32!(event.event_x),
+                                y: y_to_u32!(event.event_y),
+                            },
                         });
                     }
                 }
@@ -261,39 +263,49 @@ impl Backend for X11MitShmBackend {
         Ok(events)
     }
 
-    fn resize(&mut self, new_width: u32, new_height: u32) -> Result<()> {
-        // FIXME: Must copy old data
+    fn resize(&mut self, new_size: Vector2<u32>) -> Result<()> {
+        let old_buf = self.canvas.mem_mut().to_vec();
+        let old_size = self.canvas.size;
 
-        if new_width * new_height * BYTES_PER_PIXEL <= self.canvas.mem.size() {
-            self.canvas.width = new_width;
-            self.canvas.height = new_height;
-            return Ok(());
+        if new_size.x * new_size.y * BYTES_PER_PIXEL <= self.canvas.mem.size() {
+            self.canvas.mem_mut().fill(0);
+            self.canvas.size = new_size;
+        } else {
+            self.display.send_extension_request(
+                &mit_shm::requests::Detach {
+                    shmseg: self.canvas.shmseg,
+                },
+                self.mit_shm_major_opcode,
+            )?;
+
+            let new_canvas =
+                Self::attach_new_shm_seg(&mut self.display, self.mit_shm_major_opcode, new_size)?;
+            self.display.flush()?;
+            let old_canvas = core::mem::replace(&mut self.canvas, new_canvas);
+            unsafe { old_canvas.mem.free() }
         }
 
-        self.display.send_extension_request(
-            &mit_shm::requests::Detach {
-                shmseg: self.canvas.shmseg,
-            },
-            self.mit_shm_major_opcode,
-        )?;
-
-        let new_canvas = Self::attach_new_shm_seg(
-            &mut self.display,
-            self.mit_shm_major_opcode,
-            new_width,
-            new_height,
-        )?;
-        self.display.flush()?;
-        let old_canvas = core::mem::replace(&mut self.canvas, new_canvas);
-        unsafe { old_canvas.mem.free() }
+        let new_buf = self.canvas.mem_mut();
+        for y in 0..cmp::min(new_size.y, old_size.y) {
+            for x in 0..cmp::min(new_size.x, old_size.x) {
+                let new_offset = (new_size.x * y + x) as usize * BYTES_PER_PIXEL as usize;
+                let old_offset = (old_size.x * y + x) as usize * BYTES_PER_PIXEL as usize;
+                new_buf[new_offset + 0] = old_buf[old_offset + 0];
+                new_buf[new_offset + 1] = old_buf[old_offset + 1];
+                new_buf[new_offset + 2] = old_buf[old_offset + 2];
+                new_buf[new_offset + 3] = old_buf[old_offset + 3];
+            }
+        }
 
         Ok(())
     }
 
-    fn size(&self) -> (u32, u32) {
-        (self.canvas.width, self.canvas.height)
+    #[inline]
+    fn size(&self) -> Vector2<u32> {
+        self.canvas.size
     }
 
+    #[inline]
     fn buf_mut(&mut self) -> &mut [u8] {
         self.canvas.mem_mut()
     }
@@ -303,11 +315,10 @@ impl X11MitShmBackend {
     fn attach_new_shm_seg(
         display: &mut XDisplay,
         mit_shm_major_opcode: u8,
-        width: u32,
-        height: u32,
+        size: Vector2<u32>,
     ) -> Result<MitShmCanvas> {
         let new_shmseg = ShmSegId::from(display.id_allocator().allocate_id());
-        let new_canvas = MitShmCanvas::new(width, height, new_shmseg);
+        let new_canvas = MitShmCanvas::new(size, new_shmseg);
         display.send_extension_request(
             &mit_shm::requests::Attach {
                 shmseg: new_shmseg,

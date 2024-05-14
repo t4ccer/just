@@ -1,20 +1,28 @@
 use just_bdf::{Font, Glyph};
+use just_canvas::{Color, Result, Vector2};
 use just_immui::{
     draw::{
         background, inside_rectangle, invisible_button, rectangle, text_bdf, text_bdf_width, Button,
     },
-    Color, Context, Result, Vector2,
+    Ui, UiId,
 };
 use std::collections::HashMap;
 
 /// Main UI loop
-fn draw(ui: &mut Context, state: &mut State) {
+fn draw(ui: &mut Ui, state: &mut State) {
     let get_char = |c| state.char_map.get(c);
 
-    background(ui, Color::from_raw(0x222222));
-    text_bdf(ui, get_char, Vector2 { x: 50, y: 30 }, 3, "Hello, World!");
+    background(ui.canvas(), Color::from_raw(0x222222));
+    text_bdf(
+        ui.canvas(),
+        get_char,
+        Vector2 { x: 50, y: 30 },
+        3,
+        "Hello, World!",
+    );
     counter_button(
         ui,
+        new_id(0),
         Vector2 { x: 50, y: 100 },
         &mut state.count_left,
         &get_char,
@@ -22,6 +30,7 @@ fn draw(ui: &mut Context, state: &mut State) {
 
     let right_button = counter_button(
         ui,
+        new_id(1),
         Vector2 { x: 200, y: 100 },
         &mut state.count_right,
         &get_char,
@@ -46,7 +55,7 @@ fn ui() -> Result<()> {
 
     #[cfg(not(feature = "screenshot"))]
     {
-        let mut ui = Context::new("My Application")?;
+        let mut ui = Ui::new("My Application")?;
 
         // run UI at 60 FPS
         ui.fps_limited_loop(60, |ui| draw(ui, &mut state))
@@ -70,7 +79,8 @@ fn main() {
 
 /// Button with click counter - custom widget composed from simpler ones
 fn counter_button<'a>(
-    ui: &mut Context,
+    ui: &mut Ui,
+    id: UiId,
     position: Vector2<u32>,
     state: &mut u32,
     font: impl Fn(char) -> &'a Glyph,
@@ -88,14 +98,13 @@ fn counter_button<'a>(
     let font_size = 2;
     let font_height = 8;
 
-    let id = ui.next_id();
     let button = invisible_button(ui, id, |pointer| inside_rectangle(position, size, pointer));
     if button.clicked || button.pressed {
-        rectangle(ui, position, size, active_color);
+        rectangle(ui.canvas(), position, size, active_color);
     } else if button.active {
-        rectangle(ui, position, size, hot_color);
+        rectangle(ui.canvas(), position, size, hot_color);
     } else {
-        rectangle(ui, position, size, inactive_color);
+        rectangle(ui.canvas(), position, size, inactive_color);
     }
 
     if button.clicked {
@@ -104,7 +113,7 @@ fn counter_button<'a>(
     let txt = format!("{}", *state);
     let text_width = text_bdf_width(&font, 2, &txt);
     text_bdf(
-        ui,
+        ui.canvas(),
         &font,
         Vector2 {
             x: position.x + (width / 2 - text_width / 2),
@@ -158,5 +167,13 @@ impl BdfCharMap {
             let idx = self.map.get(&k).unwrap_or(&self.default);
             &self.glyphs[*idx]
         }
+    }
+}
+
+fn new_id(id: u32) -> UiId {
+    UiId {
+        id,
+        parent: 0,
+        index: 0,
     }
 }

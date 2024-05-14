@@ -1,4 +1,4 @@
-use crate::{Event, Result};
+use crate::{Event, Result, Vector2};
 
 pub(crate) mod bitmap;
 pub(crate) mod x11_mit_shm;
@@ -8,9 +8,9 @@ pub(crate) trait Backend {
 
     fn events(&mut self) -> Result<Vec<Event>>;
 
-    fn resize(&mut self, new_width: u32, new_height: u32) -> Result<()>;
+    fn resize(&mut self, size: Vector2<u32>) -> Result<()>;
 
-    fn size(&self) -> (u32, u32);
+    fn size(&self) -> Vector2<u32>;
 
     fn buf_mut(&mut self) -> &mut [u8];
 }

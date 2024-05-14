@@ -11,10 +11,21 @@ name = "just_bdf"
 version = "0.1.0"
 
 [[package]]
+name = "just_canvas"
+version = "0.1.0"
+dependencies = [
+ "just_bdf",
+ "just_shared_memory",
+ "just_x11",
+ "just_x11_simple",
+]
+
+[[package]]
 name = "just_immui"
 version = "0.1.0"
 dependencies = [
  "just_bdf",
+ "just_canvas",
  "just_shared_memory",
  "just_x11",
  "just_x11_simple",
