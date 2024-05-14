@@ -1,3 +1,10 @@
+// CLIPPY CONFIG
+#![allow(
+    clippy::new_without_default,
+    clippy::unnecessary_cast,
+    clippy::identity_op
+)]
+
 use crate::backend::{bitmap::BitmapBackend, x11_mit_shm::X11MitShmBackend, Backend};
 use std::{
     cmp,
@@ -41,17 +48,17 @@ impl<const SIZE: usize> BitArray<SIZE> {
 
     #[inline]
     fn set(&mut self, key: usize) {
-        self.array[(key / 8) as usize] |= 1 << (key % 8);
+        self.array[key / 8] |= 1 << (key % 8);
     }
 
     #[inline]
     fn clear(&mut self, key: usize) {
-        self.array[(key / 8) as usize] &= !(1 << (key % 8));
+        self.array[key / 8] &= !(1 << (key % 8));
     }
 
     #[inline]
     fn get(&self, key: usize) -> bool {
-        (self.array[(key / 8) as usize] & (1 << (key % 8))) != 0
+        (self.array[key / 8] & (1 << (key % 8))) != 0
     }
 }
 

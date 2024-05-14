@@ -15,7 +15,7 @@ pub fn set_pixel(buf: &mut [u8], window_size: Vector2<u32>, x: u32, y: u32, colo
         }
     }
 
-    buf[offset + 0] = color.b;
+    buf[offset] = color.b;
     buf[offset + 1] = color.g;
     buf[offset + 2] = color.r;
 }
@@ -34,8 +34,8 @@ pub fn rectangle(canvas: &mut Canvas, position: Vector2<u32>, size: Vector2<u32>
 
 #[inline]
 pub fn distance_squared(p1: Vector2<u32>, p2: Vector2<u32>) -> u32 {
-    let x_dist = (p1.x as i32 - p2.x as i32).abs() as u32;
-    let y_dist = (p1.y as i32 - p2.y as i32).abs() as u32;
+    let x_dist = (p1.x as i32 - p2.x as i32).unsigned_abs();
+    let y_dist = (p1.y as i32 - p2.y as i32).unsigned_abs();
     x_dist * x_dist + y_dist * y_dist
 }
 
@@ -102,11 +102,9 @@ impl LineIter {
                 core::mem::swap(&mut x1, &mut x2);
                 core::mem::swap(&mut y1, &mut y2);
             }
-        } else {
-            if y1 > y2 {
-                core::mem::swap(&mut x1, &mut x2);
-                core::mem::swap(&mut y1, &mut y2);
-            }
+        } else if y1 > y2 {
+            core::mem::swap(&mut x1, &mut x2);
+            core::mem::swap(&mut y1, &mut y2);
         }
 
         Self {

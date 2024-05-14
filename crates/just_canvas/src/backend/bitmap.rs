@@ -36,7 +36,7 @@ impl Backend for BitmapBackend {
             for x in 0..cmp::min(new_size.x, old_size.x) {
                 let new_offset = (new_size.x * y + x) as usize * BYTES_PER_PIXEL as usize;
                 let old_offset = (old_size.x * y + x) as usize * BYTES_PER_PIXEL as usize;
-                new_buf[new_offset + 0] = old_buf[old_offset + 0];
+                new_buf[new_offset] = old_buf[old_offset];
                 new_buf[new_offset + 1] = old_buf[old_offset + 1];
                 new_buf[new_offset + 2] = old_buf[old_offset + 2];
                 new_buf[new_offset + 3] = old_buf[old_offset + 3];
