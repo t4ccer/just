@@ -3,7 +3,7 @@ use just_immui::{
     draw::{
         background, inside_rectangle, invisible_button, rectangle, text_bdf, text_bdf_width, Button,
     },
-    Color, Context, Result,
+    Color, Context, Result, Vector2,
 };
 use std::collections::HashMap;
 
@@ -12,10 +12,20 @@ fn draw(ui: &mut Context, state: &mut State) {
     let get_char = |c| state.char_map.get(c);
 
     background(ui, Color::from_raw(0x222222));
-    text_bdf(ui, get_char, 50, 30, 3, "Hello, World!");
-    counter_button(ui, 50, 100, &mut state.count_left, &get_char);
+    text_bdf(ui, get_char, Vector2 { x: 50, y: 30 }, 3, "Hello, World!");
+    counter_button(
+        ui,
+        Vector2 { x: 50, y: 100 },
+        &mut state.count_left,
+        &get_char,
+    );
 
-    let right_button = counter_button(ui, 200, 100, &mut state.count_right, &get_char);
+    let right_button = counter_button(
+        ui,
+        Vector2 { x: 200, y: 100 },
+        &mut state.count_right,
+        &get_char,
+    );
     // add additional action on click
     if right_button.clicked {
         println!("Right clicked!");
@@ -53,8 +63,7 @@ fn main() {
 /// Button with click counter - custom widget composed from simpler ones
 fn counter_button<'a>(
     ui: &mut Context,
-    x: u32,
-    y: u32,
+    position: Vector2<u32>,
     state: &mut u32,
     font: impl Fn(char) -> &'a Glyph,
 ) -> Button {
@@ -64,18 +73,21 @@ fn counter_button<'a>(
 
     let width = 120;
     let height = 40;
+    let size = Vector2 {
+        x: width,
+        y: height,
+    };
     let font_size = 2;
     let font_height = 8;
 
-    let button = invisible_button(ui, |pointer| {
-        inside_rectangle(x, y, width, height, pointer.x, pointer.y)
-    });
+    let id = ui.next_id();
+    let button = invisible_button(ui, id, |pointer| inside_rectangle(position, size, pointer));
     if button.clicked || button.pressed {
-        rectangle(ui, x, y, width, height, active_color);
+        rectangle(ui, position, size, active_color);
     } else if button.active {
-        rectangle(ui, x, y, width, height, hot_color);
+        rectangle(ui, position, size, hot_color);
     } else {
-        rectangle(ui, x, y, width, height, inactive_color);
+        rectangle(ui, position, size, inactive_color);
     }
 
     if button.clicked {
@@ -86,8 +98,10 @@ fn counter_button<'a>(
     text_bdf(
         ui,
         &font,
-        x + (width / 2 - text_width / 2),
-        y + (height / 2 - (font_size * font_height) / 2),
+        Vector2 {
+            x: position.x + (width / 2 - text_width / 2),
+            y: position.y + (height / 2 - (font_size * font_height) / 2),
+        },
         font_size,
         &txt,
     );

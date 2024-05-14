@@ -55,8 +55,7 @@ type ButtonMask = BitArray<32>;
 
 #[derive(Debug)]
 pub struct Pointer {
-    pub x: u32,
-    pub y: u32,
+    pub position: Vector2<u32>,
     pressed_mask: ButtonMask,
 }
 
@@ -65,8 +64,7 @@ impl Pointer {
     /// Pointer state at `x = 0, y = 0` with no buttons pressed
     fn new() -> Self {
         Self {
-            x: 0,
-            y: 0,
+            position: Vector2 { x: 0, y: 0 },
             pressed_mask: ButtonMask::zeroed(),
         }
     }
@@ -96,6 +94,7 @@ pub struct Context {
     next_id: u32,
     hot: Option<UiId>,
     active: Option<UiId>,
+    resized: bool,
 }
 
 impl Context {
@@ -108,6 +107,7 @@ impl Context {
             next_id: 0,
             hot: None,
             active: None,
+            resized: false,
         })
     }
 
@@ -171,6 +171,11 @@ impl Context {
         &self.pointer
     }
 
+    #[inline]
+    pub fn resized(&self) -> bool {
+        self.resized
+    }
+
     pub fn fps_limited_loop<F>(&mut self, fps: u64, mut draw: F) -> Result<()>
     where
         F: FnMut(&mut Self),
@@ -192,6 +197,7 @@ impl Context {
                         new_height,
                     } => {
                         self.backend.resize(new_width, new_height)?;
+                        self.resized = true;
                     }
                     Event::ButtonPress { button } => {
                         pressed_this_frame.set(button as usize);
@@ -205,8 +211,8 @@ impl Context {
                         }
                     }
                     Event::PointerMotion { x, y } => {
-                        self.pointer.x = x;
-                        self.pointer.y = y;
+                        self.pointer.position.x = x;
+                        self.pointer.position.y = y;
                     }
                     Event::Shutdown => {
                         should_close = true;
@@ -223,6 +229,7 @@ impl Context {
                 }
             }
             self.next_id = 0;
+            self.resized = false;
 
             let frame_end = std::time::Instant::now();
             let frame_duration = frame_end - frame_start;
@@ -236,8 +243,9 @@ impl Context {
     }
 
     #[inline]
-    pub fn window_size(&self) -> (u32, u32) {
-        self.backend.size()
+    pub fn window_size(&self) -> Vector2<u32> {
+        let (x, y) = self.backend.size();
+        Vector2 { x, y }
     }
 
     #[inline]
@@ -274,5 +282,44 @@ impl Color {
     pub const fn from_raw(raw: u32) -> Self {
         let [a, r, g, b] = raw.to_be_bytes();
         Self { a, r, g, b }
+    }
+}
+
+#[derive(Debug, Clone, Copy)]
+pub struct Vector2<T> {
+    pub x: T,
+    pub y: T,
+}
+
+impl<T> Vector2<T> {
+    #[inline(always)]
+    pub fn clamp(self, lower_bound: Self, upper_bound: Self) -> Self
+    where
+        T: Ord,
+    {
+        Self {
+            x: self.x.clamp(lower_bound.x, upper_bound.x),
+            y: self.y.clamp(lower_bound.y, upper_bound.y),
+        }
+    }
+}
+
+impl Vector2<i32> {
+    #[inline(always)]
+    pub fn as_u32(self) -> Vector2<u32> {
+        Vector2 {
+            x: self.x as u32,
+            y: self.y as u32,
+        }
+    }
+}
+
+impl Vector2<u32> {
+    #[inline(always)]
+    pub fn as_i32(self) -> Vector2<i32> {
+        Vector2 {
+            x: self.x as i32,
+            y: self.y as i32,
+        }
     }
 }
