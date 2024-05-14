@@ -1,7 +1,9 @@
 use just_bdf::{Font, Glyph};
 use just_immui::{
-    background, invisible_button, rectangle, text_bdf, text_bdf_width, Button, Color, Context,
-    Result,
+    draw::{
+        background, inside_rectangle, invisible_button, rectangle, text_bdf, text_bdf_width, Button,
+    },
+    Color, Context, Result,
 };
 use std::collections::HashMap;
 
@@ -65,7 +67,9 @@ fn counter_button<'a>(
     let font_size = 2;
     let font_height = 8;
 
-    let button = invisible_button(ui, x, y, width, height);
+    let button = invisible_button(ui, |pointer| {
+        inside_rectangle(x, y, width, height, pointer.x, pointer.y)
+    });
     if button.clicked || button.pressed {
         rectangle(ui, x, y, width, height, active_color);
     } else if button.active {
