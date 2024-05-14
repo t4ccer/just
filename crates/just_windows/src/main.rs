@@ -1,3 +1,10 @@
+// CLIPPY CONFIG
+#![allow(
+    clippy::new_without_default,
+    clippy::unnecessary_cast,
+    clippy::identity_op
+)]
+
 use crate::layout::{Layout, VerticalMasterSplit, VerticalStack};
 use just_x11::{
     error::Error,

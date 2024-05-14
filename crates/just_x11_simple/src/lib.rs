@@ -1,5 +1,9 @@
-// `Default` is a bad idea.
-#![cfg_attr(feature = "cargo-clippy", allow(clippy::new_without_default))]
+// CLIPPY CONFIG
+#![allow(
+    clippy::new_without_default,
+    clippy::unnecessary_cast,
+    clippy::identity_op
+)]
 
 use just_x11::{
     atoms::AtomId,

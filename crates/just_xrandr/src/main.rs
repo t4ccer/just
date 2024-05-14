@@ -1,3 +1,9 @@
+// CLIPPY CONFIG
+#![allow(
+    clippy::new_without_default,
+    clippy::unnecessary_cast,
+    clippy::identity_op
+)]
 #![allow(dead_code)] // FIXME: Remove
 
 use crate::arguments::Args;
