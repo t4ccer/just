@@ -248,15 +248,14 @@ impl Backend for X11MitShmBackend {
                     }
                 }
                 SomeEvent::ButtonPress(event) => {
-                    // FIXME: event.root and event.event should be WindowId
-                    if event.event == self.window.into() {
+                    if event.event == self.window {
                         events.push(Event::ButtonPress {
                             button: event.detail.raw(),
                         });
                     }
                 }
                 SomeEvent::ButtonRelease(event) => {
-                    if event.event == self.window.into() {
+                    if event.event == self.window {
                         events.push(Event::ButtonRelease {
                             button: event.detail.raw(),
                         });
