@@ -1,5 +1,9 @@
 use crate::backend::{bitmap::BitmapBackend, x11_mit_shm::X11MitShmBackend, Backend};
-use std::fmt::Debug;
+use std::{
+    cmp,
+    fmt::Debug,
+    ops::{Add, Sub},
+};
 
 mod backend;
 pub mod draw;
@@ -268,6 +272,14 @@ impl Vector2<i32> {
     pub fn zero() -> Self {
         Vector2 { x: 0, y: 0 }
     }
+
+    #[inline(always)]
+    pub fn clamp_non_negative(self) -> Self {
+        Self {
+            x: cmp::max(0, self.x),
+            y: cmp::max(0, self.y),
+        }
+    }
 }
 
 impl Vector2<u32> {
@@ -282,5 +294,33 @@ impl Vector2<u32> {
     #[inline(always)]
     pub fn zero() -> Self {
         Vector2 { x: 0, y: 0 }
+    }
+}
+
+impl<T> Add for Vector2<T>
+where
+    T: Add<Output = T>,
+{
+    type Output = Vector2<<T as Add>::Output>;
+
+    fn add(self, rhs: Self) -> Self::Output {
+        Self {
+            x: self.x + rhs.x,
+            y: self.y + rhs.y,
+        }
+    }
+}
+
+impl<T> Sub for Vector2<T>
+where
+    T: Sub<Output = T>,
+{
+    type Output = Vector2<<T as Sub>::Output>;
+
+    fn sub(self, rhs: Self) -> Self::Output {
+        Self {
+            x: self.x - rhs.x,
+            y: self.y - rhs.y,
+        }
     }
 }

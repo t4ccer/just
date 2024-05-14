@@ -11,6 +11,27 @@ pub struct UiId {
     pub index: u32,
 }
 
+#[derive(Debug, Clone, Copy)]
+pub struct BoundedView {
+    pub absolute_offset: Vector2<u32>,
+    pub size: Vector2<u32>,
+}
+
+#[derive(Debug, Clone, Copy)]
+enum View {
+    Unbounded,
+    Bounded(BoundedView),
+}
+
+impl View {
+    fn absolute_offset(self) -> Vector2<u32> {
+        match self {
+            View::Unbounded => Vector2::<u32>::zero(),
+            View::Bounded(v) => v.absolute_offset,
+        }
+    }
+}
+
 pub struct Ui {
     canvas: Canvas,
     hot: Option<UiId>,
@@ -18,6 +39,7 @@ pub struct Ui {
     font_char_map: BdfCharMap,
     dirty: bool,
     dirty_next: bool,
+    view: View,
 }
 
 impl Ui {
@@ -36,6 +58,7 @@ impl Ui {
             font_char_map: BdfCharMap::ib8x8u(),
             dirty: true,
             dirty_next: true,
+            view: View::Unbounded,
         }
     }
 
@@ -64,7 +87,7 @@ impl Ui {
     }
 
     #[inline]
-    /// Return true if no other element was hot and this one was made hot
+    /// Return `true` if no other element was hot and this one was made hot
     pub fn make_hot(&mut self, id: UiId) -> bool {
         match self.hot {
             None => {
@@ -76,7 +99,7 @@ impl Ui {
     }
 
     #[inline]
-    /// Return true if current element was hot and was made active
+    /// Return `true` if current element was hot and was made active
     pub fn make_active(&mut self, id: UiId) -> bool {
         match self.hot {
             Some(hot) if hot == id => {
@@ -118,23 +141,36 @@ impl Ui {
     }
 
     #[inline]
-    pub fn window_size(&self) -> Vector2<u32> {
-        self.canvas.window_size()
+    pub fn current_view(&self) -> BoundedView {
+        let size = match self.view {
+            View::Unbounded => self.canvas.window_size(),
+            View::Bounded(v) => v.size,
+        };
+
+        BoundedView {
+            absolute_offset: self.view.absolute_offset(),
+            size,
+        }
     }
 
     #[inline]
     pub fn background(&mut self, color: Color) {
-        let window_size = self.canvas.window_size();
-        self.rectangle(Vector2 { x: 0, y: 0 }, window_size, color)
+        let window_size = self.current_view();
+        self.rectangle(Vector2 { x: 0, y: 0 }, window_size.size, color)
     }
 
     #[inline]
-    pub fn rectangle(&mut self, position: Vector2<u32>, size: Vector2<u32>, color: Color) {
+    pub fn rectangle(&mut self, position: Vector2<u32>, mut size: Vector2<u32>, color: Color) {
         if !self.dirty {
             return;
         }
 
-        draw::rectangle(&mut self.canvas, position, size, color);
+        let absolute_position = position + self.view.absolute_offset();
+
+        size.x = cmp::min(size.x, self.current_view().size.x - position.x);
+        size.y = cmp::min(size.y, self.current_view().size.y - position.y);
+
+        draw::rectangle(&mut self.canvas, absolute_position, size, color);
     }
 
     #[inline]
@@ -143,7 +179,9 @@ impl Ui {
             return;
         }
 
-        draw::thin_line(&mut self.canvas, start, end, color);
+        let off = self.current_view().absolute_offset;
+
+        draw::thin_line(&mut self.canvas, start + off, end + off, color);
     }
 
     #[inline]
@@ -152,7 +190,9 @@ impl Ui {
             return;
         }
 
-        draw::thin_dashed_line(&mut self.canvas, start, end, color);
+        let off = self.current_view().absolute_offset;
+
+        draw::thin_dashed_line(&mut self.canvas, start + off, end + off, color);
     }
 
     #[inline]
@@ -161,12 +201,23 @@ impl Ui {
             return;
         }
 
-        draw::circle(&mut self.canvas, center, r, color);
+        let off = self.current_view().absolute_offset;
+
+        draw::circle(&mut self.canvas, center + off, r, color);
     }
 
     #[inline]
-    pub fn pointer(&self) -> &Pointer {
+    /// Raw pointer, with position being relative to the top level canvas, NOT to current view
+    pub fn pointer_absolute(&self) -> &Pointer {
         self.canvas.pointer()
+    }
+
+    #[inline]
+    /// Pointer position relative to the current view
+    pub fn pointer_position(&self) -> Vector2<u32> {
+        (self.canvas.pointer().position.as_i32() - self.current_view().absolute_offset.as_i32())
+            .clamp_non_negative()
+            .as_u32()
     }
 
     #[inline]
@@ -188,10 +239,7 @@ impl Ui {
                 self.canvas_mut().flush()?;
             }
 
-            self.dirty = false;
-            if self.dirty_next {
-                self.dirty = true;
-            }
+            self.dirty = self.dirty_next;
             self.dirty_next = false;
 
             let frame_end = std::time::Instant::now();
@@ -225,6 +273,27 @@ impl Ui {
             size.x -= font_size * 2;
         }
         size
+    }
+
+    pub fn with_view(
+        &mut self,
+        position: Vector2<u32>,
+        mut size: Vector2<u32>,
+        draw: impl FnOnce(&mut Self),
+    ) {
+        let old_view = self.view;
+
+        size.x = cmp::min(size.x, self.current_view().size.x - position.x);
+        size.y = cmp::min(size.y, self.current_view().size.y - position.y);
+
+        self.view = View::Bounded(BoundedView {
+            absolute_offset: position + old_view.absolute_offset(),
+            size,
+        });
+
+        draw(self);
+
+        self.view = old_view;
     }
 }
 
@@ -310,21 +379,22 @@ pub fn invisible_button(
         got_released: false,
     };
 
-    if in_bounds(ui.pointer().position) {
+    let is_mouse_pressed = ui.pointer_absolute().is_pressed(1);
+
+    if in_bounds(ui.pointer_position()) {
         if ui.is_hot(id) {
-            button.got_hovered = false;
             button.is_hovered = true;
-        } else {
+        } else if !is_mouse_pressed {
             button.got_hovered = ui.make_hot(id);
             button.is_hovered = button.got_hovered;
         }
 
-        if ui.pointer().is_pressed(1) && ui.is_hot(id) && !ui.is_active(id) {
+        if is_mouse_pressed && ui.is_hot(id) && !ui.is_active(id) {
             button.got_pressed = ui.make_active(id);
             button.is_pressed = button.got_pressed;
-        } else if ui.pointer().is_pressed(1) && ui.is_active(id) {
+        } else if is_mouse_pressed && ui.is_active(id) {
             button.is_pressed = true;
-        } else if !ui.pointer().is_pressed(1) && ui.is_active(id) {
+        } else if !is_mouse_pressed && ui.is_active(id) {
             ui.make_inactive(id);
             button.got_released = true;
         }
@@ -340,12 +410,14 @@ pub fn invisible_draggable(
     id: UiId,
     in_bounds: impl FnOnce(Vector2<u32>) -> bool,
 ) -> bool {
-    if in_bounds(ui.pointer().position) {
-        if !ui.is_hot(id) && ui.pointer().is_pressed(1) {
+    let is_mouse_pressed = ui.pointer_absolute().is_pressed(1);
+
+    if in_bounds(ui.pointer_position()) {
+        if !ui.is_hot(id) && is_mouse_pressed {
             false
         } else {
             ui.make_hot(id);
-            if ui.pointer().is_pressed(1) {
+            if is_mouse_pressed {
                 ui.make_active(id);
                 true
             } else {
@@ -353,7 +425,7 @@ pub fn invisible_draggable(
             }
         }
     } else {
-        if ui.is_active(id) && ui.pointer().is_pressed(1) {
+        if ui.is_active(id) && is_mouse_pressed {
             true
         } else {
             ui.make_inactive(id);
