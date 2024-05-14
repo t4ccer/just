@@ -1,11 +1,8 @@
-use just_canvas::{Color, Result, Vector2};
-use just_immui::{
-    draw::{
-        background, circle, inside_circle, inside_rectangle, invisible_button, invisible_draggable,
-        rectangle, thin_dashed_line, thin_line,
-    },
-    Ui, UiId,
+use just_canvas::{
+    draw::{inside_circle, inside_rectangle},
+    Color, Result, Vector2,
 };
+use just_immui::{invisible_button, invisible_draggable, Ui, UiId};
 
 const BLUE: Color = Color::from_raw(0xff4eb4fa);
 const DARK_BLUE: Color = Color::from_raw(0xff0b629e);
@@ -16,22 +13,21 @@ const GRAY: Color = Color::from_raw(0xff666666);
 const GREEN: Color = Color::from_raw(0xffa7e22e);
 
 fn draw(ui: &mut Ui, state: &mut State) {
-    background(ui.canvas(), BLACK);
+    ui.background(BLACK);
+
+    let panel_size = ui.window_size();
+    ui.rectangle(
+        Vector2 { x: 0, y: 95 },
+        Vector2 {
+            x: panel_size.x,
+            y: 5,
+        },
+        GRAY,
+    );
 
     if state.show_traces {
-        thin_dashed_line(
-            ui.canvas(),
-            state.start_point.position,
-            state.middle_point.position,
-            RED,
-        );
-
-        thin_dashed_line(
-            ui.canvas(),
-            state.middle_point.position,
-            state.end_point.position,
-            RED,
-        );
+        ui.thin_dashed_line(state.start_point.position, state.middle_point.position, RED);
+        ui.thin_dashed_line(state.middle_point.position, state.end_point.position, RED);
 
         for t in 1..state.trace_lines.value {
             let t = t as f32 / state.trace_lines.value as f32;
@@ -40,7 +36,7 @@ fn draw(ui: &mut Ui, state: &mut State) {
                 linear_interpolation(state.start_point.position, state.middle_point.position, t);
             let p2 = linear_interpolation(state.middle_point.position, state.end_point.position, t);
 
-            thin_line(ui.canvas(), p1, p2, GREEN);
+            ui.thin_line(p1, p2, GREEN);
         }
     }
 
@@ -59,12 +55,7 @@ fn draw(ui: &mut Ui, state: &mut State) {
     endpoint(ui, new_id(1), &mut state.middle_point);
     endpoint(ui, new_id(2), &mut state.end_point);
 
-    thin_dashed_line(
-        ui.canvas(),
-        Vector2 { x: 30, y: 32 },
-        Vector2 { x: 95, y: 32 },
-        RED,
-    );
+    ui.thin_dashed_line(Vector2 { x: 30, y: 32 }, Vector2 { x: 95, y: 32 }, RED);
     if state.show_traces {
         slider(
             ui,
@@ -119,17 +110,21 @@ fn checkbox(ui: &mut Ui, id: UiId, state: &mut bool, position: Vector2<u32>) {
     let mut color = if *state { BLUE } else { BLACK };
 
     let button = invisible_button(ui, id, |cursor| inside_rectangle(position, size, cursor));
-    if button.pressed {
+
+    if button.got_hovered || button.got_released || button.got_pressed || button.got_unhovered {
+        ui.set_dirty();
+    }
+
+    if button.is_pressed {
         color = DARK_BLUE;
     }
-    if button.clicked {
+    if button.got_released {
         *state = !*state;
         color = if *state { BLUE } else { BLACK };
     }
 
-    rectangle(ui.canvas(), position, size, GRAY);
-    rectangle(
-        ui.canvas(),
+    ui.rectangle(position, size, GRAY);
+    ui.rectangle(
         Vector2 {
             x: position.x + pad,
             y: position.y + pad,
@@ -147,7 +142,7 @@ fn slider(ui: &mut Ui, id: UiId, state: &mut Slider, position: Vector2<u32>) {
     let size = Vector2 { x: 180, y: 6 };
     let handle_size = Vector2 { x: 8, y: 20 };
 
-    rectangle(ui.canvas(), position, size, GRAY);
+    ui.rectangle(position, size, GRAY);
 
     let handle_position = Vector2 {
         x: map_range(
@@ -160,7 +155,7 @@ fn slider(ui: &mut Ui, id: UiId, state: &mut Slider, position: Vector2<u32>) {
         y: position.y - handle_size.y / 2 + size.y / 2,
     };
 
-    rectangle(ui.canvas(), handle_position, handle_size, BLUE);
+    ui.rectangle(handle_position, handle_size, BLUE);
 
     let dragged = invisible_draggable(ui, id, |pointer| {
         inside_rectangle(
@@ -176,6 +171,7 @@ fn slider(ui: &mut Ui, id: UiId, state: &mut Slider, position: Vector2<u32>) {
         let px = (ui.pointer().position.x as i32)
             .clamp(position.x as i32, position.x as i32 + size.x as i32) as u32;
         state.value = map_range(px, position.x, position.x + size.x, state.min, state.max);
+        ui.set_dirty();
     }
 }
 
@@ -183,15 +179,16 @@ fn endpoint(ui: &mut Ui, id: UiId, state: &mut Endpoint) {
     // chosen arbitrarily
     let r = 18;
 
-    let window_size = ui.canvas().window_size();
+    let window_size = ui.window_size();
 
-    if ui.canvas().resized() {
+    if ui.resized() {
         state.position = state.position.clamp(Vector2 { x: 0, y: 0 }, window_size);
+        ui.set_dirty();
     }
 
-    circle(ui.canvas(), state.position, r, WHITE);
-    circle(ui.canvas(), state.position, r - 5, BLACK);
-    circle(ui.canvas(), state.position, r - 12, BLUE);
+    ui.circle(state.position, r, WHITE);
+    ui.circle(state.position, r - 5, BLACK);
+    ui.circle(state.position, r - 12, BLUE);
 
     let dragged = invisible_draggable(ui, id, |pointer| inside_circle(state.position, r, pointer));
 
@@ -210,6 +207,7 @@ fn endpoint(ui: &mut Ui, id: UiId, state: &mut Endpoint) {
 
                 state.position = new_position;
                 state.previous_mouse = Some(pointer);
+                ui.set_dirty();
             }
         }
     } else {
@@ -249,7 +247,7 @@ fn bezier_curve(
             linear_interpolation(middle, end, t),
             t,
         );
-        thin_line(ui.canvas(), prev, next, color);
+        ui.thin_line(prev, next, color);
         prev = next;
     }
 }

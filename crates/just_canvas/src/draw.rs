@@ -1,12 +1,5 @@
-use crate::{Ui, UiId};
+use crate::{Canvas, Color, Vector2, BYTES_PER_PIXEL};
 use just_bdf::Glyph;
-use just_canvas::{Canvas, Color, Vector2, BYTES_PER_PIXEL};
-
-#[inline]
-pub fn background(ui: &mut Canvas, color: Color) {
-    let window_size = ui.window_size();
-    rectangle(ui, Vector2 { x: 0, y: 0 }, window_size, color)
-}
 
 #[inline(always)]
 pub fn set_pixel(buf: &mut [u8], window_size: Vector2<u32>, x: u32, y: u32, color: Color) {
@@ -28,9 +21,9 @@ pub fn set_pixel(buf: &mut [u8], window_size: Vector2<u32>, x: u32, y: u32, colo
 }
 
 #[inline]
-pub fn rectangle(ui: &mut Canvas, position: Vector2<u32>, size: Vector2<u32>, color: Color) {
-    let window_size = ui.window_size();
-    let buf = ui.raw_buf();
+pub fn rectangle(canvas: &mut Canvas, position: Vector2<u32>, size: Vector2<u32>, color: Color) {
+    let window_size = canvas.window_size();
+    let buf = canvas.raw_buf_mut();
 
     for cy in position.y..(position.y + size.y).clamp(0, window_size.y) {
         for cx in position.x..(position.x + size.x).clamp(0, window_size.x) {
@@ -62,7 +55,7 @@ pub fn inside_rectangle(position: Vector2<u32>, size: Vector2<u32>, point: Vecto
 #[inline]
 pub fn circle(ui: &mut Canvas, center: Vector2<u32>, r: u32, color: Color) {
     let window_size = ui.window_size();
-    let buf = ui.raw_buf();
+    let buf = ui.raw_buf_mut();
 
     let x = center.x.saturating_sub(r);
     let y = center.y.saturating_sub(r);
@@ -168,7 +161,7 @@ impl Iterator for LineIter {
 #[inline]
 pub fn thin_line(ui: &mut Canvas, start: Vector2<u32>, end: Vector2<u32>, color: Color) {
     let window_size = ui.window_size();
-    let buf = ui.raw_buf();
+    let buf = ui.raw_buf_mut();
 
     for (x, y) in LineIter::new(start, end) {
         if y >= window_size.y || x >= window_size.x {
@@ -182,7 +175,7 @@ pub fn thin_line(ui: &mut Canvas, start: Vector2<u32>, end: Vector2<u32>, color:
 #[inline]
 pub fn thin_dashed_line(ui: &mut Canvas, start: Vector2<u32>, end: Vector2<u32>, color: Color) {
     let window_size = ui.window_size();
-    let buf = ui.raw_buf();
+    let buf = ui.raw_buf_mut();
 
     // chosen arbitrarily
     let dash_length: u32 = 10;
@@ -204,22 +197,6 @@ pub fn thin_dashed_line(ui: &mut Canvas, start: Vector2<u32>, end: Vector2<u32>,
     }
 }
 
-// TODO: Colour
-
-#[inline]
-pub fn text_bdf<'a>(
-    ui: &mut Canvas,
-    font: impl Fn(char) -> &'a Glyph,
-    mut position: Vector2<u32>,
-    size: u32,
-    text: &str,
-) {
-    for glyph in text.chars().map(font) {
-        glyph_bdf(ui, position, size, glyph);
-        position.x += size * glyph.bounding_box.width + size * 2;
-    }
-}
-
 // TODO: text_bdf_bounding_box
 
 #[inline]
@@ -231,12 +208,12 @@ pub fn text_bdf_width<'a>(font: impl Fn(char) -> &'a Glyph, size: u32, text: &st
     x
 }
 
-fn glyph_bdf(ui: &mut Canvas, position: Vector2<u32>, size: u32, glyph: &Glyph) {
+pub fn glyph_bdf(ui: &mut Canvas, position: Vector2<u32>, size: u32, glyph: &Glyph, color: Color) {
     let padded_width = ((glyph.bounding_box.width + 7) / 8) * 8;
     let padded_height = ((glyph.bounding_box.height + 7) / 8) * 8;
 
     let x_off = padded_width as i32;
-    let y_off = (padded_height - glyph.bounding_box.height) as i32;
+    let y_off = (padded_height - glyph.bounding_box.height) as i32 - 1;
 
     let total_x_offset = position.x as i32 + (x_off - glyph.bounding_box.x_off) * size as i32;
     let total_y_offset = position.y as i32 + (y_off - glyph.bounding_box.y_off) * size as i32;
@@ -254,95 +231,9 @@ fn glyph_bdf(ui: &mut Canvas, position: Vector2<u32>, size: u32, glyph: &Glyph) 
                         y: (total_y_offset + (gy as i32 * size as i32)) as u32,
                     },
                     Vector2 { x: size, y: size },
-                    Color::from_raw(0xdddddd),
+                    color,
                 );
             }
-        }
-    }
-}
-
-pub struct Button {
-    pub clicked: bool,
-    pub pressed: bool,
-    pub active: bool,
-}
-
-pub fn invisible_button(
-    ui: &mut Ui,
-    button_id: UiId,
-    in_bounds: impl FnOnce(Vector2<u32>) -> bool,
-) -> Button {
-    if in_bounds(ui.pointer().position) {
-        if !ui.pointer().is_pressed(1) {
-            ui.make_hot(button_id);
-        }
-
-        if ui.is_active(button_id) {
-            if !ui.pointer().is_pressed(1) {
-                ui.make_inactive(button_id);
-
-                Button {
-                    clicked: true,
-                    pressed: false,
-                    active: true,
-                }
-            } else {
-                Button {
-                    clicked: false,
-                    pressed: true,
-                    active: true,
-                }
-            }
-        } else if ui.is_hot(button_id) {
-            if ui.pointer().is_pressed(1) {
-                ui.make_active(button_id);
-            }
-
-            Button {
-                clicked: false,
-                pressed: false,
-                active: true,
-            }
-        } else {
-            Button {
-                clicked: false,
-                pressed: false,
-                active: false,
-            }
-        }
-    } else {
-        ui.make_inactive(button_id);
-        Button {
-            clicked: false,
-            pressed: false,
-            active: false,
-        }
-    }
-}
-
-pub fn invisible_draggable(
-    ui: &mut Ui,
-    draggable_id: UiId,
-    in_bounds: impl FnOnce(Vector2<u32>) -> bool,
-) -> bool {
-    if in_bounds(ui.pointer().position) {
-        if !ui.is_hot(draggable_id) && ui.pointer().is_pressed(1) {
-            false
-        } else {
-            ui.make_hot(draggable_id);
-            if ui.pointer().is_pressed(1) {
-                ui.make_active(draggable_id);
-                true
-            } else {
-                false
-            }
-        }
-    } else {
-        if ui.is_active(draggable_id) && ui.pointer().is_pressed(1) {
-            true
-        } else {
-            ui.make_inactive(draggable_id);
-            false
         }
     }
 }

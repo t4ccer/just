@@ -13,4 +13,6 @@ pub(crate) trait Backend {
     fn size(&self) -> Vector2<u32>;
 
     fn buf_mut(&mut self) -> &mut [u8];
+
+    fn buf(&self) -> &[u8];
 }

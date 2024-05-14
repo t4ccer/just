@@ -2,21 +2,22 @@ use crate::backend::{bitmap::BitmapBackend, x11_mit_shm::X11MitShmBackend, Backe
 use std::fmt::Debug;
 
 mod backend;
+pub mod draw;
 
 pub const BYTES_PER_PIXEL: u32 = 4;
 
 #[derive(Debug)]
-pub enum ImmUiError {
+pub enum CanvasError {
     X11ProtocolError(just_x11::error::Error),
 }
 
-impl From<just_x11::error::Error> for ImmUiError {
+impl From<just_x11::error::Error> for CanvasError {
     fn from(err: just_x11::error::Error) -> Self {
         Self::X11ProtocolError(err)
     }
 }
 
-pub type Result<T> = core::result::Result<T, ImmUiError>;
+pub type Result<T> = core::result::Result<T, CanvasError>;
 
 #[derive(Debug)]
 struct BitArray<const SIZE: usize> {
@@ -140,8 +141,13 @@ impl Canvas {
     }
 
     #[inline]
-    pub fn raw_buf(&mut self) -> &mut [u8] {
+    pub fn raw_buf_mut(&mut self) -> &mut [u8] {
         self.backend.buf_mut()
+    }
+
+    #[inline]
+    pub fn raw_buf(&self) -> &[u8] {
+        self.backend.buf()
     }
 
     pub fn process_events(&mut self) -> Result<()> {
@@ -257,6 +263,11 @@ impl Vector2<i32> {
             y: self.y as u32,
         }
     }
+
+    #[inline(always)]
+    pub fn zero() -> Self {
+        Vector2 { x: 0, y: 0 }
+    }
 }
 
 impl Vector2<u32> {
@@ -266,5 +277,10 @@ impl Vector2<u32> {
             x: self.x as i32,
             y: self.y as i32,
         }
+    }
+
+    #[inline(always)]
+    pub fn zero() -> Self {
+        Vector2 { x: 0, y: 0 }
     }
 }

@@ -57,4 +57,9 @@ impl Backend for BitmapBackend {
     fn buf_mut(&mut self) -> &mut [u8] {
         &mut self.buf
     }
+
+    #[inline]
+    fn buf(&self) -> &[u8] {
+        &self.buf
+    }
 }

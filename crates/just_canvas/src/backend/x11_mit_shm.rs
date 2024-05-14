@@ -30,6 +30,11 @@ impl MitShmCanvas {
     fn mem_mut(&mut self) -> &mut [u8] {
         unsafe { self.mem.data_mut() }
     }
+
+    #[inline]
+    fn mem(&self) -> &[u8] {
+        unsafe { self.mem.data() }
+    }
 }
 
 pub(crate) struct X11MitShmBackend {
@@ -308,6 +313,11 @@ impl Backend for X11MitShmBackend {
     #[inline]
     fn buf_mut(&mut self) -> &mut [u8] {
         self.canvas.mem_mut()
+    }
+
+    #[inline]
+    fn buf(&self) -> &[u8] {
+        self.canvas.mem()
     }
 }
 
