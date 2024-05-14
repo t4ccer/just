@@ -1,8 +1,8 @@
-#![cfg_attr(
-    feature = "cargo-clippy",
-    allow(clippy::new_without_default, // `Default` is a bad idea.
-          clippy::unnecessary_cast, // Better be safe in encodings
-    )
+// CLIPPY CONFIG
+#![allow(
+    clippy::new_without_default,
+    clippy::unnecessary_cast,
+    clippy::identity_op
 )]
 
 use requests::{XExtensionRequest, XRequestBase};

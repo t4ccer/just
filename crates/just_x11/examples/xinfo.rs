@@ -1,3 +1,10 @@
+// CLIPPY CONFIG
+#![allow(
+    clippy::new_without_default,
+    clippy::unnecessary_cast,
+    clippy::identity_op
+)]
+
 use just_x11::{
     error::Error,
     extensions::randr,
@@ -164,7 +171,7 @@ fn lsmonitors(display: &mut XDisplay) -> Result<(), Error> {
 }
 
 // false positive
-#[cfg_attr(feature = "cargo-clippy", allow(clippy::enum_variant_names))]
+#[allow(clippy::enum_variant_names)]
 enum Mode {
     LsFonts,
     LsExtensions,

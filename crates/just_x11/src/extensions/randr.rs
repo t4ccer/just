@@ -36,7 +36,7 @@ pub struct SizeId {
 
 impl SizeId {
     #[inline(always)]
-    fn to_le_bytes(&self) -> [u8; 2] {
+    fn to_le_bytes(self) -> [u8; 2] {
         self.inner.to_le_bytes()
     }
 }

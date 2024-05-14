@@ -1,3 +1,10 @@
+// CLIPPY CONFIG
+#![allow(
+    clippy::new_without_default,
+    clippy::unnecessary_cast,
+    clippy::identity_op
+)]
+
 use just_x11::{
     error::Error,
     extensions::mit_shm::{self, ShmSegId},
@@ -34,9 +41,9 @@ where
 
     for y in 0..(height as usize) {
         for x in 0..(width as usize) {
-            f.write_all(&[img[(y * width as usize + x as usize) * 4 + 2]])?;
-            f.write_all(&[img[(y * width as usize + x as usize) * 4 + 1]])?;
-            f.write_all(&[img[(y * width as usize + x as usize) * 4 + 0]])?;
+            f.write_all(&[img[(y * width as usize + x) * 4 + 2]])?;
+            f.write_all(&[img[(y * width as usize + x) * 4 + 1]])?;
+            f.write_all(&[img[(y * width as usize + x) * 4 + 0]])?;
         }
     }
 
