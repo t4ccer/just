@@ -48,8 +48,6 @@ pub(crate) struct X11MitShmBackend {
 
 impl X11MitShmBackend {
     pub(crate) fn new(title: &str) -> Result<Self> {
-        // TODO: Handle title, see XStoreName
-
         use just_x11::requests;
 
         let mut display = XDisplay::open()?;
@@ -68,6 +66,8 @@ impl X11MitShmBackend {
 
         let canvas_size = Vector2 { x: 800, y: 600 };
         let canvas = Self::attach_new_shm_seg(&mut display, mit_shm_major_opcode, canvas_size)?;
+
+        // create window
 
         let window = {
             let window_id = WindowId::from(display.id_allocator().allocate_id());
@@ -109,6 +109,8 @@ impl X11MitShmBackend {
         display.send_request(&requests::MapWindow { window })?;
         display.flush()?;
 
+        // setup window closing "handler"
+
         let wm_protocols = {
             let pending = display.send_request(&requests::InternAtom {
                 only_if_exists: false,
@@ -134,6 +136,26 @@ impl X11MitShmBackend {
             type_: AtomId::ATOM,
             format: requests::ChangePropertyFormat::Format32,
             data: wm_delete_window.to_le_bytes().to_vec(),
+        })?;
+
+        // set window name
+
+        let wm_name = {
+            let pending = display.send_request(&requests::InternAtom {
+                only_if_exists: false,
+                name: String8::from_bytes(b"WM_NAME".to_vec()).unwrap(),
+            })?;
+            display.flush()?;
+            display.await_pending_reply(pending)?.unwrap().atom
+        };
+
+        display.send_request(&requests::ChangeProperty {
+            mode: requests::ChangePropertyMode::Replace,
+            window,
+            property: wm_name,
+            type_: AtomId::STRING,
+            format: requests::ChangePropertyFormat::Format8,
+            data: title.as_bytes().to_vec(),
         })?;
 
         display.flush()?;
