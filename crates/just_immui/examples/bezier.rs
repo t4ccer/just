@@ -77,10 +77,19 @@ fn ui() -> Result<()> {
         },
         show_traces: true,
     };
-    let mut ui = Context::new("Bezier")?;
 
-    // Run UI at 60 FPS
-    ui.fps_limited_loop(60, |ui| draw(ui, &mut state))
+    #[cfg(not(feature = "screenshot"))]
+    {
+        let mut ui = Context::new("Bezier")?;
+
+        // Run UI at 60 FPS
+        ui.fps_limited_loop(60, |ui| draw(ui, &mut state))
+    }
+
+    #[cfg(feature = "screenshot")]
+    {
+        return just_immui::screenshot!("bezier.png", state, Vector2 { x: 800, y: 600 });
+    }
 }
 
 fn checkbox(ui: &mut Context, state: &mut bool, position: Vector2<u32>) {

@@ -1,4 +1,4 @@
-use crate::backend::{x11_mit_shm::X11MitShmBackend, Backend};
+use crate::backend::{bitmap::BitmapBackend, x11_mit_shm::X11MitShmBackend, Backend};
 use std::{fmt::Debug, time::Duration};
 
 mod backend;
@@ -88,6 +88,11 @@ impl Pointer {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub struct UiId(u32);
 
+pub enum BackendType {
+    X11MitShm,
+    Bitmap { size: Vector2<u32> },
+}
+
 pub struct Context {
     pub(crate) backend: Box<dyn Backend>,
     pointer: Pointer,
@@ -109,6 +114,27 @@ impl Context {
             active: None,
             resized: false,
         })
+    }
+
+    #[inline]
+    fn with_backend(backend: Box<dyn Backend>) -> Self {
+        Self {
+            backend,
+            pointer: Pointer::new(),
+            next_id: 0,
+            hot: None,
+            active: None,
+            resized: false,
+        }
+    }
+
+    #[inline]
+    pub fn with_backend_type(title: &str, backend: BackendType) -> Result<Self> {
+        let backend: Box<dyn Backend> = match backend {
+            BackendType::X11MitShm => Box::new(X11MitShmBackend::new(title)?),
+            BackendType::Bitmap { size } => Box::new(BitmapBackend::new(size)),
+        };
+        Ok(Self::with_backend(backend))
     }
 
     // TODO: Remove. This will break in conditional rendering
@@ -174,6 +200,11 @@ impl Context {
     #[inline]
     pub fn resized(&self) -> bool {
         self.resized
+    }
+
+    #[inline]
+    pub fn raw_buf(&mut self) -> &[u8] {
+        self.backend.buf_mut()
     }
 
     pub fn fps_limited_loop<F>(&mut self, fps: u64, mut draw: F) -> Result<()>
@@ -322,4 +353,55 @@ impl Vector2<u32> {
             y: self.y as i32,
         }
     }
+}
+
+#[cfg(feature = "screenshot")]
+pub fn to_ppm(img: &[u8], size: Vector2<u32>, mut f: impl std::io::Write) -> std::io::Result<()> {
+    writeln!(f, "P6")?;
+    writeln!(f, "{} {}", size.x, size.y)?;
+    writeln!(f, "255")?;
+
+    for y in 0..(size.y as usize) {
+        for x in 0..(size.x as usize) {
+            f.write_all(&[img[(y * size.x as usize + x as usize) * 4 + 2]])?;
+            f.write_all(&[img[(y * size.x as usize + x as usize) * 4 + 1]])?;
+            f.write_all(&[img[(y * size.x as usize + x as usize) * 4 + 0]])?;
+        }
+    }
+
+    f.flush()
+}
+
+#[cfg(feature = "screenshot")]
+#[macro_export]
+macro_rules! screenshot {
+    ($file_name:literal, $state:expr, $size:expr) => {{
+        use std::{
+            io::Write,
+            path::Path,
+            process::{Command, Stdio},
+        };
+
+        let size = $size;
+        let mut ui = Context::with_backend_type("", just_immui::BackendType::Bitmap { size })?;
+        draw(&mut ui, &mut $state);
+
+        let mut ppm = Vec::new();
+        just_immui::to_ppm(ui.raw_buf(), size, &mut ppm).unwrap();
+
+        let out_png_path = Path::new(file!()).with_file_name($file_name);
+        let mut convert = Command::new("convert")
+            .arg("-")
+            .arg(format!("{}", out_png_path.display()))
+            .stdin(Stdio::piped())
+            .spawn()
+            .expect("Could not spawn `convert`");
+
+        let mut stdin = convert.stdin.take().unwrap();
+        stdin.write_all(&ppm).unwrap();
+        drop(stdin);
+        convert.wait().unwrap();
+
+        Ok(())
+    }};
 }

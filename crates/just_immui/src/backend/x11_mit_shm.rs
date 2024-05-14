@@ -44,8 +44,8 @@ pub(crate) struct X11MitShmBackend {
     wm_delete_window: AtomId,
 }
 
-impl Backend for X11MitShmBackend {
-    fn new(title: &str) -> Result<Self> {
+impl X11MitShmBackend {
+    pub(crate) fn new(title: &str) -> Result<Self> {
         // TODO: Handle title, see XStoreName
 
         use just_x11::requests;
@@ -144,7 +144,9 @@ impl Backend for X11MitShmBackend {
             wm_delete_window,
         })
     }
+}
 
+impl Backend for X11MitShmBackend {
     fn flush_window(&mut self) -> Result<()> {
         self.display.send_extension_request(
             &mit_shm::requests::PutImage {
@@ -260,6 +262,8 @@ impl Backend for X11MitShmBackend {
     }
 
     fn resize(&mut self, new_width: u32, new_height: u32) -> Result<()> {
+        // FIXME: Must copy old data
+
         if new_width * new_height * BYTES_PER_PIXEL <= self.canvas.mem.size() {
             self.canvas.width = new_width;
             self.canvas.height = new_height;

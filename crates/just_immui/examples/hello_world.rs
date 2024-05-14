@@ -43,10 +43,18 @@ fn ui() -> Result<()> {
         count_left: 0,
         count_right: 0,
     };
-    let mut ui = Context::new("My Application")?;
 
-    // run UI at 60 FPS
-    ui.fps_limited_loop(60, |ui| draw(ui, &mut state))
+    #[cfg(not(feature = "screenshot"))]
+    {
+        let mut ui = Context::new("My Application")?;
+
+        // run UI at 60 FPS
+        ui.fps_limited_loop(60, |ui| draw(ui, &mut state))
+    }
+    #[cfg(feature = "screenshot")]
+    {
+        return just_immui::screenshot!("hello_world.png", state, Vector2 { x: 400, y: 200 });
+    }
 }
 
 /// Persistent state between UI frames

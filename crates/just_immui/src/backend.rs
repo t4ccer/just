@@ -1,12 +1,9 @@
 use crate::{Event, Result};
 
+pub(crate) mod bitmap;
 pub(crate) mod x11_mit_shm;
 
 pub(crate) trait Backend {
-    fn new(title: &str) -> Result<Self>
-    where
-        Self: Sized;
-
     fn flush_window(&mut self) -> Result<()>;
 
     fn events(&mut self) -> Result<Vec<Event>>;
