@@ -1,3 +1,10 @@
+// CLIPPY CONFIG
+#![allow(
+    clippy::new_without_default,
+    clippy::unnecessary_cast,
+    clippy::identity_op
+)]
+
 mod lexer;
 mod parser;
 

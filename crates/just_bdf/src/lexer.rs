@@ -116,9 +116,9 @@ where
             }
         }
 
-        if dot == true {
+        if dot {
             while let Some(c) = self.peek_char() {
-                if let Some(_) = c.value.to_digit(radix) {
+                if c.value.is_digit(radix) {
                     let _ = self.next_char();
                     end = c;
                 } else {
@@ -158,7 +158,7 @@ where
                 let _ = self.next_char();
 
                 let next = self.peek_char().map(|t| t.value);
-                if next.is_some_and(|c| c.is_digit(10)) {
+                if next.is_some_and(|c| c.is_ascii_digit()) {
                     let number = self.unsigned_number(10);
                     let token = match number.value {
                         Number::Float(num) => Token::Number(-num),
@@ -226,7 +226,7 @@ where
                     value: Token::String(raw_str, validity),
                 })
             }
-            digit if digit.is_digit(10) => {
+            digit if digit.is_ascii_digit() => {
                 let number = self.unsigned_number(10);
 
                 let token = match number.value {
@@ -310,24 +310,22 @@ where
                     },
                     value: Token::Keyword(ident),
                 })
+            } else if let Ok(hex) = i32::from_str_radix(ident, 16) {
+                Some(Spanned {
+                    span: Span {
+                        start: start.location,
+                        end: end.location,
+                    },
+                    value: Token::Integer(hex),
+                })
             } else {
-                if let Ok(hex) = i32::from_str_radix(ident, 16) {
-                    Some(Spanned {
-                        span: Span {
-                            start: start.location,
-                            end: end.location,
-                        },
-                        value: Token::Integer(hex),
-                    })
-                } else {
-                    Some(Spanned {
-                        span: Span {
-                            start: start.location,
-                            end: end.location,
-                        },
-                        value: Token::Keyword(ident),
-                    })
-                }
+                Some(Spanned {
+                    span: Span {
+                        start: start.location,
+                        end: end.location,
+                    },
+                    value: Token::Keyword(ident),
+                })
             }
         } else {
             self.next_normal()
