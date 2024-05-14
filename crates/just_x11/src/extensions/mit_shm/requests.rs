@@ -1,6 +1,7 @@
 use crate::{
-    extensions::mit_shm::ShmSegId, requests::write_le_bytes, Drawable, GContextId, PixmapId,
-    ToLeBytes,
+    extensions::mit_shm::ShmSegId,
+    requests::{write_le_bytes, PutImageFormat},
+    Drawable, GContextId, PixmapId, ToLeBytes,
 };
 
 pub mod opcodes;
@@ -104,8 +105,8 @@ pub struct PutImage {
     pub dst_x: i16,
     pub dst_y: i16,
     pub depth: u8,
-    pub format: u8,
-    pub send_event: u8,
+    pub format: PutImageFormat,
+    pub send_event: bool,
     pub bpad: u8,
     pub shmseg: ShmSegId,
     pub offset: u32,
@@ -127,7 +128,7 @@ impl ToLeBytes for PutImage {
         write_le_bytes!(w, self.dst_y);
         write_le_bytes!(w, self.depth);
         write_le_bytes!(w, self.format);
-        write_le_bytes!(w, self.send_event);
+        write_le_bytes!(w, self.send_event as u8);
         write_le_bytes!(w, self.bpad);
         write_le_bytes!(w, self.shmseg);
         write_le_bytes!(w, self.offset);

@@ -6,7 +6,7 @@ use just_x11::{
     events::EventType,
     extensions::mit_shm::{self, ShmSegId},
     replies::String8,
-    requests::{GContextSettings, WindowCreationAttributes},
+    requests::{GContextSettings, PutImageFormat, WindowCreationAttributes},
     Drawable, GContextId, WindowClass, WindowId, WindowVisual, XDisplay,
 };
 
@@ -186,8 +186,8 @@ impl Backend for X11MitShmBackend {
                 dst_x: 0,
                 dst_y: 0,
                 depth: 24,
-                format: 2,     // ZPixmap
-                send_event: 0, // FIXME: Should be bool
+                format: PutImageFormat::ZPixmap,
+                send_event: false, // should be true for double buffering tracking?
                 bpad: 0,
                 shmseg: self.canvas.shmseg,
                 offset: 0,

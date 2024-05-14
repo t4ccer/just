@@ -192,7 +192,7 @@ macro_rules! impl_enum {
         #[allow(dead_code)]
         impl $name {
             #[inline]
-            fn to_le_bytes(self) -> [u8; <$inner as $crate::utils::BytesSize>::SIZE] {
+            pub(crate) fn to_le_bytes(self) -> [u8; <$inner as $crate::utils::BytesSize>::SIZE] {
                 (self as $inner).to_le_bytes()
             }
         }
