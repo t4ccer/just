@@ -236,14 +236,34 @@ pub struct Color {
 }
 
 impl Color {
+    #[inline(always)]
     pub const fn from_components(a: u8, r: u8, g: u8, b: u8) -> Self {
         Self { a, r, g, b }
     }
 
     /// AARRGGBB
+    #[inline(always)]
     pub const fn from_raw(raw: u32) -> Self {
         let [a, r, g, b] = raw.to_be_bytes();
         Self { a, r, g, b }
+    }
+
+    #[inline(always)]
+    pub fn blend(c1: Self, c2: Self) -> Self {
+        let r = cmp::min(
+            (c1.r as u32 * (255 - c2.a as u32) + c2.r as u32 * c2.a as u32) / 255,
+            255,
+        ) as u8;
+        let g = cmp::min(
+            (c1.g as u32 * (255 - c2.a as u32) + c2.g as u32 * c2.a as u32) / 255,
+            255,
+        ) as u8;
+        let b = cmp::min(
+            (c1.b as u32 * (255 - c2.a as u32) + c2.b as u32 * c2.a as u32) / 255,
+            255,
+        ) as u8;
+
+        Self { r, g, b, a: c1.a }
     }
 }
 

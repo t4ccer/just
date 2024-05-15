@@ -177,7 +177,11 @@ impl Ui {
         size.x = cmp::min(size.x, self.current_view().size.x - position.x);
         size.y = cmp::min(size.y, self.current_view().size.y - position.y);
 
-        draw::rectangle(&mut self.canvas, absolute_position, size, color);
+        if color.a == 255 {
+            draw::rectangle_replace(&mut self.canvas, absolute_position, size, color);
+        } else {
+            draw::rectangle_blend(&mut self.canvas, absolute_position, size, color);
+        }
     }
 
     #[inline]
@@ -210,7 +214,7 @@ impl Ui {
 
         let off = self.current_view().absolute_offset;
 
-        draw::circle(&mut self.canvas, center + off, r, color);
+        draw::circle_blend_with_anti_aliasing(&mut self.canvas, center + off, r, color);
     }
 
     #[inline]

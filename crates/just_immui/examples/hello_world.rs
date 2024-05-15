@@ -10,7 +10,7 @@ use just_immui::{invisible_button, Button, Ui, UiId};
 
 /// Main UI loop
 fn draw(ui: &mut Ui, state: &mut State) {
-    ui.background(Color::from_raw(0x222222));
+    ui.background(Color::from_raw(0xff222222));
 
     ui.text(
         Vector2 { x: 50, y: 30 },
@@ -69,9 +69,9 @@ fn main() {
 
 /// Button with click counter - custom widget composed from simpler ones
 fn counter_button(ui: &mut Ui, id: UiId, position: Vector2<u32>, state: &mut u32) -> Button {
-    let inactive_color = Color::from_raw(0xf92672);
-    let hot_color = Color::from_raw(0x4eb4fa);
-    let active_color = Color::from_raw(0xa7e22e);
+    let inactive_color = Color::from_raw(0xfff92672);
+    let hot_color = Color::from_raw(0xff4eb4fa);
+    let active_color = Color::from_raw(0xffa7e22e);
 
     let width = 120;
     let height = 40;
