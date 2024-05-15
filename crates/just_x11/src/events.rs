@@ -943,3 +943,14 @@ bitmask! {
         OWNER_GRAB_BUTTON = 0x01000000,
     }
 }
+
+impl_enum! {
+    #[repr(u8)]
+    enum PointerButton {
+        Left = 1,
+        Middle = 2,
+        Right = 3,
+        ScrollUp = 4,
+        ScrollDown = 5,
+    }
+}

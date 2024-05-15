@@ -1,9 +1,9 @@
-use crate::{backend::Backend, Event, Result, Vector2, BYTES_PER_PIXEL};
+use crate::{backend::Backend, Event, PointerButton, Result, Vector2, BYTES_PER_PIXEL};
 use core::cmp;
 use just_shared_memory::SharedMemory;
 use just_x11::{
     atoms::AtomId,
-    events::EventType,
+    events::{self, EventType},
     extensions::mit_shm::{self, ShmSegId},
     replies::String8,
     requests::{GContextSettings, PutImageFormat, WindowCreationAttributes},
@@ -249,16 +249,32 @@ impl Backend for X11MitShmBackend {
                 }
                 SomeEvent::ButtonPress(event) => {
                     if event.event == self.window {
-                        events.push(Event::ButtonPress {
-                            button: event.detail.raw(),
-                        });
+                        if let Ok(button) = events::PointerButton::try_from(event.detail.raw()) {
+                            let button = match button {
+                                events::PointerButton::Left => PointerButton::Left,
+                                events::PointerButton::Middle => PointerButton::Middle,
+                                events::PointerButton::Right => PointerButton::Right,
+                                events::PointerButton::ScrollUp => PointerButton::ScrollUp,
+                                events::PointerButton::ScrollDown => PointerButton::ScrollDown,
+                            };
+
+                            events.push(Event::ButtonPress { button });
+                        }
                     }
                 }
                 SomeEvent::ButtonRelease(event) => {
                     if event.event == self.window {
-                        events.push(Event::ButtonRelease {
-                            button: event.detail.raw(),
-                        });
+                        if let Ok(button) = events::PointerButton::try_from(event.detail.raw()) {
+                            let button = match button {
+                                events::PointerButton::Left => PointerButton::Left,
+                                events::PointerButton::Middle => PointerButton::Middle,
+                                events::PointerButton::Right => PointerButton::Right,
+                                events::PointerButton::ScrollUp => PointerButton::ScrollUp,
+                                events::PointerButton::ScrollDown => PointerButton::ScrollDown,
+                            };
+
+                            events.push(Event::ButtonRelease { button });
+                        }
                     }
                 }
                 SomeEvent::MotionNotify(event) => {

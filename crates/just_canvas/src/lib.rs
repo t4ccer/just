@@ -62,7 +62,33 @@ impl<const SIZE: usize> BitArray<SIZE> {
     }
 }
 
-type ButtonMask = BitArray<32>;
+#[derive(Debug)]
+struct ButtonMask {
+    buttons: BitArray<32>,
+}
+
+impl ButtonMask {
+    fn new() -> Self {
+        Self {
+            buttons: BitArray::zeroed(),
+        }
+    }
+
+    #[inline]
+    fn set_pressed(&mut self, key: PointerButton) {
+        self.buttons.set(key as usize);
+    }
+
+    #[inline]
+    fn set_released(&mut self, key: PointerButton) {
+        self.buttons.clear(key as usize);
+    }
+
+    #[inline]
+    pub fn is_pressed(&self, key: PointerButton) -> bool {
+        self.buttons.get(key as usize)
+    }
+}
 
 #[derive(Debug)]
 pub struct Pointer {
@@ -77,24 +103,24 @@ impl Pointer {
     fn new() -> Self {
         Self {
             position: Vector2 { x: 0, y: 0 },
-            pressed_mask: ButtonMask::zeroed(),
-            clicked_this_frame: ButtonMask::zeroed(),
+            pressed_mask: ButtonMask::new(),
+            clicked_this_frame: ButtonMask::new(),
         }
     }
 
     #[inline]
-    fn set_pressed(&mut self, key: u8) {
-        self.pressed_mask.set(key as usize);
+    fn set_pressed(&mut self, key: PointerButton) {
+        self.pressed_mask.set_pressed(key);
     }
 
     #[inline]
-    fn set_released(&mut self, key: u8) {
-        self.pressed_mask.clear(key as usize);
+    fn set_released(&mut self, key: PointerButton) {
+        self.pressed_mask.set_released(key);
     }
 
     #[inline]
-    pub fn is_pressed(&self, key: u8) -> bool {
-        self.pressed_mask.get(key as usize)
+    pub fn is_pressed(&self, key: PointerButton) -> bool {
+        self.pressed_mask.is_pressed(key)
     }
 }
 
@@ -164,17 +190,19 @@ impl Canvas {
     pub fn process_events(&mut self) -> Result<()> {
         self.resized = false;
 
+        // FIXME
+
         for n in 0..u8::MAX {
-            if self.pointer.clicked_this_frame.get(n as usize) {
-                self.pointer.set_released(n);
-                self.pointer.clicked_this_frame.clear(n as usize);
+            if self.pointer.clicked_this_frame.buttons.get(n as usize) {
+                self.pointer.pressed_mask.buttons.clear(n as usize);
+                self.pointer.clicked_this_frame.buttons.clear(n as usize);
             }
         }
 
         // NOTE: During quick clicks pressed and released event may come in one frame
         // thus we keep track of these and release after rendering so the user code
         // can detect the click. This assumes that release event will come after press
-        let mut pressed_this_frame = ButtonMask::zeroed();
+        let mut pressed_this_frame = ButtonMask::new();
 
         for event in self.backend.events()? {
             match event {
@@ -183,12 +211,12 @@ impl Canvas {
                     self.resized = true;
                 }
                 Event::ButtonPress { button } => {
-                    pressed_this_frame.set(button as usize);
+                    pressed_this_frame.set_pressed(button);
                     self.pointer.set_pressed(button);
                 }
                 Event::ButtonRelease { button } => {
-                    if pressed_this_frame.get(button as usize) {
-                        self.pointer.clicked_this_frame.set(button as usize);
+                    if pressed_this_frame.is_pressed(button) {
+                        self.pointer.clicked_this_frame.set_pressed(button);
                     } else {
                         self.pointer.set_released(button);
                     }
@@ -216,13 +244,22 @@ impl Canvas {
     }
 }
 
+#[derive(Debug, Clone, Copy, Eq, PartialEq, PartialOrd, Ord)]
+pub enum PointerButton {
+    Left,
+    Middle,
+    Right,
+    ScrollUp,
+    ScrollDown,
+}
+
 // TODO: Transalte button codes
 
 #[derive(Debug)]
 pub(crate) enum Event {
     Resize { new_size: Vector2<u32> },
-    ButtonPress { button: u8 },
-    ButtonRelease { button: u8 },
+    ButtonPress { button: PointerButton },
+    ButtonRelease { button: PointerButton },
     PointerMotion { position: Vector2<u32> },
     Shutdown,
 }

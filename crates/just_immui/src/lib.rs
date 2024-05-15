@@ -6,7 +6,7 @@
 )]
 
 use bdf::BdfCharMap;
-use just_canvas::{draw, Canvas, Color, Pointer, Result, Vector2};
+use just_canvas::{draw, Canvas, Color, Pointer, PointerButton, Result, Vector2};
 use std::{cmp, time::Duration};
 
 mod bdf;
@@ -390,7 +390,7 @@ pub fn invisible_button(
         got_released: false,
     };
 
-    let is_mouse_pressed = ui.pointer_absolute().is_pressed(1);
+    let is_mouse_pressed = ui.pointer_absolute().is_pressed(PointerButton::Left);
 
     if in_bounds(ui.pointer_position()) {
         if ui.is_hot(id) {
@@ -421,7 +421,7 @@ pub fn invisible_draggable(
     id: UiId,
     in_bounds: impl FnOnce(Vector2<u32>) -> bool,
 ) -> bool {
-    let is_mouse_pressed = ui.pointer_absolute().is_pressed(1);
+    let is_mouse_pressed = ui.pointer_absolute().is_pressed(PointerButton::Left);
 
     if in_bounds(ui.pointer_position()) {
         if !ui.is_hot(id) && is_mouse_pressed {
