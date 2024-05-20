@@ -9,27 +9,14 @@ use just_canvas::{
     draw::{inside_circle, inside_rectangle},
     Color, Result, Vector2,
 };
-use just_immui::{invisible_button, invisible_draggable, Ui, UiId};
-
-macro_rules! map_range {
-    ($input: expr, $input_start:expr, $input_end: expr, $output_start:expr, $output_end:expr, $(,)?) => {
-        (($output_end as f32 - $output_start as f32) / ($input_end as f32 - $input_start as f32)
-            * ($input as f32 - $input_start as f32)
-            + $output_start as f32)
-            .clamp($output_start as f32, $output_end as f32)
-    };
-}
-
-const BLUE: Color = Color::from_raw(0xff4eb4fa);
-const DARK_BLUE: Color = Color::from_raw(0xff0b629e);
-const RED: Color = Color::from_raw(0xfff92672);
-const BLACK: Color = Color::from_raw(0xff222222);
-const WHITE: Color = Color::from_raw(0xffdddddd);
-const GRAY: Color = Color::from_raw(0xff666666);
-const GREEN: Color = Color::from_raw(0xffa7e22e);
+use just_immui::{
+    invisible_button, invisible_draggable,
+    monokaish::{self, Slider},
+    Ui, UiId,
+};
 
 fn draw(ui: &mut Ui, state: &mut State) {
-    ui.background(BLACK);
+    ui.background(monokaish::BLACK);
 
     let view = ui.current_view();
     let top_bar_height = 100;
@@ -48,7 +35,7 @@ fn draw(ui: &mut Ui, state: &mut State) {
                 ui,
                 &mut state.curve,
                 state.show_traces,
-                state.trace_lines.value,
+                state.trace_lines_slider.value,
             );
         },
     );
@@ -71,7 +58,7 @@ fn ui() -> Result<()> {
             middle_point: Endpoint::new(300, 400),
             end_point: Endpoint::new(600, 150),
         },
-        trace_lines: Slider {
+        trace_lines_slider: Slider {
             min: 0,
             max: 50,
             value: 25,
@@ -95,8 +82,16 @@ fn ui() -> Result<()> {
 
 fn editable_bezier(ui: &mut Ui, state: &mut Bezier, show_traces: bool, trace_lines: u32) {
     if show_traces {
-        ui.thin_dashed_line(state.start_point.position, state.middle_point.position, RED);
-        ui.thin_dashed_line(state.middle_point.position, state.end_point.position, RED);
+        ui.thin_dashed_line(
+            state.start_point.position,
+            state.middle_point.position,
+            monokaish::RED,
+        );
+        ui.thin_dashed_line(
+            state.middle_point.position,
+            state.end_point.position,
+            monokaish::RED,
+        );
 
         for t in 1..trace_lines {
             let t = t as f32 / trace_lines as f32;
@@ -112,7 +107,7 @@ fn editable_bezier(ui: &mut Ui, state: &mut Bezier, show_traces: bool, trace_lin
                 t,
             );
 
-            ui.thin_line(p1, p2, GREEN);
+            ui.thin_line(p1, p2, monokaish::GREEN);
         }
     }
 
@@ -123,7 +118,7 @@ fn editable_bezier(ui: &mut Ui, state: &mut Bezier, show_traces: bool, trace_lin
             state.middle_point.position,
             state.end_point.position,
             128,
-            GREEN,
+            monokaish::GREEN,
         );
     }
 
@@ -137,15 +132,16 @@ fn top_bar(ui: &mut Ui, state: &mut State) {
 
     let bottom_line_weigth = 3;
 
-    ui.thin_dashed_line(Vector2 { x: 30, y: 32 }, Vector2 { x: 95, y: 32 }, RED);
+    ui.thin_dashed_line(
+        Vector2 { x: 30, y: 32 },
+        Vector2 { x: 95, y: 32 },
+        monokaish::RED,
+    );
 
     if state.show_traces {
-        slider(
-            ui,
-            new_id(3),
-            &mut state.trace_lines,
-            Vector2 { x: 30, y: 65 },
-        );
+        state
+            .trace_lines_slider
+            .draw(ui, new_id(3), Vector2 { x: 30, y: 65 }, 180);
     }
 
     checkbox(
@@ -164,7 +160,7 @@ fn top_bar(ui: &mut Ui, state: &mut State) {
             x: view.size.x,
             y: bottom_line_weigth,
         },
-        GRAY,
+        monokaish::GRAY,
     );
 }
 
@@ -172,7 +168,11 @@ fn checkbox(ui: &mut Ui, id: UiId, state: &mut bool, position: Vector2<i32>) {
     let size = Vector2 { x: 24, y: 24 };
     let pad = 3u32;
 
-    let mut color = if *state { BLUE } else { BLACK };
+    let mut color = if *state {
+        monokaish::BLUE
+    } else {
+        monokaish::BLACK
+    };
 
     let button = invisible_button(ui, id, |cursor| {
         inside_rectangle(position, size, cursor.as_i32())
@@ -183,14 +183,18 @@ fn checkbox(ui: &mut Ui, id: UiId, state: &mut bool, position: Vector2<i32>) {
     }
 
     if button.is_pressed {
-        color = DARK_BLUE;
+        color = monokaish::DARK_BLUE;
     }
     if button.got_released {
         *state = !*state;
-        color = if *state { BLUE } else { BLACK };
+        color = if *state {
+            monokaish::BLUE
+        } else {
+            monokaish::BLACK
+        };
     }
 
-    ui.rectangle(position, size, GRAY);
+    ui.rectangle(position, size, monokaish::GRAY);
     ui.rectangle(
         Vector2 {
             x: position.x + pad as i32,
@@ -202,50 +206,6 @@ fn checkbox(ui: &mut Ui, id: UiId, state: &mut bool, position: Vector2<i32>) {
         },
         color,
     );
-}
-
-fn slider(ui: &mut Ui, id: UiId, state: &mut Slider, position: Vector2<i32>) {
-    // chosen arbitrarily
-    let size = Vector2 { x: 180, y: 6 };
-    let handle_size: Vector2<u32> = Vector2 { x: 8, y: 20 };
-
-    ui.rectangle(position, size, GRAY);
-
-    let handle_position = Vector2 {
-        x: map_range!(
-            state.value,
-            state.min,
-            state.max,
-            position.x,
-            position.x + size.x as i32,
-        ) as i32,
-        y: position.y - handle_size.y as i32 / 2 + size.y as i32 / 2,
-    };
-
-    ui.rectangle(handle_position, handle_size, BLUE);
-
-    let dragged = invisible_draggable(ui, id, |pointer| {
-        inside_rectangle(
-            position,
-            Vector2 {
-                x: size.x,
-                y: handle_size.y as u32,
-            },
-            pointer.as_i32(),
-        )
-    });
-    if dragged {
-        let px = (ui.pointer_position().x as i32)
-            .clamp(position.x as i32, position.x as i32 + size.x as i32) as u32;
-        state.value = map_range!(
-            px,
-            position.x,
-            position.x + size.x as i32,
-            state.min,
-            state.max,
-        ) as u32;
-        ui.set_dirty();
-    }
 }
 
 fn endpoint(ui: &mut Ui, id: UiId, state: &mut Endpoint) {
@@ -261,9 +221,9 @@ fn endpoint(ui: &mut Ui, id: UiId, state: &mut Endpoint) {
         ui.set_dirty();
     }
 
-    ui.circle(state.position, r, WHITE);
-    ui.circle(state.position, r - 5, BLACK);
-    ui.circle(state.position, r - 12, BLUE);
+    ui.circle(state.position, r, monokaish::WHITE);
+    ui.circle(state.position, r - 5, monokaish::BLACK);
+    ui.circle(state.position, r - 12, monokaish::BLUE);
 
     let dragged = invisible_draggable(ui, id, |pointer| {
         inside_circle(state.position, r, pointer.as_i32())
@@ -315,7 +275,7 @@ fn bezier_curve(
 
 struct State {
     curve: Bezier,
-    trace_lines: Slider,
+    trace_lines_slider: Slider,
     show_traces: bool,
 }
 
@@ -337,12 +297,6 @@ impl Endpoint {
             previous_mouse: None,
         }
     }
-}
-
-struct Slider {
-    min: u32,
-    max: u32,
-    value: u32,
 }
 
 fn main() {

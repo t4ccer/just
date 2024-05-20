@@ -10,6 +10,7 @@ use just_canvas::{draw, Canvas, Color, Pointer, PointerButton, Result, Vector2};
 use std::{cmp, time::Duration};
 
 mod bdf;
+pub mod monokaish;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub struct UiId {

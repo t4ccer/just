@@ -5,18 +5,18 @@
     clippy::identity_op
 )]
 
-use just_canvas::{draw::inside_rectangle, Color, Result, Vector2};
-use just_immui::{invisible_button, Button, Ui, UiId};
+use just_canvas::{draw::inside_rectangle, Result, Vector2};
+use just_immui::{invisible_button, monokaish, Button, Ui, UiId};
 
 /// Main UI loop
 fn draw(ui: &mut Ui, state: &mut State) {
-    ui.background(Color::from_raw(0xff222222));
+    ui.background(monokaish::BLACK);
 
     ui.text(
         Vector2 { x: 50, y: 30 },
         3,
         "Hello, World!",
-        Color::from_raw(0xffdddddd),
+        monokaish::WHITE,
     );
 
     counter_button(
@@ -69,9 +69,9 @@ fn main() {
 
 /// Button with click counter - custom widget composed from simpler ones
 fn counter_button(ui: &mut Ui, id: UiId, position: Vector2<i32>, state: &mut u32) -> Button {
-    let inactive_color = Color::from_raw(0xfff92672);
-    let hot_color = Color::from_raw(0xff4eb4fa);
-    let active_color = Color::from_raw(0xffa7e22e);
+    let inactive_color = monokaish::RED;
+    let hot_color = monokaish::BLUE;
+    let active_color = monokaish::GREEN;
 
     let width = 120;
     let height = 40;
@@ -102,6 +102,13 @@ fn counter_button(ui: &mut Ui, id: UiId, position: Vector2<i32>, state: &mut u32
     }
     let txt = format!("{}", *state);
     let text_size = ui.text_size(font_size, &txt);
+
+    let text_color = if button.is_pressed {
+        monokaish::BLACK
+    } else {
+        monokaish::WHITE
+    };
+
     ui.text(
         Vector2 {
             x: position.x + (width as i32 / 2 - text_size.x as i32 / 2),
@@ -109,7 +116,7 @@ fn counter_button(ui: &mut Ui, id: UiId, position: Vector2<i32>, state: &mut u32
         },
         font_size,
         &txt,
-        Color::from_raw(0xffdddddd),
+        text_color,
     );
 
     button
