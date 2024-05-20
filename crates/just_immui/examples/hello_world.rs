@@ -68,7 +68,7 @@ fn main() {
 }
 
 /// Button with click counter - custom widget composed from simpler ones
-fn counter_button(ui: &mut Ui, id: UiId, position: Vector2<u32>, state: &mut u32) -> Button {
+fn counter_button(ui: &mut Ui, id: UiId, position: Vector2<i32>, state: &mut u32) -> Button {
     let inactive_color = Color::from_raw(0xfff92672);
     let hot_color = Color::from_raw(0xff4eb4fa);
     let active_color = Color::from_raw(0xffa7e22e);
@@ -81,7 +81,9 @@ fn counter_button(ui: &mut Ui, id: UiId, position: Vector2<u32>, state: &mut u32
     };
     let font_size = 2;
 
-    let button = invisible_button(ui, id, |pointer| inside_rectangle(position, size, pointer));
+    let button = invisible_button(ui, id, |pointer| {
+        inside_rectangle(position, size, pointer.as_i32())
+    });
 
     if button.got_hovered || button.got_released || button.got_pressed || button.got_unhovered {
         ui.set_dirty();
@@ -102,8 +104,8 @@ fn counter_button(ui: &mut Ui, id: UiId, position: Vector2<u32>, state: &mut u32
     let text_size = ui.text_size(font_size, &txt);
     ui.text(
         Vector2 {
-            x: position.x + (width / 2 - text_size.x / 2),
-            y: position.y + (height / 2 - text_size.y / 2),
+            x: position.x + (width as i32 / 2 - text_size.x as i32 / 2),
+            y: position.y + (height as i32 / 2 - text_size.y as i32 / 2),
         },
         font_size,
         &txt,

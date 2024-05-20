@@ -1,6 +1,7 @@
 use crate::{Event, Result, Vector2};
 
-pub(crate) mod bitmap;
+pub(crate) mod owned_bitmap;
+pub(crate) mod shared_bitmap;
 pub(crate) mod x11_mit_shm;
 
 pub(crate) trait Backend {

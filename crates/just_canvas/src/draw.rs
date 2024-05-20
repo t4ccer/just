@@ -1,19 +1,55 @@
 use crate::{Canvas, Color, Vector2, BYTES_PER_PIXEL};
 use just_bdf::Glyph;
 
-#[inline(always)]
-pub fn set_pixel(buf: &mut [u8], window_size: Vector2<u32>, x: u32, y: u32, color: Color) {
-    let offset = (window_size.x * y + x) as usize * BYTES_PER_PIXEL as usize;
+// macro_rules! check_in_view {
+//     ($window_size: expr, $position: expr) => {
+//         #[cfg(debug_assertions)]
+//         {
+//             if $position.x >= $window_size.x as i32 {
+//                 panic!(
+//                     "Point out of range: x = {} >= {}, y = {}",
+//                     $position.x, $window_size.x, $position.y
+//                 )
+//             }
+//             if $position.x < 0 {
+//                 panic!(
+//                     "Point out of range: x = {} < 0, y = {}",
+//                     $position.x, $position.y
+//                 )
+//             }
+//             if $position.y >= $window_size.y as i32 {
+//                 panic!(
+//                     "Point out of range: x = {}, y = {} >= {}",
+//                     $position.x, $position.y, $window_size.y
+//                 )
+//             }
+//             if $position.y < 0 {
+//                 panic!(
+//                     "Point out of range: x = {}, y = {} < 0",
+//                     $position.x, $position.y
+//                 )
+//             }
+//         }
+//     };
+// }
 
-    #[cfg(debug_assertions)]
-    {
-        if x >= window_size.x {
-            panic!("Point out of range: x = {x} >= {}, y = {y}", window_size.x)
+macro_rules! check_in_view {
+    ($window_size: expr, $position: expr) => {
+        if $position.x >= $window_size.x as i32
+            || $position.x < 0
+            || $position.y >= $window_size.y as i32
+            || $position.y < 0
+        {
+            return;
         }
-        if y >= window_size.y {
-            panic!("Point out of range: x = {x}, y = {y} >= {}", window_size.y)
-        }
-    }
+    };
+}
+
+#[inline(always)]
+pub fn set_pixel(buf: &mut [u8], window_size: Vector2<u32>, position: Vector2<i32>, color: Color) {
+    check_in_view!(window_size, position);
+    let position = position.as_u32();
+    let offset = (window_size.x * position.y + position.x) as usize * BYTES_PER_PIXEL as usize;
 
     buf[offset + 0] = color.b;
     buf[offset + 1] = color.g;
@@ -22,18 +58,15 @@ pub fn set_pixel(buf: &mut [u8], window_size: Vector2<u32>, x: u32, y: u32, colo
 }
 
 #[inline(always)]
-pub fn blend_pixel(buf: &mut [u8], window_size: Vector2<u32>, x: u32, y: u32, color: Color) {
-    let offset = (window_size.x * y + x) as usize * BYTES_PER_PIXEL as usize;
-
-    #[cfg(debug_assertions)]
-    {
-        if x >= window_size.x {
-            panic!("Point out of range: x = {x} >= {}, y = {y}", window_size.x)
-        }
-        if y >= window_size.y {
-            panic!("Point out of range: x = {x}, y = {y} >= {}", window_size.y)
-        }
-    }
+pub fn blend_pixel(
+    buf: &mut [u8],
+    window_size: Vector2<u32>,
+    position: Vector2<i32>,
+    color: Color,
+) {
+    check_in_view!(window_size, position);
+    let position = position.as_u32();
+    let offset = (window_size.x * position.y + position.x) as usize * BYTES_PER_PIXEL as usize;
 
     let old = Color {
         b: buf[offset + 0],
@@ -55,9 +88,9 @@ macro_rules! define_rectangle {
         let window_size = $canvas.window_size();
         let buf = $canvas.raw_buf_mut();
 
-        for cy in $position.y..($position.y + $size.y).clamp(0, window_size.y) {
-            for cx in $position.x..($position.x + $size.x).clamp(0, window_size.x) {
-                $set_pixel(buf, window_size, cx, cy, $color);
+        for cy in $position.y..($position.y + $size.y as i32) {
+            for cx in $position.x..($position.x + $size.x as i32) {
+                $set_pixel(buf, window_size, Vector2 { x: cx, y: cy }, $color);
             }
         }
     };
@@ -66,7 +99,7 @@ macro_rules! define_rectangle {
 #[inline]
 pub fn rectangle_replace(
     canvas: &mut Canvas,
-    position: Vector2<u32>,
+    position: Vector2<i32>,
     size: Vector2<u32>,
     color: Color,
 ) {
@@ -76,7 +109,7 @@ pub fn rectangle_replace(
 #[inline]
 pub fn rectangle_blend(
     canvas: &mut Canvas,
-    position: Vector2<u32>,
+    position: Vector2<i32>,
     size: Vector2<u32>,
     color: Color,
 ) {
@@ -84,18 +117,18 @@ pub fn rectangle_blend(
 }
 
 #[inline]
-pub fn circle_replace(ui: &mut Canvas, center: Vector2<u32>, r: u32, color: Color) {
+pub fn circle_replace(ui: &mut Canvas, center: Vector2<i32>, radius: u32, color: Color) {
     let window_size = ui.window_size();
     let buf = ui.raw_buf_mut();
 
-    let x = center.x.saturating_sub(r);
-    let y = center.y.saturating_sub(r);
+    let x = center.x - radius as i32;
+    let y = center.y - radius as i32;
 
-    for cy in y..(y + r * 2).clamp(0, window_size.y) {
-        for cx in x..(x + r * 2).clamp(0, window_size.x) {
+    for cy in y..(y + radius as i32 * 2) {
+        for cx in x..(x + radius as i32 * 2) {
             let point = Vector2 { x: cx, y: cy };
-            if inside_circle(center, r, point) {
-                set_pixel(buf, window_size, cx, cy, color);
+            if inside_circle(center, radius, point) {
+                set_pixel(buf, window_size, Vector2 { x: cx, y: cy }, color);
             }
         }
     }
@@ -107,20 +140,20 @@ const CIRCLE_AA_PAD: f32 = 1.0 / (CIRCLE_AA_RES as f32 + 1.0);
 #[inline]
 pub fn circle_blend_with_anti_aliasing(
     ui: &mut Canvas,
-    center: Vector2<u32>,
+    center: Vector2<i32>,
     radius: u32,
     color: Color,
 ) {
     let window_size = ui.window_size();
     let buf = ui.raw_buf_mut();
 
-    let x = center.x.saturating_sub(radius);
-    let y = center.y.saturating_sub(radius);
+    let x = center.x - radius as i32;
+    let y = center.y - radius as i32;
 
     let r2 = radius as f32 * radius as f32;
 
-    for current_y in y..(y + radius * 2).clamp(0, window_size.y) {
-        for current_x in x..(x + radius * 2).clamp(0, window_size.x) {
+    for current_y in y..(y + radius as i32 * 2) {
+        for current_x in x..(x + radius as i32 * 2) {
             let mut count = 0;
             for subpixel_offset_x in 0..CIRCLE_AA_RES {
                 for subpixel_offset_y in 0..CIRCLE_AA_RES {
@@ -140,27 +173,31 @@ pub fn circle_blend_with_anti_aliasing(
             a *= count;
             a /= CIRCLE_AA_RES * CIRCLE_AA_RES;
             c.a = a as u8;
-            blend_pixel(buf, window_size, current_x, current_y, c);
+            blend_pixel(
+                buf,
+                window_size,
+                Vector2 {
+                    x: current_x,
+                    y: current_y,
+                },
+                c,
+            );
         }
     }
 }
 
 #[inline]
-pub fn thin_line(ui: &mut Canvas, start: Vector2<u32>, end: Vector2<u32>, color: Color) {
+pub fn thin_line(ui: &mut Canvas, start: Vector2<i32>, end: Vector2<i32>, color: Color) {
     let window_size = ui.window_size();
     let buf = ui.raw_buf_mut();
 
     for (x, y) in LineIter::new(start, end) {
-        if y >= window_size.y || x >= window_size.x {
-            continue;
-        }
-
-        set_pixel(buf, window_size, x, y, color);
+        set_pixel(buf, window_size, Vector2 { x, y }, color);
     }
 }
 
 #[inline]
-pub fn thin_dashed_line(ui: &mut Canvas, start: Vector2<u32>, end: Vector2<u32>, color: Color) {
+pub fn thin_dashed_line(ui: &mut Canvas, start: Vector2<i32>, end: Vector2<i32>, color: Color) {
     let window_size = ui.window_size();
     let buf = ui.raw_buf_mut();
 
@@ -170,12 +207,8 @@ pub fn thin_dashed_line(ui: &mut Canvas, start: Vector2<u32>, end: Vector2<u32>,
 
     let mut n = 0;
     for (x, y) in LineIter::new(start, end) {
-        if y >= window_size.y || x >= window_size.x {
-            continue;
-        }
-
         if n < dash_length {
-            set_pixel(buf, window_size, x, y, color);
+            set_pixel(buf, window_size, Vector2 { x, y }, color);
         }
         n += 1;
         if n >= dash_length + gap_length {
@@ -186,18 +219,18 @@ pub fn thin_dashed_line(ui: &mut Canvas, start: Vector2<u32>, end: Vector2<u32>,
 
 #[derive(Debug)]
 struct LineIter {
-    x1: u32,
-    y1: u32,
-    x2: u32,
-    y2: u32,
+    x1: i32,
+    y1: i32,
+    x2: i32,
+    y2: i32,
     dx: i32,
     dy: i32,
-    curr_x: u32,
-    curr_y: u32,
+    curr_x: i32,
+    curr_y: i32,
 }
 
 impl LineIter {
-    fn new(start: Vector2<u32>, end: Vector2<u32>) -> Self {
+    fn new(start: Vector2<i32>, end: Vector2<i32>) -> Self {
         let Vector2 {
             x: mut x1,
             y: mut y1,
@@ -235,7 +268,7 @@ impl LineIter {
 }
 
 impl Iterator for LineIter {
-    type Item = (u32, u32);
+    type Item = (i32, i32);
 
     fn next(&mut self) -> Option<Self::Item> {
         if self.dx == 0 && self.dy == 0 {
@@ -247,8 +280,7 @@ impl Iterator for LineIter {
                 return None;
             }
 
-            let y =
-                (self.dy * (self.curr_x as i32 - self.x1 as i32) / self.dx + self.y1 as i32) as u32;
+            let y = self.dy * (self.curr_x as i32 - self.x1 as i32) / self.dx + self.y1 as i32;
             let res = (self.curr_x, y);
 
             self.curr_x += 1;
@@ -259,8 +291,7 @@ impl Iterator for LineIter {
                 return None;
             }
 
-            let x =
-                (self.dx * (self.curr_y as i32 - self.y1 as i32) / self.dy + self.x1 as i32) as u32;
+            let x = self.dx * (self.curr_y as i32 - self.y1 as i32) / self.dy + self.x1 as i32;
             let res = (x, self.curr_y);
 
             self.curr_y += 1;
@@ -281,7 +312,7 @@ pub fn text_bdf_width<'a>(font: impl Fn(char) -> &'a Glyph, size: u32, text: &st
     x
 }
 
-pub fn glyph_bdf(ui: &mut Canvas, position: Vector2<u32>, size: u32, glyph: &Glyph, color: Color) {
+pub fn glyph_bdf(ui: &mut Canvas, position: Vector2<i32>, size: u32, glyph: &Glyph, color: Color) {
     let padded_width = ((glyph.bounding_box.width + 7) / 8) * 8;
     let padded_height = ((glyph.bounding_box.height + 7) / 8) * 8;
 
@@ -300,8 +331,8 @@ pub fn glyph_bdf(ui: &mut Canvas, position: Vector2<u32>, size: u32, glyph: &Gly
                 rectangle_replace(
                     ui,
                     Vector2 {
-                        x: (total_x_offset - (gx as i32 * size as i32)) as u32,
-                        y: (total_y_offset + (gy as i32 * size as i32)) as u32,
+                        x: total_x_offset - (gx as i32 * size as i32),
+                        y: total_y_offset + (gy as i32 * size as i32),
                     },
                     Vector2 { x: size, y: size },
                     color,
@@ -312,21 +343,21 @@ pub fn glyph_bdf(ui: &mut Canvas, position: Vector2<u32>, size: u32, glyph: &Gly
 }
 
 #[inline]
-pub fn distance_squared(p1: Vector2<u32>, p2: Vector2<u32>) -> u32 {
-    let x_dist = (p1.x as i32 - p2.x as i32).unsigned_abs();
-    let y_dist = (p1.y as i32 - p2.y as i32).unsigned_abs();
+pub fn distance_squared(p1: Vector2<i32>, p2: Vector2<i32>) -> u32 {
+    let x_dist = (p1.x - p2.x).unsigned_abs();
+    let y_dist = (p1.y - p2.y).unsigned_abs();
     x_dist * x_dist + y_dist * y_dist
 }
 
 #[inline]
-pub fn inside_circle(center: Vector2<u32>, r: u32, point: Vector2<u32>) -> bool {
+pub fn inside_circle(center: Vector2<i32>, r: u32, point: Vector2<i32>) -> bool {
     distance_squared(center, point) <= r * r
 }
 
 #[inline]
-pub fn inside_rectangle(position: Vector2<u32>, size: Vector2<u32>, point: Vector2<u32>) -> bool {
+pub fn inside_rectangle(position: Vector2<i32>, size: Vector2<u32>, point: Vector2<i32>) -> bool {
     point.x >= position.x
-        && point.x <= position.x + size.x
+        && point.x <= position.x + size.x as i32
         && point.y >= position.y
-        && point.y <= size.y + position.y
+        && point.y <= position.y + size.y as i32
 }

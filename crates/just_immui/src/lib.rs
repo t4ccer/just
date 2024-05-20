@@ -64,7 +64,7 @@ impl Ui {
             active: None,
             font_char_map: BdfCharMap::ib8x8u(),
             dirty: true,
-            dirty_next: true,
+            dirty_next: false,
             view: View::Unbounded,
         }
     }
@@ -167,15 +167,21 @@ impl Ui {
     }
 
     #[inline]
-    pub fn rectangle(&mut self, position: Vector2<u32>, mut size: Vector2<u32>, color: Color) {
-        if !self.dirty {
+    pub fn rectangle(&mut self, position: Vector2<i32>, mut size: Vector2<u32>, color: Color) {
+        if !self.is_dirty() {
             return;
         }
 
-        let absolute_position = position + self.view.absolute_offset();
+        let absolute_position = position + self.view.absolute_offset().as_i32();
 
-        size.x = cmp::min(size.x, self.current_view().size.x - position.x);
-        size.y = cmp::min(size.y, self.current_view().size.y - position.y);
+        size.x = cmp::min(
+            size.x as i32,
+            self.current_view().size.x as i32 - position.x,
+        ) as u32;
+        size.y = cmp::min(
+            size.y as i32,
+            self.current_view().size.y as i32 - position.y,
+        ) as u32;
 
         if color.a == 255 {
             draw::rectangle_replace(&mut self.canvas, absolute_position, size, color);
@@ -185,34 +191,34 @@ impl Ui {
     }
 
     #[inline]
-    pub fn thin_line(&mut self, start: Vector2<u32>, end: Vector2<u32>, color: Color) {
-        if !self.dirty {
+    pub fn thin_line(&mut self, start: Vector2<i32>, end: Vector2<i32>, color: Color) {
+        if !self.is_dirty() {
             return;
         }
 
-        let off = self.current_view().absolute_offset;
+        let off = self.current_view().absolute_offset.as_i32();
 
         draw::thin_line(&mut self.canvas, start + off, end + off, color);
     }
 
     #[inline]
-    pub fn thin_dashed_line(&mut self, start: Vector2<u32>, end: Vector2<u32>, color: Color) {
-        if !self.dirty {
+    pub fn thin_dashed_line(&mut self, start: Vector2<i32>, end: Vector2<i32>, color: Color) {
+        if !self.is_dirty() {
             return;
         }
 
-        let off = self.current_view().absolute_offset;
+        let off = self.current_view().absolute_offset.as_i32();
 
         draw::thin_dashed_line(&mut self.canvas, start + off, end + off, color);
     }
 
     #[inline]
-    pub fn circle(&mut self, center: Vector2<u32>, r: u32, color: Color) {
-        if !self.dirty {
+    pub fn circle(&mut self, center: Vector2<i32>, r: u32, color: Color) {
+        if !self.is_dirty() {
             return;
         }
 
-        let off = self.current_view().absolute_offset;
+        let off = self.current_view().absolute_offset.as_i32();
 
         draw::circle_blend_with_anti_aliasing(&mut self.canvas, center + off, r, color);
     }
@@ -246,7 +252,7 @@ impl Ui {
 
             draw(self);
 
-            if self.dirty {
+            if self.is_dirty() {
                 self.canvas_mut().flush()?;
             }
 
@@ -264,12 +270,12 @@ impl Ui {
         Ok(())
     }
 
-    pub fn text(&mut self, mut position: Vector2<u32>, size: u32, text: &str, color: Color) {
+    pub fn text(&mut self, mut position: Vector2<i32>, size: u32, text: &str, color: Color) {
         let canvas = &mut self.canvas;
         let char_map = &self.font_char_map;
         for glyph in text.chars().map(|c| char_map.get(c)) {
             draw::glyph_bdf(canvas, position, size, glyph, color);
-            position.x += size * glyph.bounding_box.width + size * 2;
+            position.x += (size * glyph.bounding_box.width + size * 2) as i32;
         }
     }
 

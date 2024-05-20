@@ -5,7 +5,9 @@
     clippy::identity_op
 )]
 
-use crate::backend::{bitmap::BitmapBackend, x11_mit_shm::X11MitShmBackend, Backend};
+use backend::shared_bitmap;
+
+use crate::backend::{owned_bitmap::OwnedBitmapBackend, x11_mit_shm::X11MitShmBackend, Backend};
 use std::{
     cmp,
     fmt::Debug,
@@ -20,6 +22,7 @@ pub const BYTES_PER_PIXEL: u32 = 4;
 #[derive(Debug)]
 pub enum CanvasError {
     X11ProtocolError(just_x11::error::Error),
+    SharedBitmapError(shared_bitmap::Error),
 }
 
 impl From<just_x11::error::Error> for CanvasError {
@@ -157,7 +160,7 @@ impl Canvas {
     pub fn with_backend_type(title: &str, backend: BackendType) -> Result<Self> {
         let backend: Box<dyn Backend> = match backend {
             BackendType::X11MitShm => Box::new(X11MitShmBackend::new(title)?),
-            BackendType::Bitmap { size } => Box::new(BitmapBackend::new(size)),
+            BackendType::Bitmap { size } => Box::new(OwnedBitmapBackend::new(size)),
         };
         Ok(Self::with_backend(backend))
     }
@@ -343,6 +346,23 @@ impl Vector2<i32> {
             x: cmp::max(0, self.x),
             y: cmp::max(0, self.y),
         }
+    }
+
+    #[inline(always)]
+    pub fn linear_interpolation(p1: Self, p2: Self, t: f32) -> Self {
+        let mut x = p1.x as f32 + (p2.x as f32 - p1.x as f32) * t;
+        if x < 0.0 {
+            x = 0.0;
+        }
+        let x = x as i32;
+
+        let mut y = p1.y as f32 + (p2.y as f32 - p1.y as f32) * t;
+        if y < 0.0 {
+            y = 0.0;
+        }
+        let y = y as i32;
+
+        Vector2 { x, y }
     }
 }
 

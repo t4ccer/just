@@ -11,6 +11,15 @@ use just_canvas::{
 };
 use just_immui::{invisible_button, invisible_draggable, Ui, UiId};
 
+macro_rules! map_range {
+    ($input: expr, $input_start:expr, $input_end: expr, $output_start:expr, $output_end:expr, $(,)?) => {
+        (($output_end as f32 - $output_start as f32) / ($input_end as f32 - $input_start as f32)
+            * ($input as f32 - $input_start as f32)
+            + $output_start as f32)
+            .clamp($output_start as f32, $output_end as f32)
+    };
+}
+
 const BLUE: Color = Color::from_raw(0xff4eb4fa);
 const DARK_BLUE: Color = Color::from_raw(0xff0b629e);
 const RED: Color = Color::from_raw(0xfff92672);
@@ -92,9 +101,16 @@ fn editable_bezier(ui: &mut Ui, state: &mut Bezier, show_traces: bool, trace_lin
         for t in 1..trace_lines {
             let t = t as f32 / trace_lines as f32;
 
-            let p1 =
-                linear_interpolation(state.start_point.position, state.middle_point.position, t);
-            let p2 = linear_interpolation(state.middle_point.position, state.end_point.position, t);
+            let p1 = Vector2::linear_interpolation(
+                state.start_point.position,
+                state.middle_point.position,
+                t,
+            );
+            let p2 = Vector2::linear_interpolation(
+                state.middle_point.position,
+                state.end_point.position,
+                t,
+            );
 
             ui.thin_line(p1, p2, GREEN);
         }
@@ -142,7 +158,7 @@ fn top_bar(ui: &mut Ui, state: &mut State) {
     ui.rectangle(
         Vector2 {
             x: 0,
-            y: view.size.y - bottom_line_weigth,
+            y: view.size.y as i32 - bottom_line_weigth as i32,
         },
         Vector2 {
             x: view.size.x,
@@ -152,13 +168,15 @@ fn top_bar(ui: &mut Ui, state: &mut State) {
     );
 }
 
-fn checkbox(ui: &mut Ui, id: UiId, state: &mut bool, position: Vector2<u32>) {
+fn checkbox(ui: &mut Ui, id: UiId, state: &mut bool, position: Vector2<i32>) {
     let size = Vector2 { x: 24, y: 24 };
-    let pad = 3;
+    let pad = 3u32;
 
     let mut color = if *state { BLUE } else { BLACK };
 
-    let button = invisible_button(ui, id, |cursor| inside_rectangle(position, size, cursor));
+    let button = invisible_button(ui, id, |cursor| {
+        inside_rectangle(position, size, cursor.as_i32())
+    });
 
     if button.got_hovered || button.got_released || button.got_pressed || button.got_unhovered {
         ui.set_dirty();
@@ -175,8 +193,8 @@ fn checkbox(ui: &mut Ui, id: UiId, state: &mut bool, position: Vector2<u32>) {
     ui.rectangle(position, size, GRAY);
     ui.rectangle(
         Vector2 {
-            x: position.x + pad,
-            y: position.y + pad,
+            x: position.x + pad as i32,
+            y: position.y + pad as i32,
         },
         Vector2 {
             x: size.x - pad * 2,
@@ -186,22 +204,22 @@ fn checkbox(ui: &mut Ui, id: UiId, state: &mut bool, position: Vector2<u32>) {
     );
 }
 
-fn slider(ui: &mut Ui, id: UiId, state: &mut Slider, position: Vector2<u32>) {
+fn slider(ui: &mut Ui, id: UiId, state: &mut Slider, position: Vector2<i32>) {
     // chosen arbitrarily
     let size = Vector2 { x: 180, y: 6 };
-    let handle_size = Vector2 { x: 8, y: 20 };
+    let handle_size: Vector2<u32> = Vector2 { x: 8, y: 20 };
 
     ui.rectangle(position, size, GRAY);
 
     let handle_position = Vector2 {
-        x: map_range(
+        x: map_range!(
             state.value,
             state.min,
             state.max,
             position.x,
-            position.x + size.x,
-        ),
-        y: position.y - handle_size.y / 2 + size.y / 2,
+            position.x + size.x as i32,
+        ) as i32,
+        y: position.y - handle_size.y as i32 / 2 + size.y as i32 / 2,
     };
 
     ui.rectangle(handle_position, handle_size, BLUE);
@@ -211,15 +229,21 @@ fn slider(ui: &mut Ui, id: UiId, state: &mut Slider, position: Vector2<u32>) {
             position,
             Vector2 {
                 x: size.x,
-                y: handle_size.y,
+                y: handle_size.y as u32,
             },
-            pointer,
+            pointer.as_i32(),
         )
     });
     if dragged {
         let px = (ui.pointer_position().x as i32)
             .clamp(position.x as i32, position.x as i32 + size.x as i32) as u32;
-        state.value = map_range(px, position.x, position.x + size.x, state.min, state.max);
+        state.value = map_range!(
+            px,
+            position.x,
+            position.x + size.x as i32,
+            state.min,
+            state.max,
+        ) as u32;
         ui.set_dirty();
     }
 }
@@ -231,7 +255,9 @@ fn endpoint(ui: &mut Ui, id: UiId, state: &mut Endpoint) {
     let view = ui.current_view();
 
     if ui.resized() {
-        state.position = state.position.clamp(Vector2::<u32>::zero(), view.size);
+        state.position = state
+            .position
+            .clamp(Vector2::<i32>::zero(), view.size.as_i32());
         ui.set_dirty();
     }
 
@@ -239,7 +265,9 @@ fn endpoint(ui: &mut Ui, id: UiId, state: &mut Endpoint) {
     ui.circle(state.position, r - 5, BLACK);
     ui.circle(state.position, r - 12, BLUE);
 
-    let dragged = invisible_draggable(ui, id, |pointer| inside_circle(state.position, r, pointer));
+    let dragged = invisible_draggable(ui, id, |pointer| {
+        inside_circle(state.position, r, pointer.as_i32())
+    });
 
     let pointer = ui.pointer_position();
 
@@ -254,46 +282,30 @@ fn endpoint(ui: &mut Ui, id: UiId, state: &mut Endpoint) {
                 .clamp(Vector2::<i32>::zero(), view.size.as_i32())
                 .as_u32();
 
-                state.position = new_position;
+                state.position = new_position.as_i32();
                 state.previous_mouse = Some(pointer);
                 ui.set_dirty();
             }
         }
     } else {
-        state.previous_mouse = Some(pointer)
+        state.previous_mouse = Some(pointer);
     }
-}
-
-fn linear_interpolation(p1: Vector2<u32>, p2: Vector2<u32>, t: f32) -> Vector2<u32> {
-    let mut x = p1.x as f32 + (p2.x as f32 - p1.x as f32) * t;
-    if x < 0.0 {
-        x = 0.0;
-    }
-    let x = x as u32;
-
-    let mut y = p1.y as f32 + (p2.y as f32 - p1.y as f32) * t;
-    if y < 0.0 {
-        y = 0.0;
-    }
-    let y = y as u32;
-
-    Vector2 { x, y }
 }
 
 fn bezier_curve(
     ui: &mut Ui,
-    start: Vector2<u32>,
-    middle: Vector2<u32>,
-    end: Vector2<u32>,
+    start: Vector2<i32>,
+    middle: Vector2<i32>,
+    end: Vector2<i32>,
     resolution: u32,
     color: Color,
 ) {
     let mut prev = start;
     for i in 0..resolution {
         let t = (i as f32 + 1.0) / resolution as f32;
-        let next = linear_interpolation(
-            linear_interpolation(start, middle, t),
-            linear_interpolation(middle, end, t),
+        let next = Vector2::linear_interpolation(
+            Vector2::linear_interpolation(start, middle, t),
+            Vector2::linear_interpolation(middle, end, t),
             t,
         );
         ui.thin_line(prev, next, color);
@@ -314,12 +326,12 @@ struct Bezier {
 }
 
 struct Endpoint {
-    position: Vector2<u32>,
+    position: Vector2<i32>,
     previous_mouse: Option<Vector2<u32>>,
 }
 
 impl Endpoint {
-    fn new(x: u32, y: u32) -> Self {
+    fn new(x: i32, y: i32) -> Self {
         Self {
             position: Vector2 { x, y },
             previous_mouse: None,
@@ -331,19 +343,6 @@ struct Slider {
     min: u32,
     max: u32,
     value: u32,
-}
-
-fn map_range(
-    input: u32,
-    input_start: u32,
-    input_end: u32,
-    output_start: u32,
-    output_end: u32,
-) -> u32 {
-    ((output_end as f32 - output_start as f32) / (input_end as f32 - input_start as f32)
-        * (input as f32 - input_start as f32)
-        + output_start as f32)
-        .clamp(output_start as f32, output_end as f32) as u32
 }
 
 fn main() {

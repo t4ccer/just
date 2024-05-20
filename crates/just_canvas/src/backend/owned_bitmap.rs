@@ -1,12 +1,12 @@
 use crate::{backend::Backend, Event, Result, Vector2, BYTES_PER_PIXEL};
 use core::cmp;
 
-pub(crate) struct BitmapBackend {
+pub(crate) struct OwnedBitmapBackend {
     size: Vector2<u32>,
     buf: Vec<u8>,
 }
 
-impl BitmapBackend {
+impl OwnedBitmapBackend {
     pub(crate) fn new(size: Vector2<u32>) -> Self {
         Self {
             size,
@@ -15,7 +15,7 @@ impl BitmapBackend {
     }
 }
 
-impl Backend for BitmapBackend {
+impl Backend for OwnedBitmapBackend {
     #[inline]
     fn flush_window(&mut self) -> Result<()> {
         Ok(())
