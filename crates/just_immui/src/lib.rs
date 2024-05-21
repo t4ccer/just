@@ -271,24 +271,30 @@ impl Ui {
         Ok(())
     }
 
-    pub fn text(&mut self, mut position: Vector2<i32>, size: u32, text: &str, color: Color) {
+    pub fn text<T>(&mut self, mut position: Vector2<i32>, size: u32, text: T, color: Color)
+    where
+        T: IntoIterator<Item = char>,
+    {
         let canvas = &mut self.canvas;
         let char_map = &self.font_char_map;
-        for glyph in text.chars().map(|c| char_map.get(c)) {
+        for glyph in text.into_iter().map(|c| char_map.get(c)) {
             draw::glyph_bdf(canvas, position, size, glyph, color);
             position.x += (size * glyph.bounding_box.width + size * 2) as i32;
         }
     }
 
-    pub fn text_size(&self, font_size: u32, text: &str) -> Vector2<u32> {
+    pub fn text_size<T>(&self, font_size: u32, text: T) -> Vector2<u32>
+    where
+        T: IntoIterator<Item = char>,
+    {
         let mut size = Vector2::<u32>::zero();
         let char_map = &self.font_char_map;
-        for glyph in text.chars().map(|c| char_map.get(c)) {
-            size.x += font_size * glyph.bounding_box.width + font_size * 2;
+        for (idx, glyph) in text.into_iter().map(|c| char_map.get(c)).enumerate() {
+            if idx != 0 {
+                size.x += font_size * 2;
+            }
+            size.x += font_size * glyph.bounding_box.width;
             size.y = cmp::max(size.y, font_size * glyph.bounding_box.height);
-        }
-        if !text.is_empty() {
-            size.x -= font_size * 2;
         }
         size
     }

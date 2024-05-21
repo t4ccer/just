@@ -15,7 +15,7 @@ fn draw(ui: &mut Ui, state: &mut State) {
     ui.text(
         Vector2 { x: 50, y: 30 },
         3,
-        "Hello, World!",
+        "Hello, World!".chars(),
         monokaish::WHITE,
     );
 
@@ -101,7 +101,7 @@ fn counter_button(ui: &mut Ui, id: UiId, position: Vector2<i32>, state: &mut u32
         *state += 1;
     }
     let txt = format!("{}", *state);
-    let text_size = ui.text_size(font_size, &txt);
+    let text_size = ui.text_size(font_size, txt.chars());
 
     let text_color = if button.is_pressed {
         monokaish::BLACK
@@ -115,7 +115,7 @@ fn counter_button(ui: &mut Ui, id: UiId, position: Vector2<i32>, state: &mut u32
             y: position.y + (height as i32 / 2 - text_size.y as i32 / 2),
         },
         font_size,
-        &txt,
+        txt.chars(),
         text_color,
     );
 
