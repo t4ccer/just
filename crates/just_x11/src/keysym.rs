@@ -66,6 +66,8 @@ impl KeySym {
     pub const NO_SYMBOL: Self = Self { inner: 0x00000000 };
     pub const VOID_SYMBOL: Self = Self { inner: 0x00ffffff };
 
+    // from xorgproto/include/X11/keysymdef.h
+
     // TODO: Follow upper/lower case convention
 
     /// Back space, back char

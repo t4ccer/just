@@ -29,6 +29,14 @@ use just_x11::{
     XDisplay,
 };
 
+#[repr(u8)]
+pub enum KeySymColumn {
+    Column0 = 0,
+    Column1 = 1,
+    Column2 = 2,
+    Column3 = 3,
+}
+
 /// A [`KeySym`] conversion table
 #[derive(Debug, Clone)]
 pub struct KeySymbols {
@@ -57,7 +65,11 @@ impl KeySymbols {
         })
     }
 
-    pub fn get_keysym(&self, keycode: KeyCode, mut col: usize) -> KeySym {
+    pub fn get_keysym(&self, keycode: KeyCode, col: KeySymColumn) -> KeySym {
+        self.get_keysym_inner(keycode, col as usize)
+    }
+
+    fn get_keysym_inner(&self, keycode: KeyCode, mut col: usize) -> KeySym {
         let mut per = self.reply.keysyms_per_keycode;
         if (col >= per as usize && col > 3)
             || keycode < self.min_keycode
@@ -101,7 +113,7 @@ impl KeySymbols {
         for i in self.min_keycode.raw()..=self.max_keycode.raw() {
             for j in 0..self.reply.keysyms_per_keycode {
                 let i = KeyCode::from(i);
-                let ks = self.get_keysym(i, j as usize);
+                let ks = self.get_keysym_inner(i, j as usize);
                 if ks == keysym {
                     res.push(i);
                     break;
@@ -113,7 +125,7 @@ impl KeySymbols {
     }
 
     #[inline(always)]
-    pub fn key_event_lookup_keysym(&self, event: &KeyPressRelease, col: usize) -> KeySym {
+    pub fn key_event_lookup_keysym(&self, event: &KeyPressRelease, col: KeySymColumn) -> KeySym {
         self.get_keysym(event.detail, col)
     }
 

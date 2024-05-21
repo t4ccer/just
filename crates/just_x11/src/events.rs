@@ -1,6 +1,6 @@
 use crate::{
     atoms::AtomId,
-    requests::KeyCode,
+    requests::{KeyCode, KeyModifier},
     utils::{bitmask, impl_enum},
     ColormapId, OrNone, ResourceId, WindowId,
 };
@@ -23,7 +23,7 @@ pub struct KeyPressRelease {
     pub root_y: i16,
     pub event_x: i16,
     pub event_y: i16,
-    pub state: u16,
+    pub state: KeyModifier,
     pub same_screen: bool,
     _pad: [u8; 1],
 }
