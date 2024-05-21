@@ -319,7 +319,7 @@ pub fn glyph_bdf(ui: &mut Canvas, position: Vector2<i32>, size: u32, glyph: &Gly
     let x_off = padded_width as i32;
     let y_off = (padded_height - glyph.bounding_box.height) as i32 - 1;
 
-    let total_x_offset = position.x as i32 + (x_off - glyph.bounding_box.x_off) * size as i32;
+    let total_x_offset = position.x as i32 + x_off * size as i32;
     let total_y_offset = position.y as i32 + (y_off - glyph.bounding_box.y_off) * size as i32;
 
     for gy in 0u32..glyph.bounding_box.height {
