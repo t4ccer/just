@@ -6,6 +6,7 @@
 )]
 
 use backend::shared_bitmap;
+use keyboard::KeyboardButton;
 
 use crate::backend::{owned_bitmap::OwnedBitmapBackend, x11_mit_shm::X11MitShmBackend, Backend};
 use std::{
@@ -16,6 +17,7 @@ use std::{
 
 mod backend;
 pub mod draw;
+pub mod keyboard;
 
 pub const BYTES_PER_PIXEL: u32 = 4;
 
@@ -132,11 +134,18 @@ pub enum BackendType {
     Bitmap { size: Vector2<u32> },
 }
 
+#[derive(Debug)]
+pub enum KeyboardEvent {
+    Pressed(KeyboardButton),
+    Released(KeyboardButton),
+}
+
 pub struct Canvas {
     backend: Box<dyn Backend>,
     pointer: Pointer,
     resized: bool,
     should_close: bool,
+    pub keyboard_events: Vec<KeyboardEvent>,
 }
 
 impl Canvas {
@@ -153,6 +162,7 @@ impl Canvas {
             pointer: Pointer::new(),
             resized: false,
             should_close: false,
+            keyboard_events: Vec::new(),
         }
     }
 
@@ -213,11 +223,11 @@ impl Canvas {
                     self.backend.resize(new_size)?;
                     self.resized = true;
                 }
-                Event::ButtonPress { button } => {
+                Event::PointerButtonPress { button } => {
                     pressed_this_frame.set_pressed(button);
                     self.pointer.set_pressed(button);
                 }
-                Event::ButtonRelease { button } => {
+                Event::PointerButtonRelease { button } => {
                     if pressed_this_frame.is_pressed(button) {
                         self.pointer.clicked_this_frame.set_pressed(button);
                     } else {
@@ -226,6 +236,12 @@ impl Canvas {
                 }
                 Event::PointerMotion { position } => {
                     self.pointer.position = position;
+                }
+                Event::KeyboardButtonPress { button } => {
+                    self.keyboard_events.push(KeyboardEvent::Pressed(button));
+                }
+                Event::KeyboardButtonRelease { button } => {
+                    self.keyboard_events.push(KeyboardEvent::Released(button));
                 }
                 Event::Shutdown => {
                     self.should_close = true;
@@ -256,14 +272,28 @@ pub enum PointerButton {
     ScrollDown,
 }
 
+impl PointerButton {
+    fn from_x11(button: just_x11::events::PointerButton) -> Option<Self> {
+        match button {
+            just_x11::events::PointerButton::Left => Some(PointerButton::Left),
+            just_x11::events::PointerButton::Middle => Some(PointerButton::Middle),
+            just_x11::events::PointerButton::Right => Some(PointerButton::Right),
+            just_x11::events::PointerButton::ScrollUp => Some(PointerButton::ScrollUp),
+            just_x11::events::PointerButton::ScrollDown => Some(PointerButton::ScrollDown),
+        }
+    }
+}
+
 // TODO: Transalte button codes
 
 #[derive(Debug)]
 pub(crate) enum Event {
     Resize { new_size: Vector2<u32> },
-    ButtonPress { button: PointerButton },
-    ButtonRelease { button: PointerButton },
+    PointerButtonPress { button: PointerButton },
+    PointerButtonRelease { button: PointerButton },
     PointerMotion { position: Vector2<u32> },
+    KeyboardButtonPress { button: KeyboardButton },
+    KeyboardButtonRelease { button: KeyboardButton },
     Shutdown,
 }
 

@@ -257,6 +257,8 @@ impl Ui {
                 self.canvas_mut().flush()?;
             }
 
+            self.canvas.keyboard_events.clear();
+
             self.dirty = self.dirty_next;
             self.dirty_next = false;
 

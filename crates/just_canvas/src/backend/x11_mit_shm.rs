@@ -1,14 +1,19 @@
-use crate::{backend::Backend, Event, PointerButton, Result, Vector2, BYTES_PER_PIXEL};
+use crate::{
+    backend::Backend, keyboard::KeyboardButton, Event, PointerButton, Result, Vector2,
+    BYTES_PER_PIXEL,
+};
 use core::cmp;
 use just_shared_memory::SharedMemory;
 use just_x11::{
     atoms::AtomId,
-    events::{self, EventType},
+    events::{self, EventType, KeyPressRelease},
     extensions::mit_shm::{self, ShmSegId},
+    keysym::KeySym,
     replies::String8,
-    requests::{GContextSettings, PutImageFormat, WindowCreationAttributes},
+    requests::{GContextSettings, KeyModifier, PutImageFormat, WindowCreationAttributes},
     Drawable, GContextId, WindowClass, WindowId, WindowVisual, XDisplay,
 };
+use just_x11_simple::keys::{KeySymColumn, KeySymbols};
 
 // TODO: This should use double buffering
 
@@ -44,6 +49,7 @@ pub(crate) struct X11MitShmBackend {
     window: WindowId,
     gc: GContextId,
     wm_delete_window: AtomId,
+    key_symbols: KeySymbols,
 }
 
 impl X11MitShmBackend {
@@ -160,6 +166,8 @@ impl X11MitShmBackend {
 
         display.flush()?;
 
+        let key_symbols = KeySymbols::new(&mut display)?;
+
         Ok(Self {
             display,
             mit_shm_major_opcode,
@@ -167,6 +175,7 @@ impl X11MitShmBackend {
             window,
             gc,
             wm_delete_window,
+            key_symbols,
         })
     }
 }
@@ -250,30 +259,18 @@ impl Backend for X11MitShmBackend {
                 SomeEvent::ButtonPress(event) => {
                     if event.event == self.window {
                         if let Ok(button) = events::PointerButton::try_from(event.detail.raw()) {
-                            let button = match button {
-                                events::PointerButton::Left => PointerButton::Left,
-                                events::PointerButton::Middle => PointerButton::Middle,
-                                events::PointerButton::Right => PointerButton::Right,
-                                events::PointerButton::ScrollUp => PointerButton::ScrollUp,
-                                events::PointerButton::ScrollDown => PointerButton::ScrollDown,
-                            };
-
-                            events.push(Event::ButtonPress { button });
+                            if let Some(button) = PointerButton::from_x11(button) {
+                                events.push(Event::PointerButtonPress { button });
+                            }
                         }
                     }
                 }
                 SomeEvent::ButtonRelease(event) => {
                     if event.event == self.window {
                         if let Ok(button) = events::PointerButton::try_from(event.detail.raw()) {
-                            let button = match button {
-                                events::PointerButton::Left => PointerButton::Left,
-                                events::PointerButton::Middle => PointerButton::Middle,
-                                events::PointerButton::Right => PointerButton::Right,
-                                events::PointerButton::ScrollUp => PointerButton::ScrollUp,
-                                events::PointerButton::ScrollDown => PointerButton::ScrollDown,
-                            };
-
-                            events.push(Event::ButtonRelease { button });
+                            if let Some(button) = PointerButton::from_x11(button) {
+                                events.push(Event::PointerButtonRelease { button });
+                            }
                         }
                     }
                 }
@@ -296,6 +293,20 @@ impl Backend for X11MitShmBackend {
                     ]);
                     if val == self.wm_delete_window.into() {
                         events.push(Event::Shutdown);
+                    }
+                }
+                SomeEvent::KeyPress(event) => {
+                    if let Ok(button) =
+                        KeyboardButton::try_from(get_key_sym(event, &self.key_symbols))
+                    {
+                        events.push(Event::KeyboardButtonPress { button })
+                    }
+                }
+                SomeEvent::KeyRelease(event) => {
+                    if let Ok(button) =
+                        KeyboardButton::try_from(get_key_sym(event, &self.key_symbols))
+                    {
+                        events.push(Event::KeyboardButtonRelease { button })
                     }
                 }
                 _event => {}
@@ -376,4 +387,28 @@ impl X11MitShmBackend {
         )?;
         Ok(new_canvas)
     }
+}
+
+fn get_key_sym(event: KeyPressRelease, key_symbols: &KeySymbols) -> KeySym {
+    let k0;
+    let k1;
+
+    if event.state.has(KeyModifier::MOD_5) {
+        k0 = key_symbols.get_keysym(event.detail, KeySymColumn::Column2);
+        k1 = key_symbols.get_keysym(event.detail, KeySymColumn::Column3);
+    } else {
+        k0 = key_symbols.get_keysym(event.detail, KeySymColumn::Column0);
+        k1 = key_symbols.get_keysym(event.detail, KeySymColumn::Column1);
+    }
+
+    // Handles released shift
+    if k1 == KeySym::NO_SYMBOL {
+        return k0;
+    }
+
+    if event.state.has(KeyModifier::SHIFT) || event.state.has(KeyModifier::LOCK) {
+        return k1;
+    }
+
+    k0
 }
