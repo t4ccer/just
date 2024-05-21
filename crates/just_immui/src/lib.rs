@@ -301,6 +301,28 @@ impl Ui {
         size
     }
 
+    pub fn char_idx_at<T>(&self, font_size: u32, text: T, pos: Vector2<i32>) -> usize
+    where
+        T: IntoIterator<Item = char>,
+    {
+        let mut res = 0;
+        let mut size = Vector2::<u32>::zero();
+        let char_map = &self.font_char_map;
+        for (idx, glyph) in text.into_iter().map(|c| char_map.get(c)).enumerate() {
+            if idx != 0 {
+                size.x += font_size * 2;
+            }
+            size.x += font_size * glyph.bounding_box.width;
+            size.y = cmp::max(size.y, font_size * glyph.bounding_box.height);
+
+            if size.x as i32 > pos.x {
+                return res;
+            }
+            res += 1;
+        }
+        res
+    }
+
     pub fn with_view(
         &mut self,
         position: Vector2<u32>,
@@ -429,6 +451,47 @@ pub fn invisible_button(
     }
 
     button
+}
+
+// FIXME: in_bounds must be about absolute position
+
+pub struct Focusable {
+    pub is_focused: bool,
+    pub got_focused: bool,
+    pub got_unfocused: bool,
+}
+
+pub fn invisible_focusable(
+    ui: &mut Ui,
+    id: UiId,
+    in_bounds: impl FnOnce(Vector2<u32>) -> bool,
+) -> Focusable {
+    let mut res = Focusable {
+        is_focused: false,
+        got_focused: false,
+        got_unfocused: false,
+    };
+
+    let is_mouse_pressed = ui.pointer_absolute().is_pressed(PointerButton::Left);
+
+    if in_bounds(ui.pointer_position()) {
+        ui.make_hot(id);
+
+        if is_mouse_pressed {
+            let was_active = ui.is_active(id);
+            res.got_focused = ui.make_active(id) && !was_active;
+        }
+
+        res.is_focused = ui.is_active(id);
+    } else {
+        if is_mouse_pressed {
+            res.got_unfocused = ui.make_inactive(id);
+        } else {
+            res.is_focused = ui.is_active(id);
+        }
+    }
+
+    res
 }
 
 pub fn invisible_draggable(
