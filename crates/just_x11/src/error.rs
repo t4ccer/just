@@ -3,6 +3,7 @@ use std::{fmt::Display, io};
 
 #[derive(Debug)]
 pub enum Error {
+    EmptyXAuthFile,
     InvalidXAuthFile(String),
     CouldNotReadXAuthFile(String, io::Error),
     InvalidDisplayEnv,
@@ -26,6 +27,9 @@ impl From<io::Error> for Error {
 impl Display for Error {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
+            Error::EmptyXAuthFile => {
+                write!(f, "Xauthority file did not contain any entries")
+            }
             Error::InvalidXAuthFile(file_path) => {
                 write!(f, "Could not decode Xauthority file '{}'", file_path)
             }

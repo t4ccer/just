@@ -11,23 +11,28 @@ pub struct XAuth {
 }
 
 impl XAuth {
-    pub fn from_bytes(raw: &[u8]) -> Option<Self> {
-        let (family, raw) = bin_parse::u16_be(raw)?;
-        let (address, raw) = bin_parse::sized_u16_be_vec(raw)?;
-        let (seat, raw) = bin_parse::sized_u16_be_vec(raw)?;
-        let (name, raw) = bin_parse::sized_u16_be_vec(raw)?;
-        let (data, raw) = bin_parse::sized_u16_be_vec(raw)?;
+    pub fn from_bytes(mut raw_input: &[u8]) -> Option<Vec<Self>> {
+        let mut entries = Vec::new();
+        while !raw_input.is_empty() {
+            let (family, raw) = bin_parse::u16_be(raw_input)?;
+            let (address, raw) = bin_parse::sized_u16_be_vec(raw)?;
+            let (seat, raw) = bin_parse::sized_u16_be_vec(raw)?;
+            let (name, raw) = bin_parse::sized_u16_be_vec(raw)?;
+            let (data, raw) = bin_parse::sized_u16_be_vec(raw)?;
+            raw_input = raw;
+            entries.push(Self {
+                family,
+                address,
+                seat,
+                name,
+                data,
+            });
+        }
 
-        (raw.is_empty()).then_some(Self {
-            family,
-            address,
-            seat,
-            name,
-            data,
-        })
+        Some(entries)
     }
 
-    pub fn from_file<P>(path: P) -> Result<Self, Error>
+    pub fn from_file<P>(path: P) -> Result<Vec<Self>, Error>
     where
         P: AsRef<std::path::Path> + Display + Clone,
     {
@@ -44,7 +49,7 @@ impl XAuth {
         Some(format!("{}/.Xauthority", home))
     }
 
-    pub fn from_env() -> Result<Self, Error> {
+    pub fn from_env() -> Result<Vec<Self>, Error> {
         let var = "XAUTHORITY";
         let file_path = std::env::var(var).map_err(|_| Error::NoEnv(var));
         match file_path {

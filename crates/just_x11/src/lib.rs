@@ -545,7 +545,9 @@ impl XDisplay {
     pub fn with_connection(mut connection: XConnection) -> Result<Self, Error> {
         let (authorization_protocol_name, authorization_protocol_data) = match connection.kind() {
             ConnectionKind::UnixStream => {
-                let auth = XAuth::from_env()?;
+                let mut auth_entries = XAuth::from_env()?;
+                // TODO: Figure out what to do if first entry does not work but other may
+                let auth = auth_entries.drain(..).next().ok_or(Error::EmptyXAuthFile)?;
                 (auth.name, auth.data)
             }
         };
